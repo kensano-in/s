@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { id: 'feed',          label: 'Feed',          icon: Home,         href: '/' },
+  { id: 'feed',          label: 'Feed',          icon: Home,         href: '/feed' },
   { id: 'explore',       label: 'Explore',       icon: Search,       href: '/explore' },
   { id: 'messages',      label: 'Messages',      icon: MessageCircle,href: '/messages' },
   { id: 'communities',   label: 'Communities',   icon: Users,        href: '/communities' },
@@ -32,7 +32,7 @@ export default function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, theme, setTheme, unreadNotifCount, setNotifPanelOpen } = useAppStore();
 
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
+    if (href === '/feed') return pathname === '/feed' || pathname === '/';
     return pathname.startsWith(href);
   };
 

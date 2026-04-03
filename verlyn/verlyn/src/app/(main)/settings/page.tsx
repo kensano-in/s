@@ -1,12 +1,13 @@
 'use client';
 
-import { VERLYN_CONTACT } from '@/lib/types';
+
+import type { Theme } from '@/lib/types';
 import { useAppStore } from '@/lib/store';
 import {
   Shield, Bell, Palette, User, Lock, HelpCircle, Info,
-  ExternalLink, Moon, Sun, ChevronRight, ToggleLeft, ToggleRight
+  ExternalLink, ChevronRight, ToggleLeft, ToggleRight
 } from 'lucide-react';
-import type { Theme } from '@/lib/types';
+import { VERLYN_CONTACT } from '@/lib/types';
 import { useState } from 'react';
 
 const THEME_OPTIONS: { key: Theme; label: string; desc: string }[] = [
@@ -94,7 +95,7 @@ export default function SettingsPage() {
       </SettingSection>
 
       {/* Privacy & Security */}
-      <SettingSection title="Privacy & Security">
+      <SettingSection title="Privacy &amp; Security">
         <SettingRow icon={Lock} label="End-to-End Encryption" desc="Encrypt all DMs with Signal Protocol" right={<Toggle on={e2ee} onToggle={() => setE2ee((v) => !v)} />} />
         <SettingRow icon={Shield} label="Two-Factor Authentication" desc="Protect your account with 2FA" right={<Toggle on={twoFA} onToggle={() => setTwoFA((v) => !v)} />} />
         <SettingRow icon={User} label="Privacy Settings" desc="Control who sees your content" />
@@ -111,12 +112,12 @@ export default function SettingsPage() {
       {/* About */}
       <SettingSection title="About Verlyn">
         <SettingRow icon={Info} label="About Verlyn" desc="Version 0.1.0-alpha · verlyn.in" />
-        <SettingRow icon={HelpCircle} label="Help & Support" desc="Get help from the Verlyn team" />
+        <SettingRow icon={HelpCircle} label="Help &amp; Support" desc="Get help from the Verlyn team" />
       </SettingSection>
 
       {/* Contact / Developer */}
       <div>
-        <h2 className="text-xs font-bold uppercase tracking-widest mb-2 px-1" style={{ color: 'var(--text-tertiary)' }}>Developer & Support Contact</h2>
+        <h2 className="text-xs font-bold uppercase tracking-widest mb-2 px-1" style={{ color: 'var(--text-tertiary)' }}>Developer &amp; Support Contact</h2>
         <div className="glass-card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
           {VERLYN_CONTACT.map((c) => (
             <a
