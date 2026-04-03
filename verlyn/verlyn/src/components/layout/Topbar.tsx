@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { CURRENT_USER } from '@/lib/mockData';
 import { Search, Bell, MessageCircle, Menu } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Topbar() {
   const { setSearchOpen, unreadNotifCount, setNotifPanelOpen, toggleSidebar } = useAppStore();
@@ -68,15 +69,16 @@ export default function Topbar() {
         </button>
 
         {/* Messages */}
-        <button className="icon-btn relative" title="Messages">
+        <Link href="/messages" className="icon-btn relative bg-transparent flex items-center justify-center rounded-xl" title="Messages">
           <MessageCircle size={20} />
           <span className="notif-dot" />
-        </button>
+        </Link>
 
         {/* Avatar */}
-        <button
+        <Link
+          href="/profile"
           id="profile-btn"
-          className="relative ml-1 rounded-full transition-all duration-200 hover:ring-2 hover:ring-offset-2"
+          className="relative ml-1 flex items-center justify-center rounded-full transition-all duration-200 hover:ring-2 hover:ring-offset-2"
           style={{ '--tw-ring-color': 'var(--v-violet)', '--tw-ring-offset-color': 'var(--bg-elevated)' } as React.CSSProperties}
           title="My Profile"
         >
@@ -87,7 +89,7 @@ export default function Topbar() {
             className="w-8 h-8 rounded-full object-cover"
           />
           <span className="online-dot" style={{ width: '9px', height: '9px' }} />
-        </button>
+        </Link>
       </div>
     </header>
   );

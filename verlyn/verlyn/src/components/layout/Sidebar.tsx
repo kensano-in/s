@@ -1,6 +1,7 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import { CURRENT_USER } from '@/lib/mockData';
 import clsx from 'clsx';
@@ -27,7 +28,6 @@ const THEME_OPTIONS = [
 ] as const;
 
 export default function Sidebar() {
-  const router = useRouter();
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar, theme, setTheme, unreadNotifCount, setNotifPanelOpen } = useAppStore();
 
@@ -35,8 +35,6 @@ export default function Sidebar() {
     if (href === '/feed') return pathname === '/feed' || pathname === '/';
     return pathname.startsWith(href);
   };
-
-  const navigate = (href: string) => router.push(href);
 
   return (
     <aside
@@ -95,9 +93,9 @@ export default function Sidebar() {
           const Icon = item.icon;
           const active = isActive(item.href);
           return (
-            <button
+            <Link
+              href={item.href}
               key={item.id}
-              onClick={() => navigate(item.href)}
               className={clsx(
                 'sidebar-item',
                 active && 'active',
@@ -115,7 +113,7 @@ export default function Sidebar() {
                   3
                 </span>
               )}
-            </button>
+            </Link>
           );
         })}
 
@@ -184,13 +182,13 @@ export default function Sidebar() {
           )}
         </button>
 
-        <button
-          onClick={() => navigate('/settings')}
+        <Link
+          href="/settings"
           className={clsx('sidebar-item', isActive('/settings') && 'active', sidebarCollapsed && 'justify-center px-0 w-full')}
         >
           <Settings size={18} />
           {!sidebarCollapsed && <span>Settings</span>}
-        </button>
+        </Link>
       </div>
 
       {/* User profile card */}
@@ -198,8 +196,8 @@ export default function Sidebar() {
         className={clsx('p-3 border-t', sidebarCollapsed && 'flex justify-center')}
         style={{ borderColor: 'var(--border)' }}
       >
-        <button
-          onClick={() => navigate('/profile')}
+        <Link
+          href="/profile"
           className={clsx(
             'flex items-center gap-3 rounded-xl p-2 w-full transition-all duration-200 hover:opacity-90',
             sidebarCollapsed && 'w-auto justify-center'
@@ -232,7 +230,7 @@ export default function Sidebar() {
               </div>
             </div>
           )}
-        </button>
+        </Link>
       </div>
 
       {/* Collapse toggle */}
