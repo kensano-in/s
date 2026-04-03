@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts loaded via <link> in layout.tsx — no duplicate @import needed */
 
 @tailwind base;
 @tailwind components;
@@ -377,3 +377,52 @@ body {
     left: 150%;
   }
 }
+
+/* ========================
+   KEYFRAMES & ANIMATIONS
+   ======================== */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(108,99,255,0.3); }
+  50%       { box-shadow: 0 0 40px rgba(108,99,255,0.6); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position:  1000px 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes bounceSoft {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+/* Animation utility classes — defined here to guarantee they survive purge */
+.animate-fade-in       { animation: fadeIn       0.3s  ease-out both; }
+.animate-slide-up      { animation: slideUp      0.4s  cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-in-right{ animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-pulse-glow    { animation: pulseGlow    2s    ease-in-out infinite; }
+.animate-shimmer       { animation: shimmer      2s    linear infinite; }
+.animate-float         { animation: float        3s    ease-in-out infinite; }
+.animate-spin-slow     { animation: spin         6s    linear infinite; }
+.animate-bounce-soft   { animation: bounceSoft   1.5s  ease-in-out infinite; }
+
