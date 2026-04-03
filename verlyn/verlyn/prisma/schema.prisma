@@ -1,0 +1,509 @@
+// ============================================================
+// VERLYN PLATFORM — PRISMA SCHEMA
+// PostgreSQL via Prisma ORM
+// Domain: verlyn.in
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────
+// ENUMS
+// ────────────────────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+  SUPERADMIN
+}
+
+enum PostType {
+  TEXT
+  IMAGE
+  VIDEO
+  POLL
+  STORY
+  LINK
+}
+
+enum PostVisibility {
+  PUBLIC
+  FOLLOWERS
+  COMMUNITY
+  PRIVATE
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  VOICE_NOTE
+  FILE
+  SYSTEM
+  STICKER
+}
+
+enum NotificationPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
+  MENTION
+  DM
+  COMMUNITY_POST
+  COMMUNITY_INVITE
+  AWARD
+  SYSTEM
+  SECURITY
+}
+
+enum Theme {
+  MIDNIGHT
+  OLED
+  CORPORATE
+  LIGHT
+}
+
+enum BoostLevel {
+  NONE
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+}
+
+// ────────────────────────────────────────────────────────────
+// USERS
+// ────────────────────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(uuid())
+  username        String    @unique @db.VarChar(30)
+  displayName     String    @db.VarChar(60)
+  email           String    @unique
+  emailVerified   Boolean   @default(false)
+  phone           String?   @unique
+  passwordHash    String?
+  passkeyId       String?   @unique
+  twoFaSecret     String?
+  twoFaEnabled    Boolean   @default(false)
+
+  // Profile
+  avatarUrl       String?
+  bannerUrl       String?
+  bio             String?   @db.Text
+  website         String?
+  location        String?
+  isVerified      Boolean   @default(false)
+  role            UserRole  @default(USER)
+
+  // Preferences stored as JSON for flexibility
+  notificationPrefs Json?   @default("{}")
+  privacySettings   Json?   @default("{}")
+  themePreference   Theme   @default(MIDNIGHT)
+
+  // Gamification
+  karmaScore      Int       @default(0)
+  following       Follow[]  @relation("Follower")
+  followers       Follow[]  @relation("Following")
+
+  // Content
+  posts           Post[]
+  comments        Comment[]
+  likes           Like[]
+  saves           Save[]
+
+  // Messaging
+  sentMessages    Message[]         @relation("Sender")
+  conversations   ConversationParticipant[]
+
+  // Communities
+  ownedCommunities Community[]       @relation("Owner")
+  memberships      CommunityMember[]
+
+  // Notifications
+  notifications   Notification[]    @relation("Recipient")
+
+  // Sessions
+  sessions        UserSession[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([username])
+  @@index([email])
+  @@index([karmaScore])
+}
+
+// ────────────────────────────────────────────────────────────
+// FOLLOW GRAPH
+// ────────────────────────────────────────────────────────────
+
+model Follow {
+  id          String   @id @default(uuid())
+  follower    User     @relation("Follower",  fields: [followerId],  references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ────────────────────────────────────────────────────────────
+// POSTS
+// ────────────────────────────────────────────────────────────
+
+model Post {
+  id           String         @id @default(uuid())
+  author       User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId     String
+  community    Community?     @relation(fields: [communityId], references: [id])
+  communityId  String?
+
+  postType     PostType       @default(TEXT)
+  visibility   PostVisibility @default(PUBLIC)
+  content      String?        @db.Text
+  mediaUrls    Json?          // Array of { url, type, width, height, duration }
+  metadata     Json?          // Poll options, link preview data, etc.
+
+  // Ephemeral (Stories)
+  expiresAt    DateTime?
+
+  // Counters (denormalized for speed, synced via events)
+  likeCount    Int   @default(0)
+  commentCount Int   @default(0)
+  shareCount   Int   @default(0)
+  saveCount    Int   @default(0)
+  viewCount    Int   @default(0)
+
+  isPinned     Boolean @default(false)
+  isFlagged    Boolean @default(false)
+  isHidden     Boolean @default(false)
+
+  comments     Comment[]
+  likes        Like[]
+  saves        Save[]
+  awards       PostAward[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([communityId])
+  @@index([createdAt])
+  @@index([likeCount])
+  @@index([expiresAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// COMMENTS
+// ────────────────────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(uuid())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+  parent    Comment? @relation("Thread", fields: [parentId], references: [id])
+  parentId  String?
+  replies   Comment[] @relation("Thread")
+
+  content   String   @db.Text
+  likeCount Int      @default(0)
+  isFlagged Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([parentId])
+}
+
+// ────────────────────────────────────────────────────────────
+// INTERACTIONS
+// ────────────────────────────────────────────────────────────
+
+model Like {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Save {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+// ────────────────────────────────────────────────────────────
+// MESSAGING (Relational metadata; messages stored in MongoDB)
+// ────────────────────────────────────────────────────────────
+
+model Conversation {
+  id           String    @id @default(uuid())
+  isGroup      Boolean   @default(false)
+  groupName    String?
+  groupIconUrl String?
+  createdBy    String?
+
+  // E2EE: key material stored per participant in MongoDB
+  isEncrypted  Boolean   @default(false)
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  user           User         @relation(fields: [userId],         references: [id], onDelete: Cascade)
+  userId         String
+  role           String       @default("member") // member | admin | owner
+  mutedUntil     DateTime?
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  sender         User         @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId       String
+  messageType    MessageType  @default(TEXT)
+
+  // For E2EE: content is the base64 ciphertext; key/IV stored in MongoDB
+  encryptedContent String?   @db.Text
+  contentIv        String?   // Base64 initialization vector
+  mediaUrl         String?   // For media messages (pre-upload signed URL)
+
+  isRead         Boolean      @default(false)
+  isEdited       Boolean      @default(false)
+
+  // Self-destruct timer (seconds from sentAt)
+  selfDestructAfter Int?
+
+  // Message reactions stored as JSONB: [{ emoji, userIds: [...] }]
+  reactions      Json?        @default("[]")
+
+  sentAt         DateTime     @default(now())
+  deletedAt      DateTime?
+  expiresAt      DateTime?    // Self-destruct absolute timestamp
+
+  @@index([conversationId, sentAt])
+  @@index([senderId])
+}
+
+// ────────────────────────────────────────────────────────────
+// COMMUNITIES
+// ────────────────────────────────────────────────────────────
+
+model Community {
+  id              String       @id @default(uuid())
+  name            String       @unique @db.VarChar(60) // URL slug
+  displayName     String       @db.VarChar(80)
+  description     String?      @db.Text
+  iconUrl         String?
+  bannerUrl       String?
+
+  owner           User         @relation("Owner", fields: [ownerId], references: [id])
+  ownerId         String
+
+  isPrivate       Boolean      @default(false)
+  isNsfw          Boolean      @default(false)
+  isVerified      Boolean      @default(false)
+
+  minKarmaToPost  Int          @default(0)
+  boostLevel      BoostLevel   @default(NONE)
+  boostExpiresAt  DateTime?
+
+  // Counters
+  memberCount     Int          @default(0)
+  postCount       Int          @default(0)
+
+  members         CommunityMember[]
+  posts           Post[]
+  channels        CommunityChannel[]
+
+  // Moderation
+  rules           Json?        // Array of { title, description }
+  moderationLog   ModerationLog[]
+
+  tags            String[]     @default([])
+  category        String?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([name])
+  @@index([memberCount])
+  @@index([boostLevel])
+}
+
+model CommunityMember {
+  id          String    @id @default(uuid())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  communityId String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  role        String    @default("member") // member | moderator | admin
+  karma       Int       @default(0) // Community-specific karma
+  joinedAt    DateTime  @default(now())
+  isBanned    Boolean   @default(false)
+  banReason   String?
+  banExpiresAt DateTime?
+
+  @@unique([communityId, userId])
+  @@index([communityId])
+  @@index([userId])
+}
+
+model CommunityChannel {
+  id          String    @id @default(uuid())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  communityId String
+  name        String    // e.g. "general", "announcements"
+  description String?
+  type        String    @default("text") // text | voice | announcement
+  isPrivate   Boolean   @default(false)
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([communityId])
+}
+
+// ────────────────────────────────────────────────────────────
+// AWARDS (Reddit-style)
+// ────────────────────────────────────────────────────────────
+
+model PostAward {
+  id        String   @id @default(uuid())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  grantedBy String
+  awardType String   // e.g. "gemstone", "gold", "platinum"
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+// ────────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// ────────────────────────────────────────────────────────────
+
+model Notification {
+  id             String               @id @default(uuid())
+  recipient      User                 @relation("Recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipientId    String
+  type           NotificationType
+  priority       NotificationPriority @default(MEDIUM)
+  fromUserId     String?
+  title          String
+  body           String?
+  link           String?
+  isRead         Boolean              @default(false)
+  readAt         DateTime?
+
+  // AI-enriched metadata (NLP priority score, category)
+  aiMeta         Json?
+
+  createdAt      DateTime             @default(now())
+
+  @@index([recipientId, isRead])
+  @@index([recipientId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// SESSIONS
+// ────────────────────────────────────────────────────────────
+
+model UserSession {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  token     String   @unique
+  deviceInfo Json?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ────────────────────────────────────────────────────────────
+// MODERATION
+// ────────────────────────────────────────────────────────────
+
+model ModerationLog {
+  id          String    @id @default(uuid())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  communityId String
+  moderatorId String
+  action      String    // ban | unban | remove_post | flag | pin
+  targetId    String    // userId or postId or commentId
+  targetType  String    // user | post | comment
+  reason      String?
+  aiFlag      Boolean   @default(false)  // Was this AI-flagged?
+  confidence  Float?    // AI moderation confidence (0.0-1.0)
+  createdAt   DateTime  @default(now())
+
+  @@index([communityId])
+}
+
+// ────────────────────────────────────────────────────────────
+// E2EE KEY MANAGEMENT (minimal relational tracking)
+// Full key material stored in MongoDB / Redis
+// ────────────────────────────────────────────────────────────
+
+model E2eeKeyBundle {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  // Identity key fingerprint (public, for key verification)
+  identityKeyFp   String
+  // Signed pre-key ID (rotated periodically)
+  signedPreKeyId  Int
+  // One-time pre-key count (replenished from mobile)
+  otpKeyCount     Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
