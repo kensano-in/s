@@ -18,10 +18,7 @@ export default function MessagesPage() {
     : activeConv?.participants[0];
 
   return (
-    <div
-      className="-mx-4 -my-6 flex"
-      style={{ height: 'calc(100vh - 64px)' }}
-    >
+    <div className="flex h-full w-full animate-fade-in">
       {/* Conversation List */}
       <div
         className="w-[300px] flex-shrink-0 border-r flex flex-col"
