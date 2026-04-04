@@ -89,19 +89,6 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto hide-scrollbar">
-          <AnimatePresence>
-            {!sidebarCollapsed && (
-              <motion.div
-                key="nav-label"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-[11px] font-display font-semibold uppercase tracking-[0.15em] mb-3 px-3 text-on-surface-variant"
-              >
-                Navigation
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;

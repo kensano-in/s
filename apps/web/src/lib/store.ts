@@ -12,10 +12,16 @@ interface AppState {
   // Sidebar
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+  isMobileDrawerOpen: boolean;
+  setMobileDrawerOpen: (v: boolean) => void;
 
   // Active page
   activePage: string;
   setActivePage: (page: string) => void;
+
+  // Overlay management (prevents two overlays open at once)
+  activeOverlay: string | null;
+  setOverlay: (id: string | null) => void;
 
   // Notifications
   notifications: Notification[];
@@ -45,14 +51,14 @@ interface AppState {
   setSyncStatus: (s: 'idle' | 'syncing' | 'error') => void;
   updateProfile: (updates: Partial<any>) => void;
 
-  // Visual Sovereignty Theme & Wallpaper Engine (Phase 6)
+  // Visual Sovereignty Theme & Wallpaper Engine
   uiThemeVariant: 'midnight' | 'amoled' | 'frost' | 'light';
   setUIThemeVariant: (variant: 'midnight' | 'amoled' | 'frost' | 'light') => void;
   chatWallpaperUrl: string | null;
   setChatWallpaperUrl: (url: string | null) => void;
-  chatWallpaperBlur: number; // 0 to 20px
+  chatWallpaperBlur: number;
   setChatWallpaperBlur: (val: number) => void;
-  chatWallpaperDim: number;  // 0.0 to 1.0
+  chatWallpaperDim: number;
   setChatWallpaperDim: (val: number) => void;
   customThemeManifest: Record<string, string> | null;
   setCustomThemeManifest: (manifest: Record<string, string> | null) => void;
@@ -60,15 +66,35 @@ interface AppState {
   // Notification panel
   isNotifPanelOpen: boolean;
   setNotifPanelOpen: (v: boolean) => void;
+
+  // ─── Persistent User Preferences ────────────────────────────────────────
+  likedPosts: string[];        // post IDs
+  following: string[];         // user IDs
+  savedPosts: string[];        // post IDs
+  toggleLike: (postId: string) => void;
+  toggleFollow: (userId: string) => void;
+  toggleSave: (postId: string) => void;
+  isLiked: (postId: string) => boolean;
+  isFollowing: (userId: string) => boolean;
+  isSaved: (postId: string) => boolean;
+
+  // ─── Settings Persistence ────────────────────────────────────────────────
+  settingE2EE: boolean;
+  settingTwoFA: boolean;
+  settingPushNotifs: boolean;
+  settingEmailDigest: boolean;
+  setSettingE2EE: (v: boolean) => void;
+  setSettingTwoFA: (v: boolean) => void;
+  setSettingPushNotifs: (v: boolean) => void;
+  setSettingEmailDigest: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'midnight',
       setTheme: (theme) => {
         set({ theme });
-        // Apply theme attribute to document
         if (typeof document !== 'undefined') {
           document.documentElement.setAttribute('data-theme', theme);
           if (theme === 'light') {
@@ -81,9 +107,14 @@ export const useAppStore = create<AppState>()(
 
       sidebarCollapsed: false,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      isMobileDrawerOpen: false,
+      setMobileDrawerOpen: (v) => set({ isMobileDrawerOpen: v }),
 
       activePage: 'feed',
       setActivePage: (page) => set({ activePage: page }),
+
+      activeOverlay: null,
+      setOverlay: (id) => set({ activeOverlay: id }),
 
       notifications: MOCK_NOTIFICATIONS,
       unreadNotifCount: MOCK_NOTIFICATIONS.filter((n) => !n.isRead).length,
@@ -112,16 +143,13 @@ export const useAppStore = create<AppState>()(
       setSearchOpen: (v) => set({ isSearchOpen: v }),
 
       isNotifPanelOpen: false,
-      setNotifPanelOpen: (v) => set({ isNotifPanelOpen: v }),
+      setNotifPanelOpen: (v) => set({ isNotifPanelOpen: v, activeOverlay: v ? 'sidebar:notifications' : null }),
 
-      // --- Profile Engine: Local-First Sync ---
       currentUser: null,
       syncStatus: 'idle',
       setSyncStatus: (s) => set({ syncStatus: s }),
       updateProfile: (updates) => set((state) => {
-        // 1. Instant optimistic update (0ms perceived latency)
         const newUser = { ...state.currentUser, ...updates };
-        // 2. Silent background DB sync — never blocks UI
         if (state.currentUser?.id) {
           dispatchProfileSync(state.currentUser.id, {
             displayName: updates.displayName,
@@ -133,7 +161,6 @@ export const useAppStore = create<AppState>()(
         return { currentUser: newUser };
       }),
 
-      // --- Visual Sovereignty Engine ---
       uiThemeVariant: 'midnight',
       setUIThemeVariant: (variant) => set({ uiThemeVariant: variant }),
       chatWallpaperUrl: null,
@@ -145,17 +172,56 @@ export const useAppStore = create<AppState>()(
       customThemeManifest: null,
       setCustomThemeManifest: (manifest) => set({ customThemeManifest: manifest }),
 
+      // ─── User Preferences (Persisted) ─────────────────────────────────────
+      likedPosts: [],
+      following: [],
+      savedPosts: [],
+      toggleLike: (postId) => set((s) => ({
+        likedPosts: s.likedPosts.includes(postId)
+          ? s.likedPosts.filter((id) => id !== postId)
+          : [...s.likedPosts, postId],
+      })),
+      toggleFollow: (userId) => set((s) => ({
+        following: s.following.includes(userId)
+          ? s.following.filter((id) => id !== userId)
+          : [...s.following, userId],
+      })),
+      toggleSave: (postId) => set((s) => ({
+        savedPosts: s.savedPosts.includes(postId)
+          ? s.savedPosts.filter((id) => id !== postId)
+          : [...s.savedPosts, postId],
+      })),
+      isLiked: (postId) => get().likedPosts.includes(postId),
+      isFollowing: (userId) => get().following.includes(userId),
+      isSaved: (postId) => get().savedPosts.includes(postId),
+
+      // ─── Settings (Persisted) ──────────────────────────────────────────────
+      settingE2EE: true,
+      settingTwoFA: false,
+      settingPushNotifs: true,
+      settingEmailDigest: false,
+      setSettingE2EE: (v) => set({ settingE2EE: v }),
+      setSettingTwoFA: (v) => set({ settingTwoFA: v }),
+      setSettingPushNotifs: (v) => set({ settingPushNotifs: v }),
+      setSettingEmailDigest: (v) => set({ settingEmailDigest: v }),
     }),
     {
       name: 'verlyn-app-state',
-      partialize: (state) => ({ 
-        theme: state.theme, 
+      partialize: (state) => ({
+        theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,
         currentUser: state.currentUser,
         uiThemeVariant: state.uiThemeVariant,
         chatWallpaperUrl: state.chatWallpaperUrl,
         chatWallpaperBlur: state.chatWallpaperBlur,
-        chatWallpaperDim: state.chatWallpaperDim
+        chatWallpaperDim: state.chatWallpaperDim,
+        likedPosts: state.likedPosts,
+        following: state.following,
+        savedPosts: state.savedPosts,
+        settingE2EE: state.settingE2EE,
+        settingTwoFA: state.settingTwoFA,
+        settingPushNotifs: state.settingPushNotifs,
+        settingEmailDigest: state.settingEmailDigest,
       }),
     }
   )

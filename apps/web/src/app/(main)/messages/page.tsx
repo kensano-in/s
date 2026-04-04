@@ -12,12 +12,30 @@ export default function MessagesPage() {
   const [activeFolder, setActiveFolder] = useState<'all' | 'work' | 'personal'>('all');
   const [activeConv, setActiveConv] = useState<Conversation | null>(MOCK_CONVERSATIONS[0]);
   const [msg, setMsg] = useState('');
-  
+  const [sentMessages, setSentMessages] = useState<{id: string, content: string, sentAt: string}[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chatWallpaperUrl, chatWallpaperBlur, chatWallpaperDim } = useAppStore();
   const bgRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const isVideo = chatWallpaperUrl?.match(/\.(mp4|webm|ogg)$/i);
+
+  const sendMessage = () => {
+    const trimmed = msg.trim();
+    if (!trimmed) return;
+    setSentMessages((prev) => [...prev, {
+      id: `sent_${Date.now()}`,
+      content: trimmed,
+      sentAt: new Date().toISOString(),
+    }]);
+    setMsg('');
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+  };
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView();
+  }, [activeConv]);
 
   // 120 FPS Telegram Parallax Engine Loop
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -246,38 +264,37 @@ export default function MessagesPage() {
               </div>
             )}
 
-            {MOCK_MESSAGES.map((message) => {
-              const isMine = message.senderId === 'u_current';
-              
-              return (
-                <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} gap-3 items-end relative group`}>
-                  {!isMine && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={participant?.avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-ambient mb-1" />
-                  )}
-                  <div className="flex flex-col max-w-[65%] gap-1.5">
-                    <div 
-                      className={clsx(
-                        'px-5 py-3 shadow-ambient backdrop-blur-md text-[15px] leading-relaxed',
-                        isMine 
-                          ? 'bg-primary-gradient text-white rounded-[24px] rounded-br-[6px]' 
-                          : 'bg-surface-highest border border-outline-variant/15 text-on-surface rounded-[24px] rounded-bl-[6px]'
-                      )}
-                    >
-                      {message.content}
-                    </div>
-                    {/* Timestamp subtly reveals on hover or sits static for minimal look */}
-                    <div className={clsx(
-                      'text-[10px] font-medium text-on-surface-variant transition-opacity duration-200', 
-                      isMine ? 'text-right' : 'text-left',
-                      'opacity-0 group-hover:opacity-100'
-                    )}>
-                      {formatDistanceToNow(new Date(message.sentAt), { addSuffix: true })}
+              {MOCK_MESSAGES.map((message) => {
+                const isMine = message.senderId === 'u_current';
+                return (
+                  <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} gap-3 items-end relative group`}>
+                    {!isMine && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={participant?.avatar || '/fallback-avatar.png'} alt={`${participant?.displayName}'s avatar`} width={32} height={32} className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-ambient mb-1" onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }} />
+                    )}
+                    <div className="flex flex-col max-w-[65%] gap-1.5">
+                      <div className={clsx('px-5 py-3 shadow-ambient backdrop-blur-md text-[15px] leading-relaxed', isMine ? 'bg-primary-gradient text-white rounded-[24px] rounded-br-[6px]' : 'bg-surface-highest border border-outline-variant/15 text-on-surface rounded-[24px] rounded-bl-[6px]')}>
+                        {message.content}
+                      </div>
+                      <div className={clsx('text-[10px] font-medium text-on-surface-variant transition-opacity duration-200', isMine ? 'text-right' : 'text-left', 'opacity-0 group-hover:opacity-100')}>
+                        {formatDistanceToNow(new Date(message.sentAt), { addSuffix: true })}
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+              {/* Optimistic sent messages */}
+              {sentMessages.map((message) => (
+                <div key={message.id} className="flex justify-end gap-3 items-end">
+                  <div className="flex flex-col max-w-[65%] gap-1.5">
+                    <div className="px-5 py-3 bg-primary-gradient text-white rounded-[24px] rounded-br-[6px] shadow-ambient text-[15px] leading-relaxed">
+                      {message.content}
+                    </div>
+                    <div className="text-[10px] text-on-surface-variant text-right opacity-60">just now</div>
+                  </div>
                 </div>
-              );
-            })}
+              ))}
+              <div ref={messagesEndRef} />
           </div>
 
           {/* Dynamic Input Engine */}
@@ -292,10 +309,11 @@ export default function MessagesPage() {
                 <input
                   value={msg}
                   onChange={(e) => setMsg(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder="Type a message... (Enter to send)"
                   className="w-full bg-transparent border-none text-on-surface py-2 focus:outline-none placeholder:text-on-surface-variant/70 text-[15px]"
                   id="message-input"
-                  onKeyDown={(e) => { if (e.key === 'Enter') setMsg(''); }}
+                  aria-label="Type a message"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                 />
               </div>
 
@@ -306,8 +324,9 @@ export default function MessagesPage() {
               {msg ? (
                 <button
                   className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 transition-transform duration-200 hover:scale-105 active:scale-95 bg-primary-gradient shadow-ambient"
-                  onClick={() => setMsg('')}
+                  onClick={sendMessage}
                   id="send-btn"
+                  aria-label="Send message"
                 >
                   <Send size={16} className="-ml-0.5" />
                 </button>
