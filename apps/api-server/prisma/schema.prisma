@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(uuid())
+  username       String    @unique
+  displayName    String
+  email          String    @unique
+  passwordHash   String
+  bio            String?
+  avatarUrl      String?
+  isVerified     Boolean   @default(false)
+  
+  followers      Follows[] @relation("following")
+  following      Follows[] @relation("follower")
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Follows {
+  followerId     String
+  followingId    String
+  follower       User      @relation("follower", fields: [followerId], references: [id])
+  following      User      @relation("following", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+}
+
+model Post {
+  id             String    @id @default(uuid())
+  authorId       String
+  communityId    String?   
+  content        String
+  mediaUrls      String[]
+  
+  likesCount     Int       @default(0)
+  commentsCount  Int       @default(0)
+  sharesCount    Int       @default(0)
+  isEphemeral    Boolean   @default(false)
+  expiresAt      DateTime? 
+  
+  createdAt      DateTime  @default(now())
+}
