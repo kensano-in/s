@@ -22,6 +22,16 @@
     font-family: 'Manrope', sans-serif;
     font-weight: 700;
   }
+
+  /* ─── WCAG AA Focus Rings ──────────────────────────────────────────────── */
+  *:focus-visible {
+    outline: 2px solid rgba(108, 99, 255, 0.8);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
 }
 
 @layer components {
@@ -33,7 +43,7 @@
   }
 
   .primary-btn {
-    @apply bg-primary-gradient text-white rounded-full px-6 py-3 font-semibold transition-transform duration-200 hover:scale-[0.98];
+    @apply bg-primary-gradient text-white rounded-full px-6 py-3 font-semibold transition-all duration-200 hover:scale-[0.98] hover:opacity-90 min-h-[44px];
   }
 
   /* Structural UI Resets */
@@ -46,7 +56,7 @@
   }
   
   .icon-btn {
-    @apply p-2 rounded-xl transition-all duration-300 hover:bg-surface-high flex items-center justify-center hover:shadow-[0_0_15px_var(--primary-glow)];
+    @apply p-2 rounded-xl transition-all duration-300 hover:bg-surface-high flex items-center justify-center min-w-[44px] min-h-[44px];
   }
 
   /* High fidelity effects */
@@ -60,6 +70,7 @@
   }
 }
 
+/* ─── Keyframes ────────────────────────────────────────────────────────────── */
 @keyframes float-up {
   0% { transform: translateY(0) scale(1); opacity: 1; filter: hue-rotate(0deg); }
   50% { transform: translateY(-30px) scale(1.4); opacity: 0.8; filter: hue-rotate(30deg); }
@@ -87,6 +98,18 @@
   to   { opacity: 1; }
 }
 
+/* ─── Shake — for invalid form submission ──────────────────────────────────── */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-8px); }
+  30%       { transform: translateX(8px); }
+  45%       { transform: translateX(-6px); }
+  60%       { transform: translateX(6px); }
+  75%       { transform: translateX(-3px); }
+  90%       { transform: translateX(3px); }
+}
+
 .animate-slide-up  { animation: slide-up  0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-fade-in   { animation: fade-in   0.25s ease both; }
 .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.animate-shake     { animation: shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }

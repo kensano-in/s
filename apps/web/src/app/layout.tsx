@@ -13,6 +13,10 @@ export const metadata: Metadata = {
   creator: 'Verlyn',
   publisher: 'Verlyn',
   metadataBase: new URL('https://verlyn.in'),
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/fallback-avatar.png',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -28,6 +32,7 @@ export const metadata: Metadata = {
   },
   robots: { index: true, follow: true },
 };
+
 
 export const viewport: Viewport = {
   themeColor: '#6C63FF',
