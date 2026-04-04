@@ -24,6 +24,9 @@ export async function submitPost(formData: FormData) {
     console.error("Post Creation Failed:", error);
     return;
   }
+
+  revalidatePath('/feed');
+  return { success: true };
 }
 
 export async function deletePost(postId: string) {

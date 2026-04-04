@@ -32,6 +32,10 @@ export default function PostCard({ post, currentUserId }: Props) {
   const [editContent, setEditContent] = useState(post.content);
   const [isDeleted, setIsDeleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // FIX 11: Comment input state
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [commentCount, setCommentCount] = useState(post.commentCount);
   const menuRef = useRef<HTMLDivElement>(null);
   const isOwner = currentUserId && post.author?.id === currentUserId;
 
@@ -84,6 +88,16 @@ export default function PostCard({ post, currentUserId }: Props) {
       post.content = editContent;
       setIsEditing(false);
     }
+  };
+
+  // FIX 11: Optimistic comment submit
+  const handleComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    setCommentCount((c) => c + 1);
+    setCommentText('');
+    setShowCommentInput(false);
+    // TODO: submitComment(post.id, commentText) — server action
   };
 
   if (isDeleted) return null;
@@ -263,13 +277,20 @@ export default function PostCard({ post, currentUserId }: Props) {
               <span className="font-semibold text-[13px]">{fmt(likeCount)}</span>
             </button>
 
-            {/* Comment */}
+            {/* Comment — FIX 11: Now toggles inline input */}
             <button
-              className="flex items-center gap-2 cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full text-on-surface-variant hover:text-primary-light hover:bg-surface-highest"
+              onClick={() => setShowCommentInput(v => !v)}
+              className={clsx(
+                'flex items-center gap-2 cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full',
+                showCommentInput
+                  ? 'text-primary-light bg-surface-highest'
+                  : 'text-on-surface-variant hover:text-primary-light hover:bg-surface-highest'
+              )}
               id={`comment-btn-${post.id}`}
+              aria-label={showCommentInput ? 'Hide comment input' : 'Write a comment'}
             >
               <MessageCircle size={18} />
-              <span className="font-semibold text-[13px]">{fmt(post.commentCount)}</span>
+              <span className="font-semibold text-[13px]">{fmt(commentCount)}</span>
             </button>
 
             {/* Repost */}
@@ -288,6 +309,22 @@ export default function PostCard({ post, currentUserId }: Props) {
             <Bookmark size={18} fill={saved ? 'currentColor' : 'none'} className={saved ? 'text-primary-light' : 'text-on-surface-variant hover:text-on-surface'} />
           </button>
         </div>
+
+        {/* FIX 11: Comment input — visible when comment button is toggled */}
+        {showCommentInput && (
+          <form onSubmit={handleComment} className="mt-3 pl-[52px] flex gap-2" id={`comment-form-${post.id}`}>
+            <input
+              autoFocus
+              placeholder="Write a comment..."
+              className="flex-1 bg-surface-low rounded-full px-4 py-2 text-sm border border-outline-variant/20 focus:outline-none focus:border-primary-light/40 text-on-surface"
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              id={`comment-input-${post.id}`}
+              aria-label="Write a comment"
+            />
+            <button type="submit" className="primary-btn px-4 py-2 text-sm" style={{ minHeight: 'unset' }}>Reply</button>
+          </form>
+        )}
       </div>
     </article>
   );

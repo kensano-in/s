@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Theme, Notification, User } from '@/lib/types';
+import type { Theme, Notification, User, Conversation } from '@/lib/types';
 import { MOCK_NOTIFICATIONS, MOCK_CONVERSATIONS } from '@/lib/mockData';
 import { dispatchProfileSync } from '@/lib/sync-engine';
 
@@ -30,9 +30,10 @@ interface AppState {
   markAllNotifsRead: () => void;
 
   // Conversations
-  conversations: any[];
+  conversations: Conversation[];
   activeConversationId: string | null;
   setActiveConversation: (id: string | null) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages: Record<string, any[]>;
 
   // Real-time (mock)
@@ -45,11 +46,13 @@ interface AppState {
   setSearchOpen: (v: boolean) => void;
 
   // Profile Engine — Local-First Sync
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentUser: any | null;
+  currentUser: User | null;
   syncStatus: 'idle' | 'syncing' | 'error';
   setSyncStatus: (s: 'idle' | 'syncing' | 'error') => void;
-  updateProfile: (updates: Partial<any>) => void;
+  updateProfile: (updates: Partial<User>) => void;
+
+  // Hydration tracking — prevents settings flicker on SSR rehydration
+  _hasHydrated: boolean;
 
   // Visual Sovereignty Theme & Wallpaper Engine
   uiThemeVariant: 'midnight' | 'amoled' | 'frost' | 'light';
@@ -114,7 +117,8 @@ export const useAppStore = create<AppState>()(
       setActivePage: (page) => set({ activePage: page }),
 
       activeOverlay: null,
-      setOverlay: (id) => set({ activeOverlay: id }),
+      // FIX 5: Always close notification panel when any overlay opens
+      setOverlay: (id) => set({ activeOverlay: id, isNotifPanelOpen: false }),
 
       notifications: MOCK_NOTIFICATIONS,
       unreadNotifCount: MOCK_NOTIFICATIONS.filter((n) => !n.isRead).length,
@@ -149,7 +153,7 @@ export const useAppStore = create<AppState>()(
       syncStatus: 'idle',
       setSyncStatus: (s) => set({ syncStatus: s }),
       updateProfile: (updates) => set((state) => {
-        const newUser = { ...state.currentUser, ...updates };
+        const newUser = { ...state.currentUser, ...updates } as User;
         if (state.currentUser?.id) {
           dispatchProfileSync(state.currentUser.id, {
             displayName: updates.displayName,
@@ -204,9 +208,12 @@ export const useAppStore = create<AppState>()(
       setSettingTwoFA: (v) => set({ settingTwoFA: v }),
       setSettingPushNotifs: (v) => set({ settingPushNotifs: v }),
       setSettingEmailDigest: (v) => set({ settingEmailDigest: v }),
+      _hasHydrated: false,
     }),
     {
       name: 'verlyn-app-state',
+      // FIX 4: Track when localStorage rehydration completes to prevent settings flicker
+      onRehydrateStorage: () => (state) => { if (state) state._hasHydrated = true; },
       partialize: (state) => ({
         theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,
