@@ -1,7 +1,5 @@
 {
   "framework": "nextjs",
-  "rootDirectory": "verlyn/verlyn",
-  "outputDirectory": ".next",
-  "installCommand": "npm install",
-  "buildCommand": "npm run build"
+  "rootDirectory": "apps/web",
+  "outputDirectory": ".next"
 }
