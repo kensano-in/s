@@ -1,5 +1,3 @@
-import path from 'path';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -16,8 +14,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  outputFileTracingRoot: path.join(process.cwd(), '../../'),
-  output: 'standalone',
 };
 
 export default nextConfig;
