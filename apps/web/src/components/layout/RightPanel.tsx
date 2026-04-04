@@ -60,7 +60,7 @@ export default function RightPanel() {
             const isFollowing = following.includes(u.id);
             return (
               <div key={u.id} className="flex items-center gap-3">
-                <Link href={`/profile/${u.username}`} className="relative flex-shrink-0" title={`View ${u.displayName}'s profile`}>
+                <Link href={`/profile`} className="relative flex-shrink-0" title={`View ${u.displayName}'s profile`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={u.avatar || '/fallback-avatar.png'}
@@ -73,7 +73,7 @@ export default function RightPanel() {
                 </Link>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <Link href={`/profile/${u.username}`} className="text-sm font-semibold truncate hover:opacity-80 transition-opacity" style={{ color: 'var(--text-primary)' }}>
+                    <Link href={`/profile`} className="text-sm font-semibold truncate hover:opacity-80 transition-opacity" style={{ color: 'var(--text-primary)' }}>
                       {u.displayName}
                     </Link>
                     {u.isVerified && (
