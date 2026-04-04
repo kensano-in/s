@@ -3,7 +3,7 @@
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
 import { Camera, Settings, Grid3x3, FileText, Bookmark, Award, Sparkles } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import EditProfileModal from '@/components/features/profile/EditProfileModal';
 import { createClient } from '@/lib/supabase/client';
 
@@ -19,17 +19,19 @@ export default function ProfilePage() {
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const { currentUser } = useAppStore();
-  const supabase = createClient();
+  // FIX 8: Memoize Supabase client — prevents new client+WebSocket per render cycle
+  const supabase = useMemo(() => createClient(), []);
 
   // Fetch only THIS user's posts from DB
   useEffect(() => {
     if (!currentUser?.id) return;
+    const user = currentUser!; // narrowed: we checked id above
     async function loadPosts() {
       setLoadingPosts(true);
       const { data } = await supabase
         .from('posts')
         .select('*, author:users(*)')
-        .eq('author_id', currentUser.id)
+        .eq('author_id', user.id)
         .order('created_at', { ascending: false });
 
       if (data) {
@@ -43,9 +45,9 @@ export default function ProfilePage() {
           createdAt: dbPost.created_at,
           author: {
             id: dbPost.author?.id,
-            username: dbPost.author?.username || currentUser.username,
-            displayName: dbPost.author?.display_name || currentUser.displayName,
-            avatar: dbPost.author?.avatar_url || currentUser.avatar,
+            username: dbPost.author?.username || user.username,
+            displayName: dbPost.author?.display_name || user.displayName,
+            avatar: dbPost.author?.avatar_url || user.avatar,
             role: dbPost.author?.role || 'PUBLIC',
           },
         }));

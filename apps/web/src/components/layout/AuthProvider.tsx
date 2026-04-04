@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store';
 
 export default function AuthProvider() {
   const { updateProfile } = useAppStore();
+  const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
@@ -40,7 +42,19 @@ export default function AuthProvider() {
     }
 
     loadIdentity();
-  }, [updateProfile, supabase]);
+
+    // FIX 2: Auth session listener — redirect on sign-out or session termination
+    // Note: TOKEN_REFRESH_FAILED is not in Supabase AuthChangeEvent union;
+    // SIGNED_OUT covers expired/revoked tokens after refresh failure.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login');
+      }
+    });
+
+    return () => { subscription.unsubscribe(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return null; // Silent logic wrapper
 }

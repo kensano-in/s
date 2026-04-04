@@ -5,9 +5,14 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // If env vars are missing, just allow the request through — never crash the middleware
+  // If env vars are missing, never allow unauthenticated access in production
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next()
+    if (process.env.NODE_ENV === 'production') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next(); // Dev only — allows local work without env vars
   }
 
   let supabaseResponse = NextResponse.next({
