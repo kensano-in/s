@@ -13,10 +13,14 @@ const TABS = ['For You', 'Following', 'Communities'];
 export default function FeedPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [livePosts, setLivePosts] = useState<any[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const supabase = createClient();
 
   useEffect(() => {
     async function fetchDatabaseFeed() {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) setCurrentUserId(authData.user.id);
+
       const { data, error } = await supabase
         .from('posts')
         .select('*, author:users(*)')
@@ -150,7 +154,7 @@ export default function FeedPage() {
               className="animate-slide-up"
               style={{ animationDelay: `${(index + 2) * 50}ms`, animationFillMode: 'both' }}
             >
-              <PostCard post={post} />
+              <PostCard post={post} currentUserId={currentUserId} />
             </div>
           ))
         )}

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Post } from '@/lib/types';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Repeat2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Repeat2, Pencil, Trash2, X, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
+import { deletePost, editPost } from '@/app/(main)/feed/actions';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -12,17 +13,38 @@ function fmt(n: number): string {
   return String(n);
 }
 
-interface Props { post: Post }
+interface Props {
+  post: Post;
+  currentUserId?: string;
+}
 
-export default function PostCard({ post }: Props) {
+export default function PostCard({ post, currentUserId }: Props) {
   const [liked, setLiked] = useState<boolean>(post.isLiked ?? false);
   const [saved, setSaved] = useState<boolean>(post.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(post.likeCount);
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [particles, setParticles] = useState<{ id: number; x: number }[]>([]);
-  // Shimmer tracking state
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isCardHovered, setIsCardHovered] = useState(false);
+
+  // Edit / Delete state
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content);
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isOwner = currentUserId && post.author?.id === currentUserId;
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -34,36 +56,55 @@ export default function PostCard({ post }: Props) {
     const isLiking = !liked;
     setLiked(isLiking);
     setLikeCount((c) => isLiking ? c + 1 : c - 1);
-    
-    // Twitch-Style Particle Spawner on Like
     if (isLiking) {
       const newParticle = { id: Date.now(), x: (Math.random() - 0.5) * 40 };
       setParticles(p => [...p, newParticle]);
-      // Garbage collect after 1.5s
       setTimeout(() => {
         setParticles(p => p.filter(part => part.id !== newParticle.id));
       }, 1500);
     }
   };
 
+  const handleDelete = async () => {
+    setMenuOpen(false);
+    if (!confirm('Delete this post permanently?')) return;
+    const result = await deletePost(post.id);
+    if (result?.success) setIsDeleted(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || editContent === post.content) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    const result = await editPost(post.id, editContent);
+    setIsSaving(false);
+    if (result?.success) {
+      post.content = editContent;
+      setIsEditing(false);
+    }
+  };
+
+  if (isDeleted) return null;
+
   return (
-    <article 
+    <article
       className="glass-card flex flex-col group overflow-hidden transition-all duration-300 hover:shadow-[0_40px_80px_-12px_rgba(208,188,255,0.08)] relative"
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsCardHovered(true)}
       onMouseLeave={() => setIsCardHovered(false)}
     >
-      {/* Magnetic Ethereal Shimmer layer */}
+      {/* Magnetic Shimmer */}
       {isCardHovered && (
-        <div 
+        <div
           className="pointer-events-none absolute inset-0 z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
           style={{
-            background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(208, 188, 255, 0.05), transparent 40%)`,
+            background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(208, 188, 255, 0.04), transparent 40%)`,
           }}
         />
       )}
 
-      {/* Community tag (Glass pill style) */}
       {post.communityId && (
         <div className="px-6 pt-5 pb-0 flex items-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-highest border border-outline-variant/15 shadow-ambient">
@@ -82,25 +123,24 @@ export default function PostCard({ post }: Props) {
             <div className="relative flex-shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={post.author.avatar}
-                alt={post.author.displayName}
+                src={post.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=user`}
+                alt={post.author?.displayName || 'User'}
                 className="w-11 h-11 rounded-full object-cover cursor-pointer hover:opacity-90 transition-all border border-outline-variant/10 shadow-ambient"
               />
-              {post.author.isOnline && <span className="absolute bottom-0 right-0 w-3 h-3 bg-secondary-light border-2 border-surface-highest rounded-full" />}
+              {post.author?.isOnline && <span className="absolute bottom-0 right-0 w-3 h-3 bg-secondary-light border-2 border-surface-highest rounded-full" />}
             </div>
-            
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-1.5">
                 <span className="font-display font-bold text-[15px] cursor-pointer hover:text-primary-light transition-colors text-on-surface tracking-tight">
-                  {post.author.displayName}
+                  {post.author?.displayName || 'Unknown'}
                 </span>
-                {post.author.isVerified && (
+                {post.author?.isVerified && (
                   <div className="flex-shrink-0 bg-primary-gradient w-3.5 h-3.5 rounded-full flex items-center justify-center p-[2px] shadow-ambient">
-                    <svg viewBox="0 0 24 24" fill="white" className="w-full h-full"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="white" className="w-full h-full"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg>
                   </div>
                 )}
                 <span className="text-xs font-medium text-on-surface-variant ml-1">
-                  @{post.author.username}
+                  @{post.author?.username || 'unknown'}
                 </span>
               </div>
               <div className="text-[11px] font-medium text-on-surface-variant opacity-70">
@@ -109,29 +149,84 @@ export default function PostCard({ post }: Props) {
             </div>
           </div>
 
-          <button className="icon-btn text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors">
-            <MoreHorizontal size={20} />
-          </button>
+          {/* MoreMenu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              className="icon-btn text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
+              id={`more-btn-${post.id}`}
+            >
+              <MoreHorizontal size={20} />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-10 z-50 w-44 glass-card rounded-2xl shadow-2xl border border-outline-variant/20 py-1.5 animate-fade-in overflow-hidden">
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => { setIsEditing(true); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-high transition-colors"
+                    >
+                      <Pencil size={15} className="text-primary-light" /> Edit Post
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 size={15} /> Delete Post
+                    </button>
+                    <div className="h-px bg-outline-variant/15 my-1" />
+                  </>
+                )}
+                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-high transition-colors">
+                  <Share2 size={15} /> Share
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Content Body */}
-        <div className="text-[15px] leading-relaxed whitespace-pre-line text-on-surface font-medium pl-[56px]">
-          {post.content}
+        {/* Content — editable if editing */}
+        <div className="pl-[56px]">
+          {isEditing ? (
+            <div className="space-y-2">
+              <textarea
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                className="w-full bg-surface-low text-on-surface rounded-xl px-4 py-3 text-[15px] leading-relaxed border border-primary-light/30 outline-none resize-none focus:border-primary-light/60 transition-colors"
+                rows={3}
+                autoFocus
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={isSaving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-gradient text-white text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  <Check size={13} /> {isSaving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setIsEditing(false); setEditContent(post.content); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-highest text-on-surface-variant text-xs font-semibold hover:bg-surface-high transition-colors"
+                >
+                  <X size={13} /> Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[15px] leading-relaxed whitespace-pre-line text-on-surface font-medium">
+              {post.content}
+            </div>
+          )}
         </div>
 
-        {/* Media Grid */}
+        {/* Media */}
         {post.mediaUrls && post.mediaUrls.length > 0 && (
           <div className={clsx('grid gap-2 overflow-hidden pl-[56px]', post.mediaUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
             {post.mediaUrls.map((url, i) => (
-              <div key={i} className={`relative overflow-hidden rounded-[24px] border border-outline-variant/10 shadow-ambient ${!imageLoaded ? 'bg-surface-highest animate-pulse' : ''}`} style={{ aspectRatio: post.mediaUrls!.length === 1 ? '16/9' : '1/1' }}>
+              <div key={i} className="relative overflow-hidden rounded-[24px] border border-outline-variant/10 shadow-ambient" style={{ aspectRatio: post.mediaUrls!.length === 1 ? '16/9' : '1/1' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt={`Media ${i + 1}`}
-                  className="w-full h-full object-cover cursor-pointer transition-transform duration-500 hover:scale-[1.03]"
-                  style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 0.5s ease-in-out' }}
-                  onLoad={() => setImageLoaded(true)}
-                />
+                <img src={url} alt={`Media ${i + 1}`} className="w-full h-full object-cover cursor-pointer transition-transform duration-500 hover:scale-[1.03]" />
               </div>
             ))}
           </div>
@@ -139,33 +234,32 @@ export default function PostCard({ post }: Props) {
 
         {/* Actions Row */}
         <div className="flex items-center justify-between pt-3 pl-[52px]">
-          <div className="flex items-center gap-1 sm:gap-4">
-            
-            {/* Like with Live Twitch Reactions */}
+          <div className="flex items-center gap-1 sm:gap-3">
+            {/* Like — WHITE heart */}
             <button
               onClick={handleLike}
               className={clsx(
                 'relative flex items-center gap-2 cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full z-10',
-                liked ? 'text-secondary-light bg-secondary-dark/10' : 'text-on-surface-variant hover:text-secondary-light hover:bg-surface-highest'
+                liked
+                  ? 'text-white bg-white/10'
+                  : 'text-on-surface-variant hover:text-white hover:bg-white/5'
               )}
               id={`like-btn-${post.id}`}
             >
-              {/* Floating Reaction Particles Array */}
               {particles.map(p => (
-                <div 
+                <div
                   key={p.id}
-                  className="absolute pointer-events-none drop-shadow-[0_0_8px_rgba(255,100,150,0.8)] z-50 text-[18px]"
+                  className="absolute pointer-events-none z-50 text-[18px]"
                   style={{
                     left: `calc(50% + ${p.x}px)`,
                     bottom: '10px',
                     animation: `float-up 1.5s ease-out forwards`,
                   }}
                 >
-                  🔥
+                  ✨
                 </div>
               ))}
-              
-              <Heart size={18} fill={liked ? 'currentColor' : 'none'} className={clsx(liked && 'animate-pulse-glow')} />
+              <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
               <span className="font-semibold text-[13px]">{fmt(likeCount)}</span>
             </button>
 
@@ -179,28 +273,20 @@ export default function PostCard({ post }: Props) {
             </button>
 
             {/* Repost */}
-            <button
-              className="flex items-center gap-2 cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full text-on-surface-variant hover:text-green-400 hover:bg-surface-highest"
-            >
+            <button className="flex items-center gap-2 cursor-pointer transition-all duration-200 px-3 py-1.5 rounded-full text-on-surface-variant hover:text-green-400 hover:bg-surface-highest">
               <Repeat2 size={18} />
-              <span className="font-semibold text-[13px]">{fmt(post.shareCount)}</span>
+              <span className="font-semibold text-[13px]">{fmt(post.shareCount ?? 0)}</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button className="p-2 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-highest transition-colors" title="Share">
-              <Share2 size={18} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setSaved((v) => !v); }}
-              className="p-2 rounded-full transition-colors"
-              title={saved ? 'Unsave' : 'Save'}
-              style={{ color: saved ? 'var(--v-violet)' : 'var(--text-secondary)' }}
-              id={`save-btn-${post.id}`}
-            >
-              <Bookmark size={18} fill={saved ? 'currentColor' : 'none'} className={saved ? 'text-primary-light' : 'text-on-surface-variant hover:bg-surface-highest'} />
-            </button>
-          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSaved((v) => !v); }}
+            className="p-2 rounded-full transition-colors"
+            title={saved ? 'Unsave' : 'Save'}
+            id={`save-btn-${post.id}`}
+          >
+            <Bookmark size={18} fill={saved ? 'currentColor' : 'none'} className={saved ? 'text-primary-light' : 'text-on-surface-variant hover:text-on-surface'} />
+          </button>
         </div>
       </div>
     </article>

@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import clsx from 'clsx';
@@ -25,6 +25,7 @@ const SPRING_SOFT = { type: 'spring' as const, stiffness: 260, damping: 24 };
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { sidebarCollapsed, toggleSidebar, unreadNotifCount, setNotifPanelOpen, currentUser } = useAppStore();
 
   const isActive = (href: string) => {
@@ -75,7 +76,7 @@ export default function Sidebar() {
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.95 }}
             transition={SPRING}
-            onClick={() => alert('Opening Compose Terminal...')}
+            onClick={() => router.push('/feed')}
             className={clsx(
               'bg-primary-gradient text-white font-semibold text-sm shadow-ambient flex items-center justify-center gap-2',
               sidebarCollapsed ? 'w-10 h-10 rounded-full' : 'w-full rounded-full py-3 px-4'
