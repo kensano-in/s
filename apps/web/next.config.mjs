@@ -16,9 +16,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  experimental: {
-    outputFileTracingRoot: path.join(process.cwd(), '../../'),
-  },
+  outputFileTracingRoot: path.join(process.cwd(), '../../'),
   output: 'standalone',
 };
 
