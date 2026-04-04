@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Theme, Notification, User } from '@/lib/types';
-import { MOCK_NOTIFICATIONS, MOCK_CONVERSATIONS, CURRENT_USER } from '@/lib/mockData';
+import { MOCK_NOTIFICATIONS, MOCK_CONVERSATIONS } from '@/lib/mockData';
+import { dispatchProfileSync } from '@/lib/sync-engine';
 
 interface AppState {
   // Theme
@@ -37,8 +38,11 @@ interface AppState {
   isSearchOpen: boolean;
   setSearchOpen: (v: boolean) => void;
 
-  // Profile Engine (Phase 5)
-  currentUser: User | any;
+  // Profile Engine — Local-First Sync
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  currentUser: any | null;
+  syncStatus: 'idle' | 'syncing' | 'error';
+  setSyncStatus: (s: 'idle' | 'syncing' | 'error') => void;
   updateProfile: (updates: Partial<any>) => void;
 
   // Visual Sovereignty Theme & Wallpaper Engine (Phase 6)
@@ -110,9 +114,24 @@ export const useAppStore = create<AppState>()(
       isNotifPanelOpen: false,
       setNotifPanelOpen: (v) => set({ isNotifPanelOpen: v }),
 
-      // --- Profile Engine Implementation ---
-      currentUser: CURRENT_USER,
-      updateProfile: (updates) => set((state) => ({ currentUser: { ...state.currentUser, ...updates } })),
+      // --- Profile Engine: Local-First Sync ---
+      currentUser: null,
+      syncStatus: 'idle',
+      setSyncStatus: (s) => set({ syncStatus: s }),
+      updateProfile: (updates) => set((state) => {
+        // 1. Instant optimistic update (0ms perceived latency)
+        const newUser = { ...state.currentUser, ...updates };
+        // 2. Silent background DB sync — never blocks UI
+        if (state.currentUser?.id) {
+          dispatchProfileSync(state.currentUser.id, {
+            displayName: updates.displayName,
+            username: updates.username,
+            bio: updates.bio,
+            avatarUrl: updates.avatar,
+          });
+        }
+        return { currentUser: newUser };
+      }),
 
       // --- Visual Sovereignty Engine ---
       uiThemeVariant: 'midnight',

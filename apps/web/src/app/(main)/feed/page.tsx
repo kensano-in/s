@@ -3,18 +3,63 @@
 import StoryReel from '@/components/features/feed/StoryReel';
 import CreatePost from '@/components/features/feed/CreatePost';
 import PostCard from '@/components/features/feed/PostCard';
-import { MOCK_POSTS } from '@/lib/mockData';
 import { useState, useMemo, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import clsx from 'clsx';
+import { Sparkles } from 'lucide-react';
 
 const TABS = ['For You', 'Following', 'Communities'];
 
 export default function FeedPage() {
   const [activeTab, setActiveTab] = useState(0);
+  const [livePosts, setLivePosts] = useState<any[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchDatabaseFeed() {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*, author:users(*)')
+        .order('created_at', { ascending: false });
+
+      if (data && !error) {
+        // Map the snake_case DB schema to our high-fidelity UI Types
+        const formatted = data.map(dbPost => ({
+          id: dbPost.id,
+          content: dbPost.content,
+          mediaUrls: dbPost.media_urls || [],
+          likeCount: dbPost.like_count || 0,
+          commentCount: dbPost.comment_count || 0,
+          shareCount: dbPost.share_count || 0,
+          createdAt: dbPost.created_at,
+          author: {
+            id: dbPost.author?.id,
+            username: dbPost.author?.username || 'unknown',
+            displayName: dbPost.author?.display_name || 'Classified User',
+            avatar: dbPost.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${dbPost.author?.username}`,
+            role: dbPost.author?.role || 'PUBLIC',
+          }
+        }));
+        setLivePosts(formatted);
+      }
+    }
+
+    // Initial load
+    fetchDatabaseFeed();
+
+    // Subscribe to the Sovereign network for instant live updates (WebSockets)
+    const channel = supabase.channel('realtime_feed')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
+        fetchDatabaseFeed(); // Re-fetch to get exactly structured relational joins
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); }
+  }, [supabase]);
 
   // SimCluster AI Virality Sorting Algorithm Simulation
   const sortedFeed = useMemo(() => {
-    return [...MOCK_POSTS].sort((a, b) => {
+    return [...livePosts].sort((a, b) => {
       if (activeTab === 0) { // 'For You' Algorithm
         const scoreA = a.likeCount + (a.shareCount * 2) + a.commentCount;
         const scoreB = b.likeCount + (b.shareCount * 2) + b.commentCount;
@@ -23,14 +68,13 @@ export default function FeedPage() {
       // Chronological for Following
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [activeTab]);
+  }, [activeTab, livePosts]);
 
   // The "Smooth-Motion" Mandate: Predictive Asset Caching
   useEffect(() => {
-    // Silently pre-fetch all massive media URLs so they hit the GPU immediately upon scroll
     const preloads: HTMLImageElement[] = [];
     sortedFeed.forEach((post) => {
-      post.mediaUrls?.forEach(url => {
+      post.mediaUrls?.forEach((url: string) => {
         const img = new Image();
         img.src = url;
         preloads.push(img);
@@ -89,15 +133,27 @@ export default function FeedPage() {
 
       {/* Dynamic Content Stream - Driven by SimCluster Algorithm */}
       <div className="space-y-6 relative z-10">
-        {sortedFeed.map((post, index) => (
-          <div
-            key={`${post.id}-${activeTab}`}
-            className="animate-slide-up"
-            style={{ animationDelay: `${(index + 2) * 50}ms`, animationFillMode: 'both' }}
-          >
-            <PostCard post={post} />
+        {sortedFeed.length === 0 ? (
+          <div className="glass-card p-12 text-center flex flex-col items-center justify-center animate-pulse-slow">
+             <div className="w-16 h-16 rounded-full bg-surface-highest flex items-center justify-center mb-4">
+                <Sparkles size={24} className="text-secondary-light" />
+             </div>
+             <h3 className="text-xl font-bold font-display text-on-surface mb-2">The Expanse is Quiet</h3>
+             <p className="text-on-surface-variant max-w-sm">
+                You have entered Sovereign Space before anyone else. Be the first to initiate contact.
+             </p>
           </div>
-        ))}
+        ) : (
+          sortedFeed.map((post, index) => (
+            <div
+              key={`${post.id}-${activeTab}`}
+              className="animate-slide-up"
+              style={{ animationDelay: `${(index + 2) * 50}ms`, animationFillMode: 'both' }}
+            >
+              <PostCard post={post} />
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import Topbar from '@/components/layout/Topbar';
 import RightPanel from '@/components/layout/RightPanel';
 import NotifPanel from '@/components/layout/NotifPanel';
 import ThemeEngineProvider from '@/components/layout/ThemeEngineProvider';
+import AuthProvider from '@/components/layout/AuthProvider';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 
@@ -16,6 +17,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-on-surface">
       <ThemeEngineProvider />
+      <AuthProvider />
       {/* Left Sidebar */}
       <Sidebar />
 
