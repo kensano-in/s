@@ -72,3 +72,34 @@ export async function editPost(postId: string, content: string) {
   revalidatePath('/feed');
   return { success: true };
 }
+
+export async function submitCommentDB(postId: string, userId: string, content: string) {
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  if (!content || content.trim() === '') return { error: 'Comment empty' };
+
+  try {
+    // 1. Insert comment
+    await supabaseAdmin.from('comments').insert({
+      post_id: postId,
+      author_id: userId,
+      content: content.trim(),
+    });
+
+    // 2. Fetch and Increment post count securely
+    const { data: post } = await supabaseAdmin.from('posts').select('comment_count').eq('id', postId).single();
+    if (post) {
+      await supabaseAdmin.from('posts').update({ comment_count: (post.comment_count || 0) + 1 }).eq('id', postId);
+    }
+
+    revalidatePath('/feed');
+    return { success: true };
+  } catch (err: any) {
+    console.error("Comment Insert Failed:", err.message);
+    return { error: err.message };
+  }
+}

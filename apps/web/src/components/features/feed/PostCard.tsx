@@ -97,7 +97,12 @@ export default function PostCard({ post, currentUserId }: Props) {
     setCommentCount((c) => c + 1);
     setCommentText('');
     setShowCommentInput(false);
-    // TODO: submitComment(post.id, commentText) — server action
+    // Execute physical server action to lock comment securely into db
+    if (currentUserId) {
+      import('@/app/(main)/feed/actions').then((m) => {
+        m.submitCommentDB(post.id, currentUserId, commentText).catch(console.error);
+      });
+    }
   };
 
   if (isDeleted) return null;

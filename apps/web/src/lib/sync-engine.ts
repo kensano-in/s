@@ -50,23 +50,10 @@ export async function syncProfileToSupabase(
   userId: string, 
   updates: ProfileSyncPayload
 ): Promise<void> {
-  const supabase = createClient();
-  
-  const dbPayload: Record<string, unknown> = {};
-  if (updates.displayName !== undefined) dbPayload.display_name = updates.displayName;
-  if (updates.username !== undefined) dbPayload.username = updates.username.toLowerCase().replace(/[^a-z0-9_]/g, '');
-  if (updates.bio !== undefined) dbPayload.bio = updates.bio;
-  if (updates.avatarUrl !== undefined) dbPayload.avatar_url = updates.avatarUrl;
-
-  if (Object.keys(dbPayload).length === 0) return;
-
   await withExponentialBackoff(async () => {
-    const { error } = await supabase
-      .from('users')
-      .update(dbPayload)
-      .eq('id', userId);
-    
-    if (error) throw error;
+    const { submitProfileUpdateDB } = await import('@/app/(main)/profile/actionsCore');
+    const res = await submitProfileUpdateDB(userId, updates);
+    if (!res.success) throw new Error(res.error);
   });
 }
 
