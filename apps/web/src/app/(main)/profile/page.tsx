@@ -2,11 +2,13 @@
 
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
-import { Camera, Settings, Grid3x3, FileText, Bookmark, Award, Sparkles, Palette } from 'lucide-react';
+import { Edit3, Share2, Camera, Calendar, Award, Grid, Bookmark, Save, Loader2, CheckCircle2, AlertCircle, Database, Settings, Grid3x3, FileText, Sparkles, Palette } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import EditProfileModal from '@/components/features/profile/EditProfileModal';
 import { createClient } from '@/lib/supabase/client';
+import { getDatabaseProfile } from './actionsCore';
 import { uploadMedia } from '@/app/(main)/feed/upload';
+import clsx from 'clsx';
 
 function kFmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -19,11 +21,10 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
-  // Banner color state — user can pick a gradient preset
   const [bannerColor, setBannerColor] = useState<string>('purple');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const { currentUser, updateProfile } = useAppStore();
+  const { currentUser, updateProfile, syncStatus, setSyncStatus } = useAppStore();
   // FIX 8: Memoize Supabase client — prevents new client+WebSocket per render cycle
   const supabase = useMemo(() => createClient(), []);
 
@@ -49,12 +50,34 @@ export default function ProfilePage() {
     orange: '#F97316', crimson: '#E11D48', obsidian: '#18181B',
   };
 
+  const handleVerifySync = async () => {
+    if (!currentUser?.id) return;
+    setSyncStatus('syncing');
+    const result = await getDatabaseProfile(currentUser.id);
+    if (result.success && result.data) {
+      if (result.data.avatar_url === currentUser.avatar) {
+        setSyncStatus('idle'); // Actual confirmed success
+        alert('✅ Sync Verified: Your database state matches your local state. The world sees exactly what you see.');
+      } else {
+        setSyncStatus('error');
+        alert('⚠️ Sync Desync Detected: Database has OLD avatar. Attempting forced re-sync...');
+        updateProfile({ avatar: currentUser.avatar }); // Trigger re-sync
+      }
+    } else {
+      setSyncStatus('error');
+      alert(`❌ Sync Check Failed: ${result.error}`);
+    }
+  };
+
   const handleAvatarUpload = async (files: FileList | null) => {
-    if (!files || !files[0] || !currentUser) return;
-    const file = files[0];
+    const file = files?.[0];
+    if (!file) return;
+    
+    setSyncStatus('syncing');
     const fd = new FormData();
     fd.append('file', file);
     fd.append('folder', 'avatars');
+    
     const result = await uploadMedia(fd);
     if ('error' in result) {
       console.error('Avatar upload error:', result.error);
@@ -116,6 +139,33 @@ export default function ProfilePage() {
         onChange={(e) => handleAvatarUpload(e.target.files)}
         aria-label="Upload avatar"
       />
+            {/* Global Sync Status Badge */}
+            {syncStatus !== 'idle' && (
+              <div className={clsx(
+                "absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border backdrop-blur-md shadow-lg transition-all animate-in fade-in slide-in-from-top-2",
+                syncStatus === 'syncing' && "bg-amber-500/10 border-amber-500/50 text-amber-300",
+                syncStatus === 'error' && "bg-red-500/10 border-red-500/50 text-red-300"
+              )}>
+                {syncStatus === 'syncing' ? (
+                  <>
+                    <Loader2 size={10} className="animate-spin" />
+                    Syncing to DB...
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={10} />
+                    Sync Failed
+                  </>
+                )}
+              </div>
+            )}
+
+            {syncStatus === 'idle' && currentUser && (
+               <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border bg-emerald-500/10 border-emerald-500/50 text-emerald-300 backdrop-blur-md shadow-lg transition-all animate-in fade-in slide-in-from-top-2">
+                  <CheckCircle2 size={10} />
+                  Synced to DB
+               </div>
+            )}
 
       {/* IG-style Profile Header */}
       <div className="pt-8 pb-4 px-4 sm:px-8 max-w-[800px] mx-auto">
@@ -144,23 +194,30 @@ export default function ProfilePage() {
           {/* Stats & Actions (Right) */}
           <div className="flex-1 flex flex-col justify-center">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mb-4">
-              <h1 className="text-xl sm:text-2xl font-normal text-on-surface flex items-center gap-2">
-                {currentUser.username}
-                {currentUser.isVerified && (
-                  <div className="verified-badge w-4 h-4 ml-1">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                  </div>
-                )}
+              
+             <div className="flex flex-wrap items-center gap-4">
+              <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white">
+                {currentUser?.displayName || currentUser?.username}
               </h1>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white hover:bg-white/10 transition-all"
+                >
+                  <Edit3 size={16} /> Edit Profile
+                </button>
+                <button 
+                   onClick={handleVerifySync}
+                   title="Force Verify Sync"
+                   className="p-1.5 rounded-lg border border-white/10 bg-white/5 text-white/40 hover:text-white transition-all hover:bg-white/10"
+                >
+                  <Database size={16} />
+                </button>
+              </div>
+            </div>
               
               {/* Desktop Actions */}
               <div className="hidden sm:flex items-center gap-2 relative z-20">
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition flex items-center gap-2"
-                >
-                  <Settings size={14} /> Edit Profile
-                </button>
                 <div className="relative">
                   <button
                     onClick={() => setShowColorPicker(!showColorPicker)}
