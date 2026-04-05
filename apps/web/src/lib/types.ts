@@ -41,6 +41,15 @@ export interface Post {
   expiresAt?: string;
 }
 
+export interface Comment {
+  id: string;
+  postId: string;
+  author: User;
+  content: string;
+  likeCount: number;
+  createdAt: string;
+}
+
 export interface Story {
   id: string;
   author: User;

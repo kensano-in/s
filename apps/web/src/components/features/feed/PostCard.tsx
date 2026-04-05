@@ -32,12 +32,32 @@ export default function PostCard({ post, currentUserId }: Props) {
   const [editContent, setEditContent] = useState(post.content);
   const [isDeleted, setIsDeleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  // FIX 11: Comment input state
+  // FIX 11: Comment input state & Hydration Engine
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [commentCount, setCommentCount] = useState(post.commentCount);
+  const [commentsStream, setCommentsStream] = useState<any[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isOwner = currentUserId && post.author?.id === currentUserId;
+
+  // Hydrate comments when expanded
+  useEffect(() => {
+    if (showCommentInput && commentsStream.length === 0) {
+      setIsLoadingComments(true);
+      import('@/lib/supabase/client').then(({ createClient }) => {
+        const supabase = createClient();
+        supabase.from('comments')
+          .select('*, author:users(username, display_name, avatar_url, role)')
+          .eq('post_id', post.id)
+          .order('created_at', { ascending: true })
+          .then(({ data, error }) => {
+            if (!error && data) setCommentsStream(data);
+            setIsLoadingComments(false);
+          });
+      });
+    }
+  }, [showCommentInput, post.id, commentsStream.length]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -95,12 +115,27 @@ export default function PostCard({ post, currentUserId }: Props) {
     e.preventDefault();
     if (!commentText.trim()) return;
     setCommentCount((c) => c + 1);
+    
+    // Optimistically inject into stream
+    const tempId = `optimistic-${Date.now()}`;
+    const newCommentPayload = {
+      id: tempId,
+      content: commentText.trim(),
+      created_at: new Date().toISOString(),
+      author: {
+        id: currentUserId,
+        display_name: 'You',  // Will be overwritten correctly on subsequent fetch or if store imported
+        username: 'you',
+      }
+    };
+    setCommentsStream(prev => [...prev, newCommentPayload]);
+    
+    const submittedText = commentText;
     setCommentText('');
-    setShowCommentInput(false);
-    // Execute physical server action to lock comment securely into db
+    
     if (currentUserId) {
       import('@/app/(main)/feed/actions').then((m) => {
-        m.submitCommentDB(post.id, currentUserId, commentText).catch(console.error);
+        m.submitCommentDB(post.id, currentUserId, submittedText).catch(console.error);
       });
     }
   };
@@ -317,18 +352,51 @@ export default function PostCard({ post, currentUserId }: Props) {
 
         {/* FIX 11: Comment input — visible when comment button is toggled */}
         {showCommentInput && (
-          <form onSubmit={handleComment} className="mt-3 pl-[52px] flex gap-2" id={`comment-form-${post.id}`}>
-            <input
-              autoFocus
-              placeholder="Write a comment..."
-              className="flex-1 bg-surface-low rounded-full px-4 py-2 text-sm border border-outline-variant/20 focus:outline-none focus:border-primary-light/40 text-on-surface"
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              id={`comment-input-${post.id}`}
-              aria-label="Write a comment"
-            />
-            <button type="submit" className="primary-btn px-4 py-2 text-sm" style={{ minHeight: 'unset' }}>Reply</button>
-          </form>
+          <div className="mt-3 pl-[52px] space-y-4">
+            {/* Visual Stream */}
+            {isLoadingComments ? (
+              <div className="py-3 text-xs text-on-surface-variant animate-pulse font-medium">Fetching secure feed...</div>
+            ) : commentsStream.length > 0 ? (
+              <div className="space-y-3 pt-2 relative">
+                {/* Visual Branch Line connecting comments */}
+                <div className="absolute left-[16px] top-4 bottom-6 border-l border-outline-variant/15" />
+                {commentsStream.map((c) => (
+                  <div key={c.id} className="relative flex gap-3 text-sm animate-fade-in pr-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={c.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.author?.username || 'user'}`}
+                      alt={c.author?.display_name || 'User'}
+                      className="w-8 h-8 rounded-full object-cover z-10 border border-surface-low"
+                    />
+                    <div className="flex-1 bg-surface-lowest px-4 py-3 rounded-2xl rounded-tl-sm border border-outline-variant/10">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="font-bold text-on-surface text-[13px]">{c.author?.display_name || 'User'}</span>
+                        <span className="text-[11px] text-on-surface-variant/80">@{c.author?.username}</span>
+                        <span className="text-[10px] text-on-surface-variant mx-1">· {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span>
+                      </div>
+                      <p className="text-[13px] text-on-surface/90 leading-relaxed break-words whitespace-pre-wrap">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Input Form */}
+            <form onSubmit={handleComment} className="flex gap-2 relative z-10" id={`comment-form-${post.id}`}>
+              <input
+                autoFocus
+                placeholder="Write a comment..."
+                className="flex-1 bg-surface-low rounded-full px-4 py-2 text-sm border border-outline-variant/20 focus:outline-none focus:border-primary-light/40 text-on-surface transition-colors"
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                id={`comment-input-${post.id}`}
+                aria-label="Write a comment"
+              />
+              <button type="submit" disabled={!commentText.trim()} className="primary-btn px-4 py-2 text-sm disabled:opacity-50 transition-all font-bold" style={{ minHeight: 'unset' }}>
+                Post
+              </button>
+            </form>
+          </div>
         )}
       </div>
     </article>
