@@ -46,16 +46,29 @@ export default function GlobalRealtimeMonitor() {
             id: Date.now()
           });
 
+          // Sync into state
+          useAppStore.getState().addNotification({
+            id: payload.new.id,
+            type: payload.new.type,
+            title: 'New Network Alert',
+            body: payload.new.body,
+            isRead: payload.new.is_read,
+            priority: 'medium',
+            createdAt: payload.new.created_at,
+          });
+
           // Auto-hide
           setTimeout(() => setLiveToast(null), 4000);
         }
       )
       .subscribe();
 
-    // Process the _verlynFollowQueue
+    // Process the _verlynFollowQueue with a safe concurrency lock
     const handleFollowQueue = async () => {
       const w = window as any;
+      if (w._isProcessingVerlynQueue) return;
       if (w._verlynFollowQueue && w._verlynFollowQueue.length > 0) {
+        w._isProcessingVerlynQueue = true;
         setSyncStatus('syncing');
         const tasks = [...w._verlynFollowQueue];
         w._verlynFollowQueue = [];
@@ -71,6 +84,10 @@ export default function GlobalRealtimeMonitor() {
         } catch(e) {
           console.error('[Engine] Queue failure:', e);
           setSyncStatus('error');
+        } finally {
+          w._isProcessingVerlynQueue = false;
+          // If more tasks queued during async, recursively flush
+          if (w._verlynFollowQueue?.length > 0) handleFollowQueue();
         }
       }
     };

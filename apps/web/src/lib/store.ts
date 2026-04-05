@@ -25,6 +25,8 @@ interface AppState {
   // Notifications
   notifications: Notification[];
   unreadNotifCount: number;
+  setNotifications: (notifs: Notification[]) => void;
+  addNotification: (notif: Notification) => void;
   markNotifRead: (id: string) => void;
   markAllNotifsRead: () => void;
 
@@ -123,6 +125,19 @@ export const useAppStore = create<AppState>()(
 
       notifications: [],
       unreadNotifCount: 0,
+      setNotifications: (notifs) => set({
+        notifications: notifs,
+        unreadNotifCount: notifs.filter((n) => !n.isRead).length,
+      }),
+      addNotification: (notif) => set((s) => {
+        // Prevent duplicates
+        if (s.notifications.some(n => n.id === notif.id)) return s;
+        const newNotifs = [notif, ...s.notifications];
+        return {
+          notifications: newNotifs,
+          unreadNotifCount: newNotifs.filter((n) => !n.isRead).length,
+        };
+      }),
       markNotifRead: (id) => set((s) => {
         const updatedNotifications = s.notifications.map((n) => n.id === id ? { ...n, isRead: true } : n);
         return {

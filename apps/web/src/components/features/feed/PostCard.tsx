@@ -5,7 +5,7 @@ import type { Post } from '@/lib/types';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Repeat2, Pencil, Trash2, X, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
-import { deletePost, editPost, submitCommentDB } from '@/app/(main)/feed/actions';
+import { deletePost, editPost, submitCommentDB, toggleLikeDB } from '@/app/(main)/feed/actions';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -83,23 +83,27 @@ export default function PostCard({ post, currentUserId }: Props) {
   const menuRef = useRef<HTMLDivElement>(null);
   const isOwner = currentUserId && post.author?.id === currentUserId;
 
-  // Hydrate comments when expanded
+  // Phase 3 FIX: Always re-fetch comments when drawer opens — removes stale .length===0 guard
   useEffect(() => {
-    if (showCommentInput && commentsStream.length === 0) {
+    if (!showCommentInput) return;
+    let cancelled = false;
+    const loadComments = async () => {
       setIsLoadingComments(true);
-      import('@/lib/supabase/client').then(({ createClient }) => {
-        const supabase = createClient();
-        supabase.from('comments')
-          .select('*, author:users(username, display_name, avatar_url, role)')
-          .eq('post_id', post.id)
-          .order('created_at', { ascending: true })
-          .then(({ data, error }) => {
-            if (!error && data) setCommentsStream(data);
-            setIsLoadingComments(false);
-          });
-      });
-    }
-  }, [showCommentInput, post.id, commentsStream.length]);
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('comments')
+        .select('*, author:users(id, username, display_name, avatar_url, role)')
+        .eq('post_id', post.id)
+        .order('created_at', { ascending: true });
+      if (!cancelled) {
+        setCommentsStream(data || []);
+        setIsLoadingComments(false);
+      }
+    };
+    loadComments();
+    return () => { cancelled = true; };
+  }, [showCommentInput, post.id]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -117,8 +121,9 @@ export default function PostCard({ post, currentUserId }: Props) {
     setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!currentUserId) return;
     const isLiking = !liked;
     setLiked(isLiking);
     setLikeCount((c) => isLiking ? c + 1 : c - 1);
@@ -129,6 +134,7 @@ export default function PostCard({ post, currentUserId }: Props) {
         setParticles(p => p.filter(part => part.id !== newParticle.id));
       }, 1500);
     }
+    await toggleLikeDB(post.id, currentUserId, isLiking);
   };
 
   const handleDelete = async () => {

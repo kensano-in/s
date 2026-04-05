@@ -103,3 +103,18 @@ export async function submitCommentDB(postId: string, userId: string, content: s
     return { error: err.message };
   }
 }
+
+export async function toggleLikeDB(postId: string, userId: string, isLiking: boolean) {
+  try {
+    const supabase = await createClient();
+    if (isLiking) {
+      await supabase.from('post_likes').insert({ post_id: postId, user_id: userId });
+    } else {
+      await supabase.from('post_likes').delete().match({ post_id: postId, user_id: userId });
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to sync like to DB:', err.message);
+    return { success: false, error: err.message };
+  }
+}

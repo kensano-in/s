@@ -3,7 +3,7 @@
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
 import { Grid3x3, Bookmark, Award, Sparkles, Lock, Loader2, UserPlus, UserCheck } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useParams, useRouter } from 'next/navigation';
 import type { User } from '@/lib/types';
@@ -20,6 +20,7 @@ export default function PublicProfilePage() {
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [localFollowerCount, setLocalFollowerCount] = useState<number | null>(null);
   
   const { currentUser, isFollowing, toggleFollow } = useAppStore();
   const supabase = useMemo(() => createClient(), []);
@@ -106,8 +107,16 @@ export default function PublicProfilePage() {
     );
   }
 
-  const amFollowing = isFollowing(profileUser.id);
-  const canSeePosts = !profileUser.isPrivate || amFollowing;
+  const amFollowing = isFollowing(profileUser?.id || '');
+  const canSeePosts = !profileUser?.isPrivate || amFollowing;
+  const displayFollowerCount = localFollowerCount ?? profileUser?.followerCount ?? 0;
+
+  const handleFollow = () => {
+    if (!profileUser?.id) return;
+    const willFollow = !amFollowing;
+    setLocalFollowerCount(c => (c ?? profileUser.followerCount) + (willFollow ? 1 : -1));
+    toggleFollow(profileUser.id);
+  };
 
   return (
     <div className="space-y-0 animate-fade-in pb-12">
@@ -144,11 +153,7 @@ export default function PublicProfilePage() {
               {/* Desktop Actions */}
               <div className="hidden sm:flex items-center gap-2">
                 <button
-                  onClick={async () => {
-                    toggleFollow(profileUser.id);
-                    const { toggleFollowDB } = await import('../actions');
-                    await toggleFollowDB(currentUser?.id || '', profileUser.id, !amFollowing);
-                  }}
+                  onClick={handleFollow}
                   className={amFollowing ? 'px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition' : 'px-4 py-1.5 bg-primary text-on-primary rounded-lg text-[14px] font-semibold hover:bg-primary-light transition'}
                 >
                   {amFollowing ? 'Following' : 'Follow'}
@@ -165,8 +170,8 @@ export default function PublicProfilePage() {
             {/* Desktop Stats */}
             <div className="hidden sm:flex items-center gap-10 mb-4 text-[15px]">
               <div><span className="font-semibold text-on-surface">{userPosts.length}</span> posts</div>
-              <div><span className="font-semibold text-on-surface">{kFmt(profileUser.followerCount)}</span> followers</div>
-              <div><span className="font-semibold text-on-surface">{kFmt(profileUser.followingCount)}</span> following</div>
+              <div><span className="font-semibold text-on-surface">{kFmt(displayFollowerCount)}</span> followers</div>
+              <div><span className="font-semibold text-on-surface">{kFmt(profileUser!.followingCount)}</span> following</div>
             </div>
 
             {/* Desktop Bio */}
@@ -197,11 +202,7 @@ export default function PublicProfilePage() {
         {/* Mobile Actions */}
         <div className="sm:hidden flex items-center gap-2 mb-6">
           <button
-            onClick={async () => {
-              toggleFollow(profileUser.id);
-              const { toggleFollowDB } = await import('../actions');
-              await toggleFollowDB(currentUser?.id || '', profileUser.id, !amFollowing);
-            }}
+            onClick={handleFollow}
             className={amFollowing ? 'flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition' : 'flex-1 py-1.5 bg-primary text-on-primary rounded-lg text-sm font-semibold transition'}
           >
             {amFollowing ? 'Following' : 'Follow'}

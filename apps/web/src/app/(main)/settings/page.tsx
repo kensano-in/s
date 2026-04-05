@@ -7,6 +7,9 @@ import {
   ExternalLink, ChevronRight, Check
 } from 'lucide-react';
 import { VERLYN_CONTACT } from '@/lib/types';
+import { useEffect, useCallback } from 'react';
+import { updateUserSettings, getUserAuthSettings } from './actions';
+import { createClient } from '@/lib/supabase/client';
 
 const THEME_OPTIONS: { key: Theme; label: string; desc: string }[] = [
   { key: 'midnight', label: '🌌 Midnight', desc: 'Deep dark — easy on the eyes' },
@@ -80,7 +83,36 @@ export default function SettingsPage() {
     settingPushNotifs, setSettingPushNotifs,
     settingEmailDigest, setSettingEmailDigest,
     settingPrivateAccount, setSettingPrivateAccount,
+    currentUser,
   } = useAppStore();
+
+  // Load from DB
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const loadSettings = async () => {
+      // Load user table (is_private)
+      const supabase = createClient();
+      const { data } = await supabase.from('users').select('is_private').eq('id', currentUser.id).single();
+      if (data) setSettingPrivateAccount(!!data.is_private);
+
+      // Load auth metadata
+      const res = await getUserAuthSettings(currentUser.id);
+      if (res.success && res.metadata) {
+        if (res.metadata.e2ee_enabled !== undefined) setSettingE2EE(res.metadata.e2ee_enabled);
+        if (res.metadata.two_fa_enabled !== undefined) setSettingTwoFA(res.metadata.two_fa_enabled);
+        if (res.metadata.push_notifs_enabled !== undefined) setSettingPushNotifs(res.metadata.push_notifs_enabled);
+        if (res.metadata.email_digest_enabled !== undefined) setSettingEmailDigest(res.metadata.email_digest_enabled);
+      }
+    };
+    loadSettings();
+  }, [currentUser?.id, setSettingPrivateAccount, setSettingE2EE, setSettingTwoFA, setSettingPushNotifs, setSettingEmailDigest]);
+
+  // Wrapper handlers
+  const handleToggle = useCallback(async (key: string, val: boolean) => {
+    if (!currentUser?.id) return;
+    // Optimistic update done in JSX, just sync DB
+    await updateUserSettings(currentUser.id, { [key]: val });
+  }, [currentUser?.id]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">
@@ -117,19 +149,31 @@ export default function SettingsPage() {
           icon={User}
           label="Private Account"
           desc="Only approved followers can see your posts and activity"
-          right={<PersistToggle id="toggle-private" on={settingPrivateAccount} onToggle={() => setSettingPrivateAccount(!settingPrivateAccount)} />}
+          right={<PersistToggle id="toggle-private" on={settingPrivateAccount} onToggle={() => {
+            const next = !settingPrivateAccount;
+            setSettingPrivateAccount(next);
+            handleToggle('is_private', next);
+          }} />}
         />
         <SettingRow
           icon={Lock}
           label="End-to-End Encryption"
           desc="Encrypt all DMs with Signal Protocol"
-          right={<PersistToggle id="toggle-e2ee" on={settingE2EE} onToggle={() => setSettingE2EE(!settingE2EE)} />}
+          right={<PersistToggle id="toggle-e2ee" on={settingE2EE} onToggle={() => {
+            const next = !settingE2EE;
+            setSettingE2EE(next);
+            handleToggle('e2ee_enabled', next);
+          }} />}
         />
         <SettingRow
           icon={Shield}
           label="Two-Factor Authentication"
           desc="Protect your account with 2FA"
-          right={<PersistToggle id="toggle-2fa" on={settingTwoFA} onToggle={() => setSettingTwoFA(!settingTwoFA)} />}
+          right={<PersistToggle id="toggle-2fa" on={settingTwoFA} onToggle={() => {
+            const next = !settingTwoFA;
+            setSettingTwoFA(next);
+            handleToggle('two_fa_enabled', next);
+          }} />}
         />
         <SettingRow icon={User} label="Privacy Settings" desc="Control who sees your content" />
         <SettingRow icon={Shield} label="Blocked Users" desc="Manage blocked accounts" />
@@ -141,13 +185,21 @@ export default function SettingsPage() {
           icon={Bell}
           label="Push Notifications"
           desc="Receive alerts on your device"
-          right={<PersistToggle id="toggle-push" on={settingPushNotifs} onToggle={() => setSettingPushNotifs(!settingPushNotifs)} />}
+          right={<PersistToggle id="toggle-push" on={settingPushNotifs} onToggle={() => {
+            const next = !settingPushNotifs;
+            setSettingPushNotifs(next);
+            handleToggle('push_notifs_enabled', next);
+          }} />}
         />
         <SettingRow
           icon={Bell}
           label="Email Digest"
           desc="Weekly summary of your activity"
-          right={<PersistToggle id="toggle-email" on={settingEmailDigest} onToggle={() => setSettingEmailDigest(!settingEmailDigest)} />}
+          right={<PersistToggle id="toggle-email" on={settingEmailDigest} onToggle={() => {
+            const next = !settingEmailDigest;
+            setSettingEmailDigest(next);
+            handleToggle('email_digest_enabled', next);
+          }} />}
         />
         <SettingRow icon={Bell} label="Notification Preferences" desc="Customize per-category alerts" />
       </SettingSection>
