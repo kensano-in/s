@@ -140,11 +140,11 @@ export default function ProfilePage() {
             <div className="p-1 rounded-full transition-colors duration-500" style={{ background: BANNER_GRADIENTS[bannerColor] }}>
               <div className="p-[3px] bg-background rounded-full">
                 <img
-                  src={currentUser.avatar || '/fallback-avatar.png'}
+                  src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`}
                   alt={`${currentUser.displayName}'s avatar`}
                   className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block cursor-pointer transition-opacity hover:opacity-90"
                   onClick={() => avatarInputRef.current?.click()}
-                  onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`; }}
                 />
               </div>
             </div>

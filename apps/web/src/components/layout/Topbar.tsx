@@ -175,12 +175,12 @@ export default function Topbar() {
               style={{ background: 'linear-gradient(135deg, rgba(147,51,234,0.7), rgba(79,209,197,0.7))' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={currentUser?.avatar || '/fallback-avatar.png'}
+                src={currentUser?.avatar || '/fallback-avatar.svg'}
                 alt={`${currentUser?.displayName || 'User'}'s avatar`}
                 width={34} height={34}
                 className="w-[34px] h-[34px] rounded-full object-cover block"
                 style={{ display: 'block' }}
-                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
               />
             </div>
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-secondary-light border-2 border-surface-highest rounded-full" />

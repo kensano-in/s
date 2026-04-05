@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://verlyn.in'),
   icons: {
     icon: '/favicon.svg',
-    apple: '/fallback-avatar.png',
+    apple: '/fallback-avatar.svg',
   },
   openGraph: {
     type: 'website',

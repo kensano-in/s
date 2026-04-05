@@ -247,7 +247,7 @@ function MessagesContent() {
                       src={conv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participant_username}`}
                       alt={conv.participant_name}
                       className="w-12 h-12 rounded-full object-cover shadow-ambient border border-outline-variant/10"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
                     />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -302,7 +302,7 @@ function MessagesContent() {
                 src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`}
                 alt={activeConv.participant_name}
                 className="w-10 h-10 rounded-full object-cover shadow-ambient border border-outline-variant/10"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
               />
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-secondary-light border-2 border-surface-highest rounded-full" />
             </div>
@@ -339,7 +339,7 @@ function MessagesContent() {
                     alt={activeConv.participant_name}
                     width={32} height={32}
                     className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-ambient mb-1"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
                   />
                 )}
                 <div className="flex flex-col max-w-[65%] gap-1.5">

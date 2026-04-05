@@ -141,11 +141,11 @@ export default function CreatePost() {
           <div className="relative flex-shrink-0 mt-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={currentUser.avatar || '/fallback-avatar.png'}
+              src={currentUser.avatar || '/fallback-avatar.svg'}
               alt={`${currentUser.displayName}'s avatar`}
               width={48} height={48}
               className="w-12 h-12 rounded-full object-cover shadow-ambient border border-outline-variant/10"
-              onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+              onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
             />
             <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-secondary-light border-2 border-surface-highest rounded-full" />
           </div>
