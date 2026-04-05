@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
+import { useSearchParams, useRouter } from 'next/navigation';
 import clsx from 'clsx';
 
 interface DBConversation {
@@ -26,9 +27,13 @@ interface ChatMessage {
   is_mine: boolean;
 }
 
-export default function MessagesPage() {
+function MessagesContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetUserId = searchParams.get('user_id');
+
   const [activeFolder, setActiveFolder] = useState<'all' | 'unread'>('all');
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [activeConvId, setActiveConvId] = useState<string | null>(targetUserId || null);
   const [conversations, setConversations] = useState<DBConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [msg, setMsg] = useState('');
@@ -53,38 +58,64 @@ export default function MessagesPage() {
         .order('sent_at', { ascending: false })
         .limit(50);
 
-      if (!data || data.length === 0) { setLoadingConvs(false); return; }
-
-      // Build conversation list from messages
       const convMap = new Map<string, DBConversation>();
-      for (const m of data) {
-        const otherId = m.sender_id === currentUser.id ? m.recipient_id : m.sender_id;
-        if (convMap.has(otherId)) continue;
+      
+      if (data && data.length > 0) {
+        // Build conversation list from messages
+        for (const m of data) {
+          const otherId = m.sender_id === currentUser.id ? m.recipient_id : m.sender_id;
+          if (convMap.has(otherId)) continue;
 
-        const { data: other } = await supabase
-          .from('users')
-          .select('id, username, display_name, avatar_url')
-          .eq('id', otherId)
-          .single();
+          const { data: other } = await supabase
+            .from('users')
+            .select('id, username, display_name, avatar_url')
+            .eq('id', otherId)
+            .single();
 
-        convMap.set(otherId, {
-          id: otherId,
-          participant_id: otherId,
-          participant_name: other?.display_name || other?.username || 'Unknown',
-          participant_username: other?.username || '?',
-          participant_avatar: other?.avatar_url || null,
-          last_message: m.content,
-          updated_at: m.sent_at,
-          unread: 0,
-        });
+          convMap.set(otherId, {
+            id: otherId,
+            participant_id: otherId,
+            participant_name: other?.display_name || other?.username || 'Unknown',
+            participant_username: other?.username || '?',
+            participant_avatar: other?.avatar_url || null,
+            last_message: m.content,
+            updated_at: m.sent_at,
+            unread: 0,
+          });
+        }
       }
 
-      setConversations(Array.from(convMap.values()));
-      if (convMap.size > 0) setActiveConvId(Array.from(convMap.keys())[0]);
+      // If we jumped here with a target user but they aren't in our history yet
+      if (targetUserId && !convMap.has(targetUserId) && targetUserId !== currentUser.id) {
+        const { data: targetUser } = await supabase
+          .from('users')
+          .select('id, username, display_name, avatar_url')
+          .eq('id', targetUserId)
+          .single();
+          
+        if (targetUser) {
+          convMap.set(targetUserId, {
+            id: targetUserId,
+            participant_id: targetUserId,
+            participant_name: targetUser.display_name || targetUser.username,
+            participant_username: targetUser.username,
+            participant_avatar: targetUser.avatar_url,
+            last_message: '',
+            updated_at: new Date().toISOString(),
+            unread: 0,
+          });
+        }
+      }
+
+      setConversations(Array.from(convMap.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+      
+      if (!targetUserId && convMap.size > 0) {
+        setActiveConvId(Array.from(convMap.keys())[0]);
+      }
       setLoadingConvs(false);
     }
     loadConversations();
-  }, [currentUser?.id, supabase]);
+  }, [currentUser?.id, supabase, targetUserId]);
 
   // Load messages for active conversation
   useEffect(() => {
@@ -382,5 +413,17 @@ export default function MessagesPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-full w-full items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <MessagesContent />
+    </Suspense>
   );
 }

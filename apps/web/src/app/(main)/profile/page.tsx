@@ -34,11 +34,19 @@ export default function ProfilePage() {
     teal: 'linear-gradient(135deg, #134e4a 0%, #042f2e 40%, #0f172a 100%)',
     amber: 'linear-gradient(135deg, #78350f 0%, #451a03 40%, #1c1917 100%)',
     slate: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)',
+    emerald: 'linear-gradient(135deg, #064e3b 0%, #022c22 40%, #0f172a 100%)',
+    fuchsia: 'linear-gradient(135deg, #701a75 0%, #4a044e 40%, #1c1917 100%)',
+    cyan: 'linear-gradient(135deg, #164e63 0%, #083344 40%, #0f172a 100%)',
+    orange: 'linear-gradient(135deg, #9a3412 0%, #7c2d12 40%, #1c1917 100%)',
+    crimson: 'linear-gradient(135deg, #9f1239 0%, #881337 40%, #1c1917 100%)',
+    obsidian: 'linear-gradient(135deg, #09090b 0%, #000000 50%, #09090b 100%)',
   };
 
   const BANNER_LABELS: Record<string, string> = {
     purple: '#7C3AED', violet: '#8B5CF6', rose: '#E11D48',
     teal: '#0D9488', amber: '#D97706', slate: '#475569',
+    emerald: '#10B981', fuchsia: '#D946EF', cyan: '#06B6D4',
+    orange: '#F97316', crimson: '#E11D48', obsidian: '#18181B',
   };
 
   const handleAvatarUpload = async (files: FileList | null) => {
@@ -109,189 +117,228 @@ export default function ProfilePage() {
         aria-label="Upload avatar"
       />
 
-      {/* Banner — no overflow-hidden so avatar is never clipped */}
-      <div className="relative mb-20">
-        {/* Background layer (clipped) */}
-        <div
-          className="h-40 rounded-2xl overflow-hidden relative"
-          style={{ background: BANNER_GRADIENTS[bannerColor] }}
-        >
-          <div className="absolute top-4 left-8 w-24 h-24 rounded-full blur-3xl opacity-40" style={{ background: 'var(--v-violet)' }} />
-          <div className="absolute bottom-2 right-16 w-32 h-32 rounded-full blur-3xl opacity-30" style={{ background: 'var(--v-cyan)' }} />
+    <div className="space-y-0 animate-fade-in pb-12">
+      {isEditing && (
+        <EditProfileModal onClose={() => setIsEditing(false)} />
+      )}
 
-          {/* Banner controls */}
-          <div className="absolute bottom-3 right-3 flex items-center gap-2">
-            {/* Color picker toggle */}
-            <div className="relative">
-              <button
-                onClick={() => setShowColorPicker(v => !v)}
-                className="btn-glass text-xs px-3 py-1.5 flex items-center gap-1.5"
-                id="change-color-btn"
-                aria-label="Change banner color"
-              >
-                <Palette size={12} />
-                Color
-              </button>
-              {showColorPicker && (
-                <div className="absolute bottom-9 right-0 flex gap-2 p-3 rounded-2xl shadow-2xl animate-fade-in"
-                  style={{ background: 'rgba(10,8,20,0.95)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  {Object.entries(BANNER_LABELS).map(([key, hex]) => (
-                    <button
-                      key={key}
-                      onClick={() => { setBannerColor(key); setShowColorPicker(false); }}
-                      className="w-7 h-7 rounded-full transition-transform hover:scale-110 flex-shrink-0"
-                      style={{
-                        background: hex,
-                        outline: bannerColor === key ? `2px solid white` : '2px solid transparent',
-                        outlineOffset: '2px',
-                      }}
-                      aria-label={`Set ${key} banner`}
-                      title={key}
-                    />
-                  ))}
+      {/* Hidden avatar file input */}
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleAvatarUpload(e.target.files)}
+        aria-label="Upload avatar"
+      />
+
+      {/* IG-style Profile Header */}
+      <div className="pt-8 pb-4 px-4 sm:px-8 max-w-[800px] mx-auto">
+        <div className="flex items-center gap-6 sm:gap-14 mb-6">
+          {/* Avatar (Left) */}
+          <div className="flex-shrink-0 relative">
+            <div className="p-1 rounded-full transition-colors duration-500" style={{ background: BANNER_GRADIENTS[bannerColor] }}>
+              <div className="p-[3px] bg-background rounded-full">
+                <img
+                  src={currentUser.avatar || '/fallback-avatar.png'}
+                  alt={`${currentUser.displayName}'s avatar`}
+                  className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block cursor-pointer transition-opacity hover:opacity-90"
+                  onClick={() => avatarInputRef.current?.click()}
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                />
+              </div>
+            </div>
+            {/* Camera icon over avatar */}
+            <div className="absolute bottom-1 right-2 sm:bottom-4 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 border-background cursor-pointer hover:scale-110 transition-transform shadow-lg"
+                 style={{ background: 'var(--text-primary)' }}
+                 onClick={() => avatarInputRef.current?.click()}>
+              <Camera size={14} className="text-background" />
+            </div>
+          </div>
+
+          {/* Stats & Actions (Right) */}
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mb-4">
+              <h1 className="text-xl sm:text-2xl font-normal text-on-surface flex items-center gap-2">
+                {currentUser.username}
+                {currentUser.isVerified && (
+                  <div className="verified-badge w-4 h-4 ml-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                  </div>
+                )}
+              </h1>
+              
+              {/* Desktop Actions */}
+              <div className="hidden sm:flex items-center gap-2 relative z-20">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition flex items-center gap-2"
+                >
+                  <Settings size={14} /> Edit Profile
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    className="px-3 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition flex items-center gap-2"
+                  >
+                    <Palette size={14} /> Theme
+                  </button>
+                  {showColorPicker && (
+                    <div className="absolute top-10 right-0 grid grid-cols-4 gap-2 w-48 p-3 rounded-xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
+                      style={{ background: 'rgba(20,20,30,0.95)', backdropFilter: 'blur(12px)' }}>
+                      {Object.entries(BANNER_LABELS).map(([key, hex]) => (
+                        <button
+                          key={key}
+                          onClick={() => { setBannerColor(key); setShowColorPicker(false); }}
+                          className="w-8 h-8 rounded-full transition-transform hover:scale-110 flex-shrink-0 relative overflow-hidden group"
+                          style={{
+                            background: BANNER_GRADIENTS[key],
+                            outline: bannerColor === key ? `2px solid white` : '2px solid transparent',
+                            outlineOffset: '2px',
+                          }}
+                          title={key}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
+
+            {/* Desktop Stats */}
+            <div className="hidden sm:flex items-center gap-10 mb-4 text-[15px]">
+              <div><span className="font-semibold text-on-surface">{userPosts.length}</span> posts</div>
+              <div><span className="font-semibold text-on-surface">{kFmt(currentUser.followerCount ?? 0)}</span> followers</div>
+              <div><span className="font-semibold text-on-surface">{kFmt(currentUser.followingCount ?? 0)}</span> following</div>
+            </div>
+
+            {/* Desktop Bio */}
+            <div className="hidden sm:block">
+              <div className="font-bold text-[15px] mb-1 text-on-surface">{currentUser.displayName}</div>
+              <p className="text-[15px] whitespace-pre-wrap text-on-surface leading-snug">
+                {currentUser.bio || "You haven't written a bio yet."}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Avatar — positioned outside the overflow-hidden banner */}
-        <div className="absolute -bottom-12 left-6 z-10">
-          <div
-            className="p-[2px] rounded-full"
-            style={{ background: 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))' }}
-          >
-            <div className="p-[3px] rounded-full" style={{ background: 'var(--bg, #0a0814)' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={currentUser.avatar || '/fallback-avatar.png'}
-                alt={`${currentUser.displayName}'s avatar`}
-                width={88} height={88}
-                className="w-[88px] h-[88px] rounded-full object-cover block"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
-              />
-            </div>
-          </div>
-          {/* Camera button */}
+        {/* Mobile Bio */}
+        <div className="sm:hidden px-2 mb-4">
+          <div className="font-bold text-[14px] mb-1 text-on-surface">{currentUser.displayName}</div>
+          <p className="text-[14px] whitespace-pre-wrap text-on-surface leading-snug">
+            {currentUser.bio || "You haven't written a bio yet."}
+          </p>
+        </div>
+
+        {/* Mobile Stats */}
+        <div className="sm:hidden flex items-center justify-around py-3 mb-2 border-t border-outline-variant/30 text-[14px]">
+          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{userPosts.length}</span> <span className="text-on-surface-variant text-[13px]">posts</span></div>
+          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(currentUser.followerCount ?? 0)}</span> <span className="text-on-surface-variant text-[13px]">followers</span></div>
+          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(currentUser.followingCount ?? 0)}</span> <span className="text-on-surface-variant text-[13px]">following</span></div>
+        </div>
+
+        {/* Mobile Actions */}
+        <div className="sm:hidden flex items-center gap-2 mb-6">
           <button
-            onClick={() => avatarInputRef.current?.click()}
-            className="absolute bottom-1 right-1 w-7 h-7 rounded-full flex items-center justify-center border-2 cursor-pointer hover:opacity-90 transition-opacity"
-            style={{ background: 'var(--v-violet)', borderColor: 'var(--bg, #0a0814)' }}
-            id="change-avatar-btn"
-            aria-label="Change avatar"
+            onClick={() => setIsEditing(true)}
+            className="flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition"
           >
-            <Camera size={12} color="white" />
+            Edit Profile
+          </button>
+          <button
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            className="px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition"
+          >
+            <Palette size={16} />
           </button>
         </div>
-      </div>
-
-      {/* Profile info — pt-16 clears the avatar that overlaps from the banner */}
-      <div className="px-1 pb-4 pt-16">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <h1 className="text-xl font-black" style={{ color: 'var(--text-primary)' }}>
-                {currentUser.displayName}
-              </h1>
-              {currentUser.isVerified && (
-                <div className="verified-badge w-5 h-5">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                </div>
-              )}
-            </div>
-            <div className="text-sm mb-2" style={{ color: 'var(--text-tertiary)' }}>@{currentUser.username}</div>
-            <p className="text-sm leading-relaxed max-w-sm" style={{ color: 'var(--text-secondary)' }}>
-              {currentUser.bio || "This user hasn't written a bio yet."}
-            </p>
+        {/* Mobile color picker dropdown */}
+        {showColorPicker && (
+          <div className="sm:hidden grid grid-cols-6 gap-3 p-4 mb-4 rounded-xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
+            style={{ background: 'rgba(20,20,30,0.95)', backdropFilter: 'blur(12px)' }}>
+            {Object.entries(BANNER_LABELS).map(([key, hex]) => (
+              <button
+                key={key}
+                onClick={() => { setBannerColor(key); setShowColorPicker(false); }}
+                className="w-8 h-8 rounded-full transition-transform hover:scale-110 flex-shrink-0"
+                style={{ background: BANNER_GRADIENTS[key], outline: bannerColor === key ? `2px solid white` : '2px solid transparent', outlineOffset: '2px' }}
+              />
+            ))}
           </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              className="btn-glass text-sm flex items-center gap-1.5"
-              id="edit-profile-btn"
-              onClick={() => setIsEditing(true)}
-            >
-              <Settings size={14} />
-              Edit Profile
-            </button>
-          </div>
-        </div>
-
-        {/* Karma + Stats */}
-        <div className="flex items-center gap-4 mt-4 flex-wrap">
-          <div className="karma-badge">
-            ⚡ {kFmt(currentUser.karmaScore ?? 0)} Karma
-          </div>
-          <div className="flex items-center gap-4 text-sm">
-            <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{kFmt(currentUser.followerCount ?? 0)}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Followers</div>
-            </div>
-            <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{kFmt(currentUser.followingCount ?? 0)}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Following</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{userPosts.length}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Posts</div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex border-t border-outline-variant/30 justify-center max-w-[900px] mx-auto gap-4 sm:gap-12">
         {([
-          { key: 'posts', label: 'Posts', icon: Grid3x3 },
-          { key: 'saved', label: 'Saved', icon: Bookmark },
-          { key: 'awards', label: 'Awards', icon: Award },
+          { key: 'posts', label: 'POSTS', icon: Grid3x3 },
+          { key: 'saved', label: 'SAVED', icon: Bookmark },
+          { key: 'awards', label: 'AWARDS', icon: Award },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className="flex items-center gap-2 px-5 py-3 text-sm font-semibold relative transition-colors focus-visible:outline-none"
-            style={{ color: tab === key ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+            className={`flex items-center gap-2 px-2 sm:px-4 py-4 text-[12px] sm:text-[13px] font-bold uppercase tracking-wider relative transition-colors focus-visible:outline-none ${tab === key ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+            style={tab === key ? { color: 'var(--text-primary)' } : {}}
           >
-            <Icon size={15} />
+            <Icon size={14} />
             {label}
-            {tab === key && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: 'var(--v-violet)' }} />
-            )}
+            {tab === key && <span className="absolute top-0 left-0 right-0 h-[2px] bg-primary transition-all" />}
           </button>
         ))}
       </div>
 
       {/* Content */}
-      <div className="pt-4 space-y-4">
+      <div className="max-w-[900px] mx-auto min-h-[400px]">
         {tab === 'posts' && (
           loadingPosts ? (
-            <div className="glass-card p-12 text-center">
+            <div className="p-12 text-center">
               <div className="w-8 h-8 border-2 border-primary-light border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sm text-on-surface-variant">Loading your posts...</p>
             </div>
           ) : userPosts.length === 0 ? (
-            <div className="glass-card p-12 text-center flex flex-col items-center">
-              <Sparkles size={32} className="text-on-surface-variant mb-3 opacity-40" />
-              <p className="font-bold text-on-surface mb-1">No posts yet</p>
-              <p className="text-sm text-on-surface-variant">Share your first thought with the world.</p>
+            <div className="p-12 mt-12 text-center flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
+                <Sparkles size={32} className="text-on-surface-variant opacity-40" />
+              </div>
+              <p className="font-bold text-[18px] text-on-surface mb-2">No Posts Yet</p>
             </div>
           ) : (
-            userPosts.map((p) => <PostCard key={p.id} post={p} currentUserId={currentUser.id} />)
+            <div className="grid grid-cols-3 gap-1 sm:gap-4 mt-1">
+              {userPosts.map((p) => {
+                const mainMedia = p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls[0] : null;
+                return (
+                  <div key={p.id} className="aspect-square bg-surface-variant relative group overflow-hidden cursor-pointer" onClick={() => window.location.href = `/feed/${p.id}`}>
+                    {mainMedia ? (
+                      <img src={mainMedia} alt="thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full flex p-3 items-center justify-center text-[10px] sm:text-[14px] break-words text-center font-medium opacity-80">
+                        {p.content.slice(0, 100)}{p.content.length > 100 ? '...' : ''}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )
         )}
         {tab === 'saved' && (
-          <div className="glass-card p-8 text-center">
-            <Bookmark size={28} className="mx-auto mb-3 text-on-surface-variant opacity-40" />
-            <p className="font-bold text-on-surface mb-1">Saved posts coming soon</p>
+          <div className="p-12 mt-12 text-center flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
+              <Bookmark size={32} className="text-on-surface-variant opacity-40" />
+            </div>
+            <p className="font-bold text-[18px] text-on-surface mb-2">Saved posts coming soon</p>
           </div>
         )}
         {tab === 'awards' && (
-          <div className="glass-card p-6 text-center">
-            <div className="text-4xl mb-3">🏆</div>
-            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Awards & Achievements</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>Community recognition for outstanding contributions</p>
+          <div className="p-12 mt-12 text-center flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
+              <div className="text-4xl">🏆</div>
+            </div>
+            <p className="font-bold text-[18px] text-on-surface mb-2">Awards & Achievements</p>
+            <p className="text-[14px] text-on-surface-variant">Community recognition coming soon.</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -190,11 +190,24 @@ export const useAppStore = create<AppState>()(
         const state = get();
         const isFollowingNow = state.following.includes(userId);
         
-        set((s) => ({
-          following: isFollowingNow
+        set((s) => {
+          const nextFollowing = isFollowingNow
             ? s.following.filter((id) => id !== userId)
-            : [...s.following, userId],
-        }));
+            : [...s.following, userId];
+            
+          let nextUser = s.currentUser;
+          if (s.currentUser) {
+            nextUser = {
+              ...s.currentUser,
+              followingCount: Math.max(0, (s.currentUser.followingCount || 0) + (isFollowingNow ? -1 : 1))
+            } as User;
+          }
+
+          return {
+            following: nextFollowing,
+            currentUser: nextUser,
+          };
+        });
 
         if (state.currentUser?.id) {
           import('@/app/(main)/profile/actions').then((m) => {
