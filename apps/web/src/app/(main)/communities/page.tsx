@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { Community } from '@/lib/types';
-import { Users, Lock, Zap, Search, Plus, TrendingUp, Star, Loader2, Hash } from 'lucide-react';
+import { Users, Lock, Zap, Search, Plus, TrendingUp, Star, Loader2, Hash, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store';
 
@@ -99,6 +99,8 @@ export default function CommunitiesPage() {
   const [query, setQuery] = useState('');
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const { currentUser } = useAppStore();
   const supabase = useMemo(() => createClient(), []);
 
@@ -156,10 +158,79 @@ export default function CommunitiesPage() {
             Discover spaces built around what you love
           </p>
         </div>
-        <button className="btn-primary text-sm shine" id="create-community-btn">
+        <button className="btn-primary text-sm shine" id="create-community-btn" onClick={() => setIsCreateModalOpen(true)}>
           <Plus size={15} /> Create
         </button>
       </div>
+
+      {/* Create Community Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="glass-card w-full max-w-md p-6 relative border border-outline-variant/30 shadow-2xl">
+            <button onClick={() => setIsCreateModalOpen(false)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
+              <X size={20} />
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-on-surface">Create a Community</h2>
+            <form action={async (formData) => {
+              setIsCreating(true);
+              const { createCommunity } = await import('./actions');
+              const res = await createCommunity(formData);
+              setIsCreating(false);
+              if (res.success) {
+                setIsCreateModalOpen(false);
+                // Prepend to list optimistically or refetch
+                if (res.community) {
+                  const newComm: Community = {
+                    id: res.community.id,
+                    name: res.community.name,
+                    displayName: res.community.display_name,
+                    description: res.community.description,
+                    iconUrl: res.community.icon_url,
+                    memberCount: res.community.member_count || 1,
+                    isPrivate: res.community.is_private || false,
+                    isJoined: true,
+                    boostLevel: res.community.boost_level || 0,
+                    createdAt: res.community.created_at || new Date().toISOString(),
+                    tags: [],
+                  };
+                  setCommunities(prev => [newComm, ...prev]);
+                }
+              } else {
+                alert(`Error: ${res.error}`);
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Community ID (lowercase, no spaces)</label>
+                <input required name="name" type="text" className="w-full bg-surface-lowest border border-outline-variant/30 rounded-xl px-4 py-2 text-sm focus:border-primary-light outline-none" placeholder="e.g. designsystems" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Display Name</label>
+                <input required name="displayName" type="text" className="w-full bg-surface-lowest border border-outline-variant/30 rounded-xl px-4 py-2 text-sm focus:border-primary-light outline-none" placeholder="e.g. Design Systems Global" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Description</label>
+                <textarea required name="description" rows={3} className="w-full bg-surface-lowest border border-outline-variant/30 rounded-xl px-4 py-2 text-sm focus:border-primary-light outline-none resize-none" placeholder="What is this community about?" />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-surface-lowest border border-outline-variant/20">
+                <div className="flex items-center gap-2">
+                  <Lock size={16} className="text-primary-light" />
+                  <div>
+                    <div className="text-sm font-semibold">Private Community</div>
+                    <div className="text-[10px] text-on-surface-variant">Only members can see posts.</div>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" name="isPrivate" value="true" className="sr-only peer" />
+                  <div className="w-9 h-5 bg-surface-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-light"></div>
+                </label>
+              </div>
+              <button disabled={isCreating} type="submit" className="w-full btn-primary py-2.5 flex justify-center items-center gap-2 mt-2">
+                {isCreating ? <Loader2 size={16} className="animate-spin" /> : 'Create Community'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative group">

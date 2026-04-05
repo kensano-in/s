@@ -79,6 +79,7 @@ export default function SettingsPage() {
     settingTwoFA, setSettingTwoFA,
     settingPushNotifs, setSettingPushNotifs,
     settingEmailDigest, setSettingEmailDigest,
+    settingPrivateAccount, setSettingPrivateAccount,
   } = useAppStore();
 
   return (
@@ -112,6 +113,12 @@ export default function SettingsPage() {
 
       {/* Privacy & Security — PERSISTED */}
       <SettingSection title="Privacy & Security">
+        <SettingRow
+          icon={User}
+          label="Private Account"
+          desc="Only approved followers can see your posts and activity"
+          right={<PersistToggle id="toggle-private" on={settingPrivateAccount} onToggle={() => setSettingPrivateAccount(!settingPrivateAccount)} />}
+        />
         <SettingRow
           icon={Lock}
           label="End-to-End Encryption"

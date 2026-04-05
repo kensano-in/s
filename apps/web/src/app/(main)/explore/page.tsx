@@ -128,20 +128,25 @@ function ExploreInner() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search users, posts…"
           autoComplete="off"
-          className="w-full py-3 pl-11 pr-10 rounded-2xl text-[14px] font-medium focus:outline-none transition-all duration-200"
+          className="w-full py-3 pl-12 pr-10 rounded-2xl text-[15px] font-medium focus:outline-none transition-all duration-300 shadow-ambient"
           style={{
-            background: 'rgba(255,255,255,0.05)',
+            background: 'rgba(20,20,30,0.4)',
             border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.9)',
+            color: 'rgba(255,255,255,0.95)',
             caretColor: 'rgba(167,139,250,1)',
+            backdropFilter: 'blur(16px)',
           }}
           onFocus={(e) => {
-            e.target.style.background = 'rgba(147,51,234,0.06)';
-            e.target.style.border = '1px solid rgba(147,51,234,0.4)';
+            e.target.style.background = 'rgba(147,51,234,0.08)';
+            e.target.style.border = '1px solid rgba(167,139,250,0.5)';
+            e.target.style.boxShadow = '0 0 20px rgba(147,51,234,0.2)';
+            e.target.style.transform = 'translateY(-1px)';
           }}
           onBlur={(e) => {
-            e.target.style.background = 'rgba(255,255,255,0.05)';
+            e.target.style.background = 'rgba(20,20,30,0.4)';
             e.target.style.border = '1px solid rgba(255,255,255,0.08)';
+            e.target.style.boxShadow = 'none';
+            e.target.style.transform = 'translateY(0px)';
           }}
         />
         {hasQuery && (

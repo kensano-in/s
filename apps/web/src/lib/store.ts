@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Theme, Notification, User, Conversation } from '@/lib/types';
-import { MOCK_NOTIFICATIONS, MOCK_CONVERSATIONS } from '@/lib/mockData';
 import { dispatchProfileSync } from '@/lib/sync-engine';
 
 interface AppState {
@@ -86,10 +85,12 @@ interface AppState {
   settingTwoFA: boolean;
   settingPushNotifs: boolean;
   settingEmailDigest: boolean;
+  settingPrivateAccount: boolean;
   setSettingE2EE: (v: boolean) => void;
   setSettingTwoFA: (v: boolean) => void;
   setSettingPushNotifs: (v: boolean) => void;
   setSettingEmailDigest: (v: boolean) => void;
+  setSettingPrivateAccount: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -120,8 +121,8 @@ export const useAppStore = create<AppState>()(
       // FIX 5: Always close notification panel when any overlay opens
       setOverlay: (id) => set({ activeOverlay: id, isNotifPanelOpen: false }),
 
-      notifications: MOCK_NOTIFICATIONS,
-      unreadNotifCount: MOCK_NOTIFICATIONS.filter((n) => !n.isRead).length,
+      notifications: [],
+      unreadNotifCount: 0,
       markNotifRead: (id) => set((s) => {
         const updatedNotifications = s.notifications.map((n) => n.id === id ? { ...n, isRead: true } : n);
         return {
@@ -134,7 +135,7 @@ export const useAppStore = create<AppState>()(
         unreadNotifCount: 0,
       })),
 
-      conversations: MOCK_CONVERSATIONS,
+      conversations: [],
       activeConversationId: null,
       setActiveConversation: (id) => set({ activeConversationId: id }),
       messages: {},
@@ -185,11 +186,22 @@ export const useAppStore = create<AppState>()(
           ? s.likedPosts.filter((id) => id !== postId)
           : [...s.likedPosts, postId],
       })),
-      toggleFollow: (userId) => set((s) => ({
-        following: s.following.includes(userId)
-          ? s.following.filter((id) => id !== userId)
-          : [...s.following, userId],
-      })),
+      toggleFollow: (userId) => {
+        const state = get();
+        const isFollowingNow = state.following.includes(userId);
+        
+        set((s) => ({
+          following: isFollowingNow
+            ? s.following.filter((id) => id !== userId)
+            : [...s.following, userId],
+        }));
+
+        if (state.currentUser?.id) {
+          import('@/app/(main)/profile/actions').then((m) => {
+            m.toggleFollowDB(state.currentUser!.id, userId, !isFollowingNow).catch(console.error);
+          });
+        }
+      },
       toggleSave: (postId) => set((s) => ({
         savedPosts: s.savedPosts.includes(postId)
           ? s.savedPosts.filter((id) => id !== postId)
@@ -204,10 +216,12 @@ export const useAppStore = create<AppState>()(
       settingTwoFA: false,
       settingPushNotifs: true,
       settingEmailDigest: false,
-      setSettingE2EE: (v) => set({ settingE2EE: v }),
-      setSettingTwoFA: (v) => set({ settingTwoFA: v }),
-      setSettingPushNotifs: (v) => set({ settingPushNotifs: v }),
-      setSettingEmailDigest: (v) => set({ settingEmailDigest: v }),
+      settingPrivateAccount: false,
+      setSettingE2EE: (v: boolean) => set({ settingE2EE: v }),
+      setSettingTwoFA: (v: boolean) => set({ settingTwoFA: v }),
+      setSettingPushNotifs: (v: boolean) => set({ settingPushNotifs: v }),
+      setSettingEmailDigest: (v: boolean) => set({ settingEmailDigest: v }),
+      setSettingPrivateAccount: (v: boolean) => set({ settingPrivateAccount: v }),
       _hasHydrated: false,
     }),
     {
@@ -229,6 +243,7 @@ export const useAppStore = create<AppState>()(
         settingTwoFA: state.settingTwoFA,
         settingPushNotifs: state.settingPushNotifs,
         settingEmailDigest: state.settingEmailDigest,
+        settingPrivateAccount: state.settingPrivateAccount,
       }),
     }
   )
