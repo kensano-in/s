@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 /**
  * Upload a media file to Supabase Storage server-side.
@@ -24,8 +25,16 @@ export async function uploadMedia(formData: FormData): Promise<{ url: string } |
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  // Ensure bucket exists before uploading. Fails silently if it already exists or if no permissions (which is fine, we just want to try)
-  await supabase.storage.createBucket('media', { public: true }).catch(() => {});
+  // Ensure bucket exists via Service Role Client to bypass restrict bucket RLS policies
+  try {
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    await supabaseAdmin.storage.createBucket('media', { public: true });
+  } catch (err) {
+    // Fails silently if it already exists or if key restricts it
+  }
 
   const { error } = await supabase.storage
     .from('media')

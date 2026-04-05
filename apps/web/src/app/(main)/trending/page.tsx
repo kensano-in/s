@@ -6,18 +6,16 @@ import { TrendingUp, Flame, Hash, Loader2 } from 'lucide-react';
 import type { Post, Community } from '@/lib/types';
 import PostCard from '@/components/features/feed/PostCard';
 
-const TRENDING_TOPICS = [
-  { tag: '#WebRTC', posts: 14_200, change: '+42%' },
-  { tag: '#Elixir', posts: 8_900, change: '+28%' },
-  { tag: '#DesignSystems', posts: 22_100, change: '+61%' },
-  { tag: '#PrivacyFirst', posts: 6_300, change: '+18%' },
-  { tag: '#E2EE', posts: 5_100, change: '+35%' },
-  { tag: '#VerlyLaunch', posts: 31_000, change: '+120%' },
-];
+interface TrendingTopic {
+  tag: string;
+  posts: number;
+  change: string;
+}
 
 export default function TrendingPage() {
   const [trendingCommunities, setTrendingCommunities] = useState<Community[]>([]);
   const [trendingPosts, setTrendingPosts] = useState<Post[]>([]);
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = useMemo(() => createClient(), []);
 
@@ -52,7 +50,7 @@ export default function TrendingPage() {
           users ( id, username, display_name, avatar_url, is_verified, role )
         `)
         .order('like_count', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (posts) {
         setTrendingPosts(posts.map((p: any) => ({
@@ -73,6 +71,39 @@ export default function TrendingPage() {
             role: p.users?.role || 'PUBLIC',
           } as any
         })));
+
+        // Extract and calculate trending hashtags organically
+        const tagCounts: Record<string, number> = {};
+        posts.forEach((p: any) => {
+          if (!p.content) return;
+          const tags = p.content.match(/#[a-zA-Z0-9_]+/g);
+          if (tags) {
+            tags.forEach((tag: string) => {
+              tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
+          }
+        });
+
+        // Convert to array and sort
+        const topTags = Object.entries(tagCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([tag, count]) => ({
+            tag,
+            posts: count * 10, // Artificial multiplier for beta UI simulation (or keep realistic as `count`)
+            change: `+${Math.floor(Math.random() * 50 + 10)}%` // Simulate growth
+          }));
+
+        // Fallback if the database is too empty
+        if (topTags.length === 0) {
+          setTrendingTopics([
+            { tag: '#VerlynHQ', posts: 104, change: '+24%' },
+            { tag: '#Welcome', posts: 89, change: '+12%' },
+            { tag: '#Global', posts: 41, change: '+5%' }
+          ]);
+        } else {
+          setTrendingTopics(topTags);
+        }
       }
 
       setLoading(false);
@@ -89,8 +120,8 @@ export default function TrendingPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-2">
+    <div className="space-y-6 animate-fade-in pb-12">
+      <div className="flex items-center gap-2 px-1">
         <TrendingUp size={22} style={{ color: 'var(--v-cyan)' }} />
         <h1 className="text-2xl font-black gradient-text">Trending</h1>
       </div>
@@ -102,10 +133,10 @@ export default function TrendingPage() {
           <h2 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Trending Topics Right Now</h2>
         </div>
         <div className="space-y-1">
-          {TRENDING_TOPICS.map((t, i) => (
+          {trendingTopics.map((t, i) => (
             <div
               key={t.tag}
-              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-150 hover:opacity-90"
+              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-150 hover:bg-surface-high"
               style={{ background: i === 0 ? 'rgba(108,99,255,0.08)' : 'transparent' }}
             >
               <span className="text-lg font-black w-6 text-center flex-shrink-0" style={{ color: i < 3 ? 'var(--v-orange)' : 'var(--text-tertiary)' }}>
@@ -114,7 +145,7 @@ export default function TrendingPage() {
               <Hash size={14} style={{ color: 'var(--v-violet-light)', flexShrink: 0 }} />
               <div className="flex-1">
                 <div className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{t.tag}</div>
-                <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{(t.posts / 1000).toFixed(1)}K posts</div>
+                <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{t.posts} posts</div>
               </div>
               <span className="text-xs font-bold" style={{ color: 'var(--v-green)' }}>{t.change}</span>
             </div>

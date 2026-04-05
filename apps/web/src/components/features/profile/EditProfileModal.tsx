@@ -2,7 +2,8 @@
 
 import { useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
-import { X, Camera, Save, TerminalSquare } from 'lucide-react';
+import { X, Camera, Save, TerminalSquare, Lock } from 'lucide-react';
+import clsx from 'clsx';
 
 interface Props {
   onClose: () => void;
@@ -16,6 +17,7 @@ export default function EditProfileModal({ onClose }: Props) {
   const [username, setUsername] = useState(currentUser?.username || '');
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
+  const [isPrivate, setIsPrivate] = useState(currentUser?.isPrivate || false);
   const [errorMsg, setErrorMsg] = useState('');
   const [manifestText, setManifestText] = useState('');
 
@@ -47,7 +49,8 @@ export default function EditProfileModal({ onClose }: Props) {
       displayName,
       username,
       bio,
-      avatar
+      avatar,
+      isPrivate
     });
 
     if (manifestText.trim()) {
@@ -55,8 +58,7 @@ export default function EditProfileModal({ onClose }: Props) {
         const manifest = JSON.parse(manifestText);
         setCustomThemeManifest(manifest);
       } catch (e) {
-        // Discard silently if bad JSON, or ideally let them fail.
-        // We'll let it fail if they literally typed bad JSON syntax, but valid CSS syntax works.
+        // Discard silently if bad JSON
       }
     }
     
@@ -157,6 +159,30 @@ export default function EditProfileModal({ onClose }: Props) {
               rows={3}
               className="w-full bg-surface-low text-on-surface rounded-xl px-4 py-2 border border-outline-variant/10 focus:ring-1 focus:ring-primary-light resize-none"
             />
+          </div>
+
+          {/* Privacy Toggle */}
+          <div className="flex items-center justify-between p-4 bg-surface-low rounded-xl border border-outline-variant/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-surface-lowest flex items-center justify-center text-primary-light border border-outline-variant/10 shadow-ambient">
+                <Lock size={18} />
+              </div>
+              <div>
+                <div className="text-[13px] font-bold text-on-surface">Private Account</div>
+                <div className="text-[11px] text-on-surface-variant max-w-[200px] leading-tight mt-0.5">When your account is private, only people you approve can see your photos and videos.</div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsPrivate(!isPrivate)}
+              className={clsx(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out custom-focus-ring flex-shrink-0 focus-visible:ring-primary-light",
+                isPrivate ? "bg-primary" : "bg-surface-highest border border-outline-variant/30"
+              )}
+              role="switch"
+              aria-checked={isPrivate}
+            >
+              <span className={clsx("inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out shadow-sm", isPrivate ? "translate-x-6" : "translate-x-1")} />
+            </button>
           </div>
 
           {/* Unhinged Visual Sovereignty Override */}

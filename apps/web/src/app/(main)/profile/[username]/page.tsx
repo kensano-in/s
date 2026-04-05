@@ -110,110 +110,168 @@ export default function PublicProfilePage() {
   const canSeePosts = !profileUser.isPrivate || amFollowing;
 
   return (
-    <div className="space-y-0 animate-fade-in relative">
-      {/* Banner */}
-      <div className="relative mb-20">
-        <div className="h-40 rounded-2xl overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)' }}>
-          <div className="absolute top-4 left-8 w-24 h-24 rounded-full blur-3xl opacity-40" style={{ background: 'var(--v-violet)' }} />
-          <div className="absolute bottom-2 right-16 w-32 h-32 rounded-full blur-3xl opacity-30" style={{ background: 'var(--v-cyan)' }} />
-        </div>
-
-        {/* Avatar */}
-        <div className="absolute -bottom-12 left-6 z-10">
-          <div className="p-[2px] rounded-full" style={{ background: 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))' }}>
-            <div className="p-[3px] rounded-full" style={{ background: 'var(--bg, #0a0814)' }}>
-              <img
-                src={profileUser.avatar || '/fallback-avatar.png'}
-                alt={`${profileUser.displayName}'s avatar`}
-                className="w-[88px] h-[88px] rounded-full object-cover block"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
-              />
+    <div className="space-y-0 animate-fade-in pb-12">
+      {/* IG-style Profile Header */}
+      <div className="pt-8 pb-4 px-4 sm:px-8 max-w-[800px] mx-auto">
+        <div className="flex items-center gap-6 sm:gap-14 mb-6">
+          {/* Avatar (Left) */}
+          <div className="flex-shrink-0">
+            <div className="p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500">
+              <div className="p-[3px] bg-background rounded-full">
+                <img
+                  src={profileUser.avatar || '/fallback-avatar.png'}
+                  alt={`${profileUser.displayName}'s avatar`}
+                  className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block"
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Profile info */}
-      <div className="px-1 pb-4 pt-16">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <h1 className="text-xl font-black" style={{ color: 'var(--text-primary)' }}>
-                {profileUser.displayName}
+          {/* Stats & Actions (Right) */}
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mb-4">
+              <h1 className="text-xl sm:text-2xl font-normal text-on-surface flex items-center gap-2">
+                {profileUser.username}
+                {profileUser.isVerified && (
+                  <div className="verified-badge w-4 h-4 ml-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                  </div>
+                )}
+                {profileUser.isPrivate && <Lock size={14} className="text-on-surface-variant ml-1" />}
               </h1>
-              {profileUser.isVerified && (
-                <div className="verified-badge w-5 h-5">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                </div>
-              )}
-              {profileUser.isPrivate && <Lock size={14} className="text-on-surface-variant ml-1" />}
+              
+              {/* Desktop Actions */}
+              <div className="hidden sm:flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    toggleFollow(profileUser.id);
+                    const { toggleFollowDB } = await import('../actions');
+                    await toggleFollowDB(currentUser?.id || '', profileUser.id, !amFollowing);
+                  }}
+                  className={amFollowing ? 'px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition' : 'px-4 py-1.5 bg-primary text-on-primary rounded-lg text-[14px] font-semibold hover:bg-primary-light transition'}
+                >
+                  {amFollowing ? 'Following' : 'Follow'}
+                </button>
+                <button 
+                  onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
+                  className="px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition"
+                >
+                  Message
+                </button>
+              </div>
             </div>
-            <div className="text-sm mb-2" style={{ color: 'var(--text-tertiary)' }}>@{profileUser.username}</div>
-            <p className="text-sm leading-relaxed max-w-sm" style={{ color: 'var(--text-secondary)' }}>
-              {profileUser.bio || "This user hasn't written a bio yet."}
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={async () => {
-                toggleFollow(profileUser.id);
-                // Database Follow Action will go here
-                // await toggleFollowDB(profileUser.id);
-              }}
-              className={amFollowing ? 'btn-glass text-sm flex items-center gap-1.5' : 'btn-primary text-sm flex items-center gap-1.5 shine'}
-            >
-              {amFollowing ? <><UserCheck size={14}/> Following</> : <><UserPlus size={14}/> Follow</>}
-            </button>
+            {/* Desktop Stats */}
+            <div className="hidden sm:flex items-center gap-10 mb-4 text-[15px]">
+              <div><span className="font-semibold text-on-surface">{userPosts.length}</span> posts</div>
+              <div><span className="font-semibold text-on-surface">{kFmt(profileUser.followerCount)}</span> followers</div>
+              <div><span className="font-semibold text-on-surface">{kFmt(profileUser.followingCount)}</span> following</div>
+            </div>
+
+            {/* Desktop Bio */}
+            <div className="hidden sm:block">
+              <div className="font-bold text-[15px] mb-1 text-on-surface">{profileUser.displayName}</div>
+              <p className="text-[15px] whitespace-pre-wrap text-on-surface leading-snug">
+                {profileUser.bio || "This user hasn't written a bio yet."}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 mt-4 flex-wrap">
-          <div className="flex items-center gap-4 text-sm">
-            <div className="text-center">
-              <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{kFmt(profileUser.followerCount)}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Followers</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{kFmt(profileUser.followingCount)}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Following</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{userPosts.length}</div>
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Posts</div>
-            </div>
-          </div>
+        {/* Mobile Bio */}
+        <div className="sm:hidden px-2 mb-4">
+          <div className="font-bold text-[14px] mb-1 text-on-surface">{profileUser.displayName}</div>
+          <p className="text-[14px] whitespace-pre-wrap text-on-surface leading-snug">
+            {profileUser.bio || "This user hasn't written a bio yet."}
+          </p>
+        </div>
+
+        {/* Mobile Stats */}
+        <div className="sm:hidden flex items-center justify-around py-3 mb-2 border-t border-outline-variant/30 text-[14px]">
+          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{userPosts.length}</span> <span className="text-on-surface-variant text-[13px]">posts</span></div>
+          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(profileUser.followerCount)}</span> <span className="text-on-surface-variant text-[13px]">followers</span></div>
+          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(profileUser.followingCount)}</span> <span className="text-on-surface-variant text-[13px]">following</span></div>
+        </div>
+
+        {/* Mobile Actions */}
+        <div className="sm:hidden flex items-center gap-2 mb-6">
+          <button
+            onClick={async () => {
+              toggleFollow(profileUser.id);
+              const { toggleFollowDB } = await import('../actions');
+              await toggleFollowDB(currentUser?.id || '', profileUser.id, !amFollowing);
+            }}
+            className={amFollowing ? 'flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition' : 'flex-1 py-1.5 bg-primary text-on-primary rounded-lg text-sm font-semibold transition'}
+          >
+            {amFollowing ? 'Following' : 'Follow'}
+          </button>
+          <button 
+            onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
+            className="flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition"
+          >
+            Message
+          </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex border-t border-outline-variant/30 justify-center max-w-[900px] mx-auto gap-12">
         <button
-          className="flex items-center gap-2 px-5 py-3 text-sm font-semibold relative transition-colors focus-visible:outline-none"
+          className="flex items-center gap-2 px-1 py-4 text-[13px] font-bold uppercase tracking-wider relative transition-colors focus-visible:outline-none"
           style={{ color: 'var(--text-primary)' }}
         >
-          <Grid3x3 size={15} />
-          Posts
-          <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: 'var(--v-violet)' }} />
+          <Grid3x3 size={14} />
+          POSTS
+          <span className="absolute top-0 left-0 right-0 h-[2px] bg-primary transition-all" />
+        </button>
+        <button
+          className="flex items-center gap-2 px-1 py-4 text-[13px] font-bold uppercase tracking-wider relative transition-colors text-on-surface-variant hover:text-on-surface focus-visible:outline-none"
+        >
+          <Bookmark size={14} />
+          SAVED
         </button>
       </div>
 
       {/* Content */}
-      <div className="pt-4 space-y-4">
+      <div className="max-w-[900px] mx-auto min-h-[400px]">
         {!canSeePosts ? (
-          <div className="glass-card p-12 text-center flex flex-col items-center">
-            <Lock size={32} className="text-on-surface-variant mb-3 opacity-60" />
-            <p className="font-bold text-on-surface mb-1">This Account is Private</p>
-            <p className="text-sm text-on-surface-variant">Follow this account to see their photos and videos.</p>
+          <div className="p-12 mt-12 text-center flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
+              <Lock size={32} className="text-on-surface-variant opacity-60" />
+            </div>
+            <p className="font-bold text-[18px] text-on-surface mb-2">This Account is Private</p>
+            <p className="text-[14px] text-on-surface-variant">Follow this account to see their photos and videos.</p>
           </div>
         ) : userPosts.length === 0 ? (
-          <div className="glass-card p-12 text-center flex flex-col items-center">
-            <Sparkles size={32} className="text-on-surface-variant mb-3 opacity-40" />
-            <p className="font-bold text-on-surface mb-1">No posts yet</p>
+          <div className="p-12 mt-12 text-center flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
+              <Sparkles size={32} className="text-on-surface-variant opacity-40" />
+            </div>
+            <p className="font-bold text-[18px] text-on-surface mb-2">No Posts Yet</p>
           </div>
         ) : (
-          userPosts.map((p) => <PostCard key={p.id} post={p} currentUserId={currentUser?.id || ''} />)
+          <div className="grid grid-cols-3 gap-1 sm:gap-4 mt-1">
+            {userPosts.map((p) => {
+              const mainMedia = p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls[0] : null;
+              return (
+                <div key={p.id} className="aspect-square bg-surface-variant relative group overflow-hidden cursor-pointer" onClick={() => router.push(`/feed/${p.id}`)}>
+                  {mainMedia ? (
+                    <img src={mainMedia} alt="Post thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  ) : (
+                    <div className="w-full h-full flex p-3 items-center justify-center text-[11px] sm:text-[14px] break-words text-center font-medium opacity-80">
+                      {p.content.slice(0, 100)}{p.content.length > 100 ? '...' : ''}
+                    </div>
+                  )}
+                  {/* Hover overlay with likes/comments */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-4 sm:gap-6 text-white font-bold">
+                    <div className="flex items-center gap-1.5"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> {kFmt(p.likeCount)}</div>
+                    <div className="flex items-center gap-1.5"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg> {kFmt(p.commentCount)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
