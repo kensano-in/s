@@ -42,15 +42,23 @@ export default function TrendingPage() {
         })));
       }
 
-      // Fetch top posts
+      // Phase 8: Engagement-score ranking (likes + 2×comments + 3×shares), last 48h
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       const { data: posts } = await supabase
         .from('posts')
         .select(`
           id, content, media_urls, like_count, comment_count, share_count, created_at,
           users ( id, username, display_name, avatar_url, is_verified, role )
         `)
+        .gte('created_at', cutoff)
         .order('like_count', { ascending: false })
-        .limit(20);
+        .limit(50);
+
+      // Sort by computed engagement score client-side
+      if (posts) posts.sort((a: any, b: any) =>
+        ((b.like_count || 0) + (b.comment_count || 0) * 2 + (b.share_count || 0) * 3) -
+        ((a.like_count || 0) + (a.comment_count || 0) * 2 + (a.share_count || 0) * 3)
+      );
 
       if (posts) {
         setTrendingPosts(posts.map((p: any) => ({
@@ -90,8 +98,8 @@ export default function TrendingPage() {
           .slice(0, 6)
           .map(([tag, count]) => ({
             tag,
-            posts: count * 10, // Artificial multiplier for beta UI simulation (or keep realistic as `count`)
-            change: `+${Math.floor(Math.random() * 50 + 10)}%` // Simulate growth
+            posts: count,
+            change: `${count} post${count !== 1 ? 's' : ''}`
           }));
 
         // Fallback if the database is too empty

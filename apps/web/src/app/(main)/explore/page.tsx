@@ -207,7 +207,7 @@ function ExploreInner() {
                 const isFollowingUser = isFollowing(u.id);
                 return (
                   <div key={u.id} className="glass-card flex items-center gap-3 p-3">
-                    <Link href="/profile" className="relative flex-shrink-0">
+                    <Link href={`/profile/${u.username}`} className="relative flex-shrink-0">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`}

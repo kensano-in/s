@@ -56,23 +56,22 @@ export async function createCommunity(formData: FormData) {
 export async function toggleCommunityJoin(communityId: string, userId: string, isJoining: boolean) {
   try {
     if (isJoining) {
+      // INSERT triggers trg_community_member_count automatically — no RPC needed
       const { error } = await supabase.from('community_members').insert({
         community_id: communityId,
         user_id: userId,
         role: 'member',
       });
-      if (!error) {
-        // Technically we should do this with Postgres Trigger, but RPC / service overriding works
-        await supabase.rpc('increment_community_member_count', { row_id: communityId });
-      }
+      if (error) return { success: false, error: error.message };
     } else {
-      await supabase.from('community_members')
+      // DELETE triggers trg_community_member_count automatically
+      const { error } = await supabase.from('community_members')
         .delete()
         .match({ community_id: communityId, user_id: userId });
-      await supabase.rpc('decrement_community_member_count', { row_id: communityId });
+      if (error) return { success: false, error: error.message };
     }
     return { success: true };
-  } catch(e) {
-    return { success: false };
+  } catch(e: any) {
+    return { success: false, error: e.message };
   }
 }

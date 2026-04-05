@@ -102,22 +102,7 @@ export default function ProfilePage() {
   if (!currentUser) return null;
 
   return (
-    <div className="space-y-0 animate-fade-in relative">
-      {isEditing && (
-        <EditProfileModal onClose={() => setIsEditing(false)} />
-      )}
-
-      {/* Hidden avatar file input */}
-      <input
-        ref={avatarInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => handleAvatarUpload(e.target.files)}
-        aria-label="Upload avatar"
-      />
-
-    <div className="space-y-0 animate-fade-in pb-12">
+    <div className="space-y-0 animate-fade-in relative pb-12">
       {isEditing && (
         <EditProfileModal onClose={() => setIsEditing(false)} />
       )}
@@ -338,7 +323,6 @@ export default function ProfilePage() {
             <p className="text-[14px] text-on-surface-variant">Community recognition coming soon.</p>
           </div>
         )}
-      </div>
       </div>
     </div>
   );

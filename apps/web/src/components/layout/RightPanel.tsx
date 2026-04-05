@@ -76,7 +76,7 @@ export default function RightPanel() {
               const isFollowing = following.includes(u.id);
               return (
                 <div key={u.id} className="flex items-center gap-3">
-                  <Link href="/profile" className="relative flex-shrink-0" title={`View ${u.display_name}'s profile`}>
+                  <Link href={`/profile/${u.username}`} className="relative flex-shrink-0" title={`View ${u.display_name}'s profile`}>
                     <img
                       src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`}
                       alt={`${u.display_name}'s avatar`}
@@ -87,7 +87,7 @@ export default function RightPanel() {
                   </Link>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
-                      <Link href="/profile" className="text-sm font-semibold truncate hover:opacity-80 transition-opacity" style={{ color: 'var(--text-primary)' }}>
+                      <Link href={`/profile/${u.username}`} className="text-sm font-semibold truncate hover:opacity-80 transition-opacity" style={{ color: 'var(--text-primary)' }}>
                         {u.display_name || u.username}
                       </Link>
                       {u.is_verified && (
