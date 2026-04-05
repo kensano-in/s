@@ -25,9 +25,23 @@ const BANNER_GRADIENTS = [
   'linear-gradient(135deg, #1e293b 0%, #020617 100%)',
 ];
 
-function CommunityCard({ c, idx }: { c: Community; idx: number }) {
+function CommunityCard({ c, idx, userId }: { c: Community; idx: number; userId?: string }) {
   const [joined, setJoined] = useState<boolean>(c.isJoined ?? false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const gradient = BANNER_GRADIENTS[idx % BANNER_GRADIENTS.length];
+
+  const handleJoin = async () => {
+    if (!userId) return;
+    setIsProcessing(true);
+    const newStatus = !joined;
+    setJoined(newStatus);
+    const { toggleCommunityJoin } = await import('./actions');
+    const res = await toggleCommunityJoin(c.id, userId, newStatus);
+    if (!res.success) {
+      setJoined(!newStatus); // revert on failure
+    }
+    setIsProcessing(false);
+  };
 
   return (
     <div className="glass-card p-4 hover:border-opacity-40 transition-all duration-200">
@@ -78,11 +92,12 @@ function CommunityCard({ c, idx }: { c: Community; idx: number }) {
 
       <div className="mt-3 flex gap-2">
         <button
-          onClick={() => setJoined((v) => !v)}
+          onClick={handleJoin}
+          disabled={!userId || isProcessing}
           className={joined ? 'btn-glass flex-1 text-xs' : 'btn-primary flex-1 text-xs shine'}
           id={`join-btn-${c.id}`}
         >
-          {joined ? 'Joined ✓' : <><Plus size={12} /> Join</>}
+          {isProcessing ? <Loader2 size={12} className="animate-spin text-center mx-auto" /> : (joined ? 'Joined ✓' : <><Plus size={12} /> Join</>)}
         </button>
         {(c.boostLevel ?? 0) < 3 && (
           <button className="btn-glass text-xs px-3 flex-shrink-0" style={{ color: 'var(--v-pink)' }}>
@@ -106,20 +121,21 @@ export default function CommunitiesPage() {
 
   useEffect(() => {
     async function loadCommunities() {
-      const { data } = await supabase
-        .from('communities')
-        .select('*')
-        .order('member_count', { ascending: false })
-        .limit(50);
+      const [commsRes, joinedRes] = await Promise.all([
+        supabase.from('communities').select('*').order('member_count', { ascending: false }).limit(50),
+        currentUser ? supabase.from('community_members').select('community_id').eq('user_id', currentUser.id) : Promise.resolve({ data: [] })
+      ]);
 
-      if (!data || data.length === 0) {
+      if (!commsRes.data || commsRes.data.length === 0) {
         setLoading(false);
         setCommunities([]);
         return;
       }
 
+      const joinedIds = new Set((joinedRes.data || []).map((r: any) => r.community_id));
+
       // Map DB columns to Community type
-      const mapped: Community[] = data.map((c: any) => ({
+      const mapped: Community[] = commsRes.data.map((c: any) => ({
         id: c.id,
         name: c.name || c.id,
         displayName: c.display_name || c.name || 'Community',
@@ -127,7 +143,7 @@ export default function CommunitiesPage() {
         iconUrl: c.icon_url || '',
         memberCount: c.member_count || 0,
         isPrivate: c.is_private || false,
-        isJoined: false,
+        isJoined: joinedIds.has(c.id),
         boostLevel: c.boost_level || 0,
         tags: c.tags || [],
         createdAt: c.created_at || new Date().toISOString(),
@@ -137,7 +153,7 @@ export default function CommunitiesPage() {
       setLoading(false);
     }
     loadCommunities();
-  }, [supabase]);
+  }, [supabase, currentUser]);
 
   const filtered = communities.filter((c) => {
     const matchesFilter =
@@ -173,6 +189,7 @@ export default function CommunitiesPage() {
             <h2 className="text-xl font-bold mb-4 text-on-surface">Create a Community</h2>
             <form action={async (formData) => {
               setIsCreating(true);
+              if (currentUser) formData.append('userId', currentUser.id);
               const { createCommunity } = await import('./actions');
               const res = await createCommunity(formData);
               setIsCreating(false);

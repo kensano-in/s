@@ -13,20 +13,22 @@ export async function createCommunity(formData: FormData) {
     const displayName = formData.get('displayName') as string;
     const description = formData.get('description') as string;
     const isPrivate = formData.get('isPrivate') === 'true';
+    const userId = formData.get('userId') as string;
 
-    // Basic validation
-    if (!name || !displayName || !description) {
-      return { success: false, error: 'All fields are required.' };
+    if (!name || !displayName || !description || !userId) {
+      return { success: false, error: 'All fields and authentication are required.' };
     }
+
+    const cleanedName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const { data: community, error } = await supabase
       .from('communities')
       .insert({
-        name: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+        name: cleanedName,
         display_name: displayName,
         description,
         is_private: isPrivate,
-        icon_url: `https://api.dicebear.com/7.x/shapes/svg?seed=${name}`,
+        icon_url: `https://api.dicebear.com/7.x/shapes/svg?seed=${cleanedName}`,
         member_count: 1,
         boost_level: 0,
       })
@@ -38,8 +40,39 @@ export async function createCommunity(formData: FormData) {
       return { success: false, error: error.message };
     }
 
+    // Bind Creator as Admin
+    await supabase.from('community_members').insert({
+      community_id: community.id,
+      user_id: userId,
+      role: 'admin',
+    });
+
     return { success: true, community };
   } catch (err: any) {
     return { success: false, error: err.message || 'Internal error checking community' };
+  }
+}
+
+export async function toggleCommunityJoin(communityId: string, userId: string, isJoining: boolean) {
+  try {
+    if (isJoining) {
+      const { error } = await supabase.from('community_members').insert({
+        community_id: communityId,
+        user_id: userId,
+        role: 'member',
+      });
+      if (!error) {
+        // Technically we should do this with Postgres Trigger, but RPC / service overriding works
+        await supabase.rpc('increment_community_member_count', { row_id: communityId });
+      }
+    } else {
+      await supabase.from('community_members')
+        .delete()
+        .match({ community_id: communityId, user_id: userId });
+      await supabase.rpc('decrement_community_member_count', { row_id: communityId });
+    }
+    return { success: true };
+  } catch(e) {
+    return { success: false };
   }
 }
