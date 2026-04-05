@@ -1,6 +1,5 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
-import MagneticCursor from '@/components/layout/MagneticCursor';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -50,7 +49,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased">
-        <MagneticCursor />
         {children}
       </body>
     </html>
