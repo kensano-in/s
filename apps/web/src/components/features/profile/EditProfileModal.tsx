@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
-import { X, Camera, Save, TerminalSquare, Lock } from 'lucide-react';
+import { X, Camera, Save, TerminalSquare, Lock, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
+import { uploadMedia } from '@/app/(main)/feed/upload';
 
 interface Props {
   onClose: () => void;
@@ -17,9 +18,11 @@ export default function EditProfileModal({ onClose }: Props) {
   const [username, setUsername] = useState(currentUser?.username || '');
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isPrivate, setIsPrivate] = useState(currentUser?.isPrivate || false);
   const [errorMsg, setErrorMsg] = useState('');
   const [manifestText, setManifestText] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const isPrime = currentUser?.role === 'PRIME';
 
@@ -32,24 +35,43 @@ export default function EditProfileModal({ onClose }: Props) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const localUrl = URL.createObjectURL(file);
       setAvatar(localUrl);
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // 1. Strict Namespace Deterministic Logic
     if (!isPrime && username.length < 5) {
       setErrorMsg('Namespace Access Denied: PUBLIC accounts require min_length: 5. Please contact Administrator for Elite access override.');
       return;
     }
 
-    // Perform Shadow-DOM Optimistic UI Save 
+    setIsSaving(true);
+    let finalAvatar = avatar;
+
+    // 2. Perform Upload if file was selected
+    if (selectedFile) {
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      fd.append('folder', 'avatars');
+      
+      const result = await uploadMedia(fd);
+      if ('error' in result) {
+        setErrorMsg(`Critical Upload Failure: ${result.error}`);
+        setIsSaving(false);
+        return;
+      }
+      finalAvatar = result.url;
+    }
+
+    // 3. Perform Shadow-DOM Optimistic UI Save 
     updateProfile({
       displayName,
       username,
       bio,
-      avatar,
+      avatar: finalAvatar,
       isPrivate
     });
 
@@ -62,8 +84,7 @@ export default function EditProfileModal({ onClose }: Props) {
       }
     }
     
-    // (A silent async API call would trigger here requesting true DB sync, auto-retrying on fail)
-    
+    setIsSaving(false);
     onClose();
   };
 
@@ -215,9 +236,15 @@ export default function EditProfileModal({ onClose }: Props) {
           </button>
           <button 
             onClick={handleSave}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-primary-gradient shadow-[0_0_20px_rgba(208,188,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all"
+            disabled={isSaving}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-primary-gradient shadow-[0_0_20px_rgba(208,188,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
           >
-            <Save size={16} /> Save Changes
+            {isSaving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Save size={16} />
+            )}
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

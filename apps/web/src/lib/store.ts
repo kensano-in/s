@@ -51,6 +51,7 @@ interface AppState {
   syncStatus: 'idle' | 'syncing' | 'error';
   setSyncStatus: (s: 'idle' | 'syncing' | 'error') => void;
   updateProfile: (updates: Partial<User>) => void;
+  setUser: (user: User | null) => void;
 
   // Hydration tracking — prevents settings flicker on SSR rehydration
   _hasHydrated: boolean;
@@ -168,15 +169,27 @@ export const useAppStore = create<AppState>()(
       currentUser: null,
       syncStatus: 'idle',
       setSyncStatus: (s) => set({ syncStatus: s }),
+      setUser: (user) => set({ currentUser: user }),
+
       updateProfile: (updates) => set((state) => {
         const newUser = { ...state.currentUser, ...updates } as User;
         if (state.currentUser?.id) {
-          dispatchProfileSync(state.currentUser.id, {
-            displayName: updates.displayName,
-            username: updates.username,
-            bio: updates.bio,
-            avatarUrl: updates.avatar,
-          });
+          // Safety: Don't sync local blob URLs to database
+          const syncUpdates = { ...updates };
+          if (syncUpdates.avatar?.startsWith('blob:')) {
+            delete syncUpdates.avatar;
+          }
+
+          dispatchProfileSync(
+            state.currentUser.id, 
+            {
+              displayName: syncUpdates.displayName,
+              username: syncUpdates.username,
+              bio: syncUpdates.bio,
+              avatarUrl: syncUpdates.avatar,
+            },
+            state.setSyncStatus
+          );
         }
         return { currentUser: newUser };
       }),

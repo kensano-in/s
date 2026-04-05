@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from 'react';
-import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft, Check, CheckCheck, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
@@ -25,6 +26,7 @@ interface ChatMessage {
   sender_id: string;
   sent_at: string;
   is_mine: boolean;
+  status: 'sending' | 'sent' | 'error';
 }
 
 function MessagesContent() {
@@ -167,12 +169,13 @@ function MessagesContent() {
       if (!data || data.length < 50) setHasMoreMsgs(false);
       else setHasMoreMsgs(true);
 
-      const parsed = (data || []).map(m => ({
+      const parsed: ChatMessage[] = (data || []).map(m => ({
         id: m.id,
         content: m.content,
         sender_id: m.sender_id,
         sent_at: m.sent_at,
         is_mine: m.sender_id === currentUser!.id,
+        status: 'sent' as const
       })).reverse(); // Reverse because we fetched desc
 
       setMessages(parsed);
@@ -201,12 +204,13 @@ function MessagesContent() {
     if (!data || data.length < 50) setHasMoreMsgs(false);
 
     if (data && data.length > 0) {
-      const parsed = data.map(m => ({
+      const parsed: ChatMessage[] = data.map(m => ({
         id: m.id,
         content: m.content,
         sender_id: m.sender_id,
         sent_at: m.sent_at,
         is_mine: m.sender_id === currentUser.id,
+        status: 'sent' as const
       })).reverse();
       
       setMessages(prev => [...parsed, ...prev]);
@@ -254,20 +258,48 @@ function MessagesContent() {
         const msgEvent = payload.new as any;
         if (msgEvent.sender_id !== currentUser.id && msgEvent.recipient_id !== currentUser.id) return; // Not our message
         
-        // Append dynamically if active conversation
+        // --- 1. UPDATE SIDEBAR CONVERSATIONS ---
+        setConversations(prev => {
+          const otherId = msgEvent.sender_id === currentUser.id ? msgEvent.recipient_id : msgEvent.sender_id;
+          const exists = prev.find(c => c.id === otherId);
+          
+          if (exists) {
+            // Update existing conversation with last message and move to top
+            return [
+              { ...exists, last_message: msgEvent.content, updated_at: msgEvent.sent_at },
+              ...prev.filter(c => c.id !== otherId)
+            ];
+          } else {
+             // If conversation didn't exist, we'll let the initial load handle it or we'd need more data (name/avatar)
+             // For now, reload trigger if it's the first time
+             return prev;
+          }
+        });
+
+        // --- 2. UPDATE ACTIVE CHAT MESSAGES ---
         if (msgEvent.sender_id === activeConvId || msgEvent.recipient_id === activeConvId) {
           setMessages(prev => {
-            // Deduplicate if optimistic update already pushed this content recently matching the ID
-            if (prev.some(p => p.id === msgEvent.id || (p.content === msgEvent.content && Date.now() - new Date(p.sent_at).getTime() < 5000))) return prev;
+            // Deduplicate if optimistic update already pushed this content recently matching the ID or content
+            if (prev.some(p => p.id === msgEvent.id || (p.content === msgEvent.content && p.status === 'sent'))) return prev;
             
-            // Mark optimistic ID as finalized, or just append 
-            return [...prev, {
+            const newMessage: ChatMessage = {
               id: msgEvent.id,
               content: msgEvent.content,
               sender_id: msgEvent.sender_id,
               sent_at: msgEvent.sent_at,
-              is_mine: msgEvent.sender_id === currentUser.id
-            }];
+              is_mine: msgEvent.sender_id === currentUser.id,
+              status: 'sent'
+            };
+
+            // If there's an optimistic version of THIS message (same content + sent in last 5s), swap it
+            const optIndex = prev.findIndex(p => p.status === 'sending' && p.content === msgEvent.content);
+            if (optIndex !== -1) {
+              const newArr = [...prev];
+              newArr[optIndex] = newMessage;
+              return newArr;
+            }
+            
+            return [...prev, newMessage];
           });
           setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         }
@@ -277,30 +309,30 @@ function MessagesContent() {
     return () => { supabase.removeChannel(channel); };
   }, [currentUser?.id, activeConvId, supabase]);
 
-  const sendMessage = async () => {
-    const now = Date.now();
-    // Security: Token Bucket / Debounce (preventing 10ms INSERT spams locking DB)
-    if (now - lastSendRef.current < 500) return;
+    const sendMessage = async (retryContent?: string) => {
+      const now = Date.now();
+      // Security: Token Bucket / Debounce (preventing 10ms INSERT spams locking DB)
+      if (now - lastSendRef.current < 500 && !retryContent) return;
 
-    let trimmed = msg.trim();
-    if (!trimmed || !activeConvId || !currentUser?.id) return;
-    
-    setIsSending(true);
-    lastSendRef.current = now;
+      let trimmed = retryContent || msg.trim();
+      if (!trimmed || !activeConvId || !currentUser?.id) return;
+      
+      setIsSending(true);
+      lastSendRef.current = now;
 
-    // Command Membrane Logic
-    if (trimmed.startsWith('/')) {
-      const args = trimmed.split(' ');
-      const command = args[0].toLowerCase();
-      if (command === '/shrug') {
-        trimmed = (args.slice(1).join(' ') + ' ¯\\_(ツ)_/¯').trim();
-      } else if (command === '/coinflip') {
-        const result = Math.random() > 0.5 ? 'Heads' : 'Tails';
-        trimmed = `🪙 Flipped a coin: **${result}**`;
-      } else if (command === '/ai') {
-        trimmed = `🤖 Processing query: "${args.slice(1).join(' ')}"... (AI Node offline)`;
+      // Command Membrane Logic
+      if (trimmed.startsWith('/') && !retryContent) {
+        const args = trimmed.split(' ');
+        const command = args[0].toLowerCase();
+        if (command === '/shrug') {
+          trimmed = (args.slice(1).join(' ') + ' ¯\\_(ツ)_/¯').trim();
+        } else if (command === '/coinflip') {
+          const result = Math.random() > 0.5 ? 'Heads' : 'Tails';
+          trimmed = `🪙 Flipped a coin: **${result}**`;
+        } else if (command === '/ai') {
+          trimmed = `🤖 Processing query: "${args.slice(1).join(' ')}"... (AI Node offline)`;
+        }
       }
-    }
 
     const optimistic: ChatMessage = {
       id: `opt_${Date.now()}`,
@@ -308,6 +340,7 @@ function MessagesContent() {
       sender_id: currentUser.id,
       sent_at: new Date().toISOString(),
       is_mine: true,
+      status: 'sending'
     };
     
     // Kinetic Feedback
@@ -323,6 +356,21 @@ function MessagesContent() {
     
     if (!res.success) {
       console.error('Core routing failure: ', res.error);
+      setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, status: 'error' } : m));
+    } else {
+       // On success, the real-time listener will swap the status, 
+       // but we can manually speed it up for the local sender
+       setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, id: (res.message as any).id, status: 'sent' } : m));
+       
+       // Move this conversation to top of sidebar
+       setConversations(prev => {
+         const conv = prev.find(c => c.id === activeConvId);
+         if (!conv) return prev;
+         return [
+           { ...conv, last_message: trimmed, updated_at: optimistic.sent_at },
+           ...prev.filter(c => c.id !== activeConvId)
+         ];
+       });
     }
     
     setIsSending(false);
@@ -430,17 +478,22 @@ function MessagesContent() {
               <p className="text-xs text-on-surface-variant/60">Start a conversation from someone's profile</p>
             </div>
           ) : (
-            filteredConvs.map((conv) => {
-              const isActive = activeConvId === conv.id;
-              return (
-                <div
-                  key={conv.id}
-                  onClick={() => setActiveConvId(conv.id)}
-                  className={clsx(
-                    'flex items-center gap-4 px-4 py-3.5 mx-2 cursor-pointer transition-all duration-200 rounded-2xl relative',
-                    isActive ? 'bg-surface-high shadow-ambient' : 'hover:bg-surface-high/50'
-                  )}
-                >
+            <AnimatePresence>
+              {filteredConvs.map((conv) => {
+                const isActive = activeConvId === conv.id;
+                return (
+                  <motion.div
+                    key={conv.id}
+                    layout
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    onClick={() => setActiveConvId(conv.id)}
+                    className={clsx(
+                      'flex items-center gap-4 px-4 py-3.5 mx-2 cursor-pointer transition-all duration-200 rounded-2xl relative',
+                      isActive ? 'bg-surface-high shadow-ambient' : 'hover:bg-surface-high/50'
+                    )}
+                  >
                   {isActive && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-light rounded-r-full shadow-[0_0_12px_rgba(208,188,255,0.6)]" />
                   )}
@@ -469,9 +522,10 @@ function MessagesContent() {
                       )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
-            })
+            })}
+            </AnimatePresence>
           )}
         </div>
       </div>
@@ -525,46 +579,70 @@ function MessagesContent() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 z-10 hide-scrollbar" onScroll={handleScroll}>
-            <div className="flex justify-center mb-6">
-              <span className="text-xs px-4 py-2 rounded-2xl flex items-center gap-2 bg-secondary-dark/20 text-secondary-light border border-secondary-DEFAULT/20 backdrop-blur-md shadow-ambient font-medium">
-                <Lock size={12} className="opacity-80" /> Secured by Verlyn Matrix End-to-End Encryption
-              </span>
-            </div>
-            
-            {hasMoreMsgs && (
-              <div ref={observerRef} className="h-8 flex items-center justify-center mb-4">
-                {loadingMore && <Loader2 size={16} className="animate-spin text-primary-light" />}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 z-10 hide-scrollbar" onScroll={handleScroll}>
+              <div className="flex justify-center mb-6">
+                <span className="text-xs px-4 py-2 rounded-2xl flex items-center gap-2 bg-secondary-dark/20 text-secondary-light border border-secondary-DEFAULT/20 backdrop-blur-md shadow-ambient font-medium">
+                  <Lock size={12} className="opacity-80" /> Secured by Verlyn Matrix End-to-End Encryption
+                </span>
               </div>
-            )}
-
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.is_mine ? 'justify-end' : 'justify-start'} gap-3 items-end relative group`}>
-                {!message.is_mine && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`}
-                    alt={activeConv.participant_name}
-                    width={32} height={32}
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-ambient mb-1"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-                  />
-                )}
-                <div className="flex flex-col max-w-[65%] gap-1.5">
-                  <div className={clsx(
-                    'px-5 py-3 shadow-ambient backdrop-blur-md text-[15px] leading-relaxed',
-                    message.is_mine
-                      ? 'bg-primary-gradient text-white rounded-[24px] rounded-br-[6px]'
-                      : 'bg-surface-highest border border-outline-variant/15 text-on-surface rounded-[24px] rounded-bl-[6px]'
-                  )}>
-                    {message.content}
-                  </div>
-                  <div className={clsx('text-[10px] font-medium text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity duration-200', message.is_mine ? 'text-right' : 'text-left')}>
-                    {formatDistanceToNow(new Date(message.sent_at), { addSuffix: true })}
-                  </div>
+              
+              {hasMoreMsgs && (
+                <div ref={observerRef} className="h-8 flex items-center justify-center mb-4">
+                  {loadingMore && <Loader2 size={16} className="animate-spin text-primary-light" />}
                 </div>
-              </div>
-            ))}
+              )}
+
+              <AnimatePresence initial={false}>
+                {messages.map((message) => (
+                  <motion.div 
+                    key={message.id}
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+                    className={`flex ${message.is_mine ? 'justify-end' : 'justify-start'} gap-3 items-end relative group`}
+                  >
+                    {!message.is_mine && (
+                      <img
+                        src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`}
+                        alt={activeConv.participant_name}
+                        width={32} height={32}
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-ambient mb-4"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
+                      />
+                    )}
+                    <div className="flex flex-col max-w-[65%] gap-1.5">
+                      <div 
+                        onClick={() => { if (message.status === 'error') sendMessage(message.content); }}
+                        className={clsx(
+                        'px-5 py-3 shadow-ambient backdrop-blur-md text-[15px] leading-relaxed relative overflow-hidden',
+                        message.is_mine
+                          ? 'bg-primary-gradient text-white rounded-[24px] rounded-br-[6px]'
+                          : 'bg-surface-highest border border-outline-variant/15 text-on-surface rounded-[24px] rounded-bl-[6px]',
+                        message.status === 'error' && 'border-red-500/50 cursor-pointer hover:bg-red-500/10 transition-colors'
+                      )}>
+                        {message.content}
+                        {message.status === 'error' && (
+                           <div className="text-[10px] text-red-100 mt-2 flex items-center gap-1 font-bold bg-red-600/30 px-2 py-1 rounded-lg">
+                             <AlertCircle size={10} /> Delivery failed. Click to retry.
+                           </div>
+                        )}
+                        {message.is_mine && (
+                          <div className="absolute bottom-1 right-2 opacity-50 scale-75">
+                            {message.status === 'sending' ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : message.status === 'sent' ? (
+                              <CheckCheck size={12} />
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                      <div className={clsx('text-[10px] font-medium text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity duration-200', message.is_mine ? 'text-right mr-1' : 'text-left ml-1')}>
+                        {formatDistanceToNow(new Date(message.sent_at), { addSuffix: true })}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full gap-3 mt-16 opacity-50">
                 <MessageCircle size={32} className="text-on-surface-variant" />
@@ -597,7 +675,7 @@ function MessagesContent() {
               {msg ? (
                 <button
                   className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 transition-transform duration-200 hover:scale-105 active:scale-95 bg-primary-gradient shadow-ambient"
-                  onClick={sendMessage}
+                  onClick={() => sendMessage()}
                   id="send-btn"
                   aria-label="Send message"
                 >

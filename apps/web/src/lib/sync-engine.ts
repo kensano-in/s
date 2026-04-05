@@ -49,21 +49,32 @@ export interface ProfileSyncPayload {
  */
 export async function syncProfileToSupabase(
   userId: string, 
-  updates: ProfileSyncPayload
+  updates: ProfileSyncPayload,
+  setSyncStatus?: (s: 'idle' | 'syncing' | 'error') => void
 ): Promise<void> {
-  await withExponentialBackoff(async () => {
-    const res = await submitProfileUpdateDB(userId, updates);
-    if (!res.success) throw new Error(res.error);
-  });
+  setSyncStatus?.('syncing');
+  try {
+    await withExponentialBackoff(async () => {
+      const res = await submitProfileUpdateDB(userId, updates);
+      if (!res.success) throw new Error(res.error);
+    });
+    setSyncStatus?.('idle');
+  } catch (err) {
+    setSyncStatus?.('error');
+    throw err;
+  }
 }
 
 /**
- * Dispatch a profile sync without blocking — 
- * errors are logged silently, never surfaced to the user.
+ * Dispatch a profile sync with full UI feedback — 
+ * errors are surfaced to the store's syncStatus.
  */
-export function dispatchProfileSync(userId: string, updates: ProfileSyncPayload): void {
-  syncProfileToSupabase(userId, updates).catch((err) => {
-    // Silent failure — a future telemetry system can log this
-    console.warn('[SyncEngine] Profile sync failed after all retries:', err?.message);
+export function dispatchProfileSync(
+  userId: string, 
+  updates: ProfileSyncPayload,
+  setSyncStatus?: (s: 'idle' | 'syncing' | 'error') => void
+): void {
+  syncProfileToSupabase(userId, updates, setSyncStatus).catch((err) => {
+    console.error('[SyncEngine] Profile sync failed after all retries:', err?.message);
   });
 }

@@ -1,11 +1,6 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRole);
+import { createClient } from '@/lib/supabase/server';
 
 export interface ProfileSyncPayload {
   displayName?: string;
@@ -26,16 +21,36 @@ export async function submitProfileUpdateDB(userId: string, updates: ProfileSync
 
     if (Object.keys(dbPayload).length === 0) return { success: true };
 
-    const { error } = await supabaseAdmin
+    const supabase = await createClient();
+    const { error } = await supabase
       .from('users')
       .update(dbPayload)
       .eq('id', userId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Supabase Update Error]:', error);
+      throw error;
+    }
     
     return { success: true };
   } catch (err: any) {
     console.error('Core sync failure on Supabase Tunnel:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getDatabaseProfile(userId: string) {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await (await supabase)
+      .from('users')
+      .select('avatar_url, display_name, username, bio')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (err: any) {
     return { success: false, error: err.message };
   }
 }
