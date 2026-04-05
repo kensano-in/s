@@ -38,6 +38,12 @@ function MessagesContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [msg, setMsg] = useState('');
   const [loadingConvs, setLoadingConvs] = useState(true);
+  
+  // Real-time & Global Search extensions
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chatWallpaperUrl, chatWallpaperBlur, chatWallpaperDim, currentUser } = useAppStore();
   const bgRef = useRef<HTMLDivElement>(null);
@@ -141,6 +147,57 @@ function MessagesContent() {
     loadMessages();
   }, [activeConvId, currentUser?.id, supabase]);
 
+  // Global User Search Logic for New Chats
+  useEffect(() => {
+    if (!globalSearch.trim() || globalSearch.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      const { data } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url')
+        .or(`username.ilike.%${globalSearch}%,display_name.ilike.%${globalSearch}%`)
+        .limit(10);
+      setSearchResults(data || []);
+      setIsSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [globalSearch, supabase]);
+
+  // Real-Time Transport Protocol (Postgres WebSockets)
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const channel = supabase
+      .channel('public:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msgEvent = payload.new as any;
+        if (msgEvent.sender_id !== currentUser.id && msgEvent.recipient_id !== currentUser.id) return; // Not our message
+        
+        // Append dynamically if active conversation
+        if (msgEvent.sender_id === activeConvId || msgEvent.recipient_id === activeConvId) {
+          setMessages(prev => {
+            // Deduplicate if optimistic update already pushed this content recently matching the ID
+            if (prev.some(p => p.id === msgEvent.id || (p.content === msgEvent.content && Date.now() - new Date(p.sent_at).getTime() < 5000))) return prev;
+            
+            // Mark optimistic ID as finalized, or just append 
+            return [...prev, {
+              id: msgEvent.id,
+              content: msgEvent.content,
+              sender_id: msgEvent.sender_id,
+              sent_at: msgEvent.sent_at,
+              is_mine: msgEvent.sender_id === currentUser.id
+            }];
+          });
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        }
+      })
+      .subscribe();
+      
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUser?.id, activeConvId, supabase]);
+
   const sendMessage = async () => {
     const trimmed = msg.trim();
     if (!trimmed || !activeConvId || !currentUser?.id) return;
@@ -191,7 +248,9 @@ function MessagesContent() {
           <div className="relative group">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary-light transition-colors" />
             <input
-              placeholder="Search conversations..."
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Search users to message..."
               className="w-full bg-surface-high border-none text-on-surface rounded-2xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-1 focus:ring-primary-light transition-all placeholder:text-on-surface-variant text-sm"
               id="message-search"
             />
@@ -216,7 +275,44 @@ function MessagesContent() {
         </div>
 
         <div className="flex-1 overflow-y-auto hide-scrollbar py-2">
-          {loadingConvs ? (
+          {globalSearch.trim().length >= 2 ? (
+            <div className="px-2">
+              <div className="px-3 py-2 text-xs font-bold text-on-surface-variant/60 uppercase tracking-wider">Directory Search</div>
+              {isSearching ? (
+                 <div className="flex px-4 py-3 text-sm text-on-surface-variant"><Loader2 size={16} className="animate-spin text-primary-light mr-2" /> Searching...</div>
+              ) : searchResults.length === 0 ? (
+                 <div className="flex px-4 py-3 text-sm text-on-surface-variant">No users found</div>
+              ) : searchResults.map(user => (
+                 <div
+                   key={user.id}
+                   onClick={() => {
+                     setGlobalSearch('');
+                     // Inject if they don't exist yet
+                     if (!conversations.find(c => c.id === user.id)) {
+                       setConversations(prev => [{
+                         id: user.id,
+                         participant_id: user.id,
+                         participant_name: user.display_name || user.username,
+                         participant_username: user.username,
+                         participant_avatar: user.avatar_url,
+                         last_message: 'Start a new conversation',
+                         updated_at: new Date().toISOString(),
+                         unread: 0
+                       }, ...prev]);
+                     }
+                     setActiveConvId(user.id);
+                   }}
+                   className="flex items-center gap-3 px-3 py-2.5 mx-1 hover:bg-surface-high rounded-xl cursor-pointer transition-colors"
+                 >
+                   <img src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} className="w-10 h-10 rounded-full object-cover shadow-ambient border border-outline-variant/10" onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }} />
+                   <div>
+                     <div className="text-sm font-bold text-on-surface">{user.display_name || user.username}</div>
+                     <div className="text-xs text-on-surface-variant/70">@{user.username}</div>
+                   </div>
+                 </div>
+              ))}
+            </div>
+          ) : loadingConvs ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={24} className="animate-spin text-primary-light" />
             </div>
