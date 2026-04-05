@@ -103,7 +103,7 @@ export default function NotifPanel() {
                 )}
                 style={{
                   background: n.isRead ? 'transparent' : 'rgba(108,99,255,0.05)',
-                  borderLeft: n.isRead ? 'none' : `3px solid ${PRIORITY_COLORS[n.priority]}`,
+                  borderLeft: `3px solid ${n.isRead ? 'transparent' : PRIORITY_COLORS[n.priority]}`,
                 }}
               >
                 {/* Icon / Avatar */}

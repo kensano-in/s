@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { MOCK_COMMUNITIES } from '@/lib/mockData';
+import { useState, useEffect, useMemo } from 'react';
 import type { Community } from '@/lib/types';
-import { Users, Lock, Zap, Search, Plus, TrendingUp, Star } from 'lucide-react';
+import { Users, Lock, Zap, Search, Plus, TrendingUp, Star, Loader2, Hash } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { useAppStore } from '@/lib/store';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -14,22 +15,31 @@ function fmt(n: number): string {
 const BOOST_COLORS = ['', 'var(--v-cyan)', 'var(--v-violet)', 'var(--v-pink)'];
 const BOOST_LABELS = ['', 'Boosted', 'Boosted II', '🔥 Boosted III'];
 
-function CommunityCard({ c }: { c: Community }) {
+// Gradient per community based on index
+const BANNER_GRADIENTS = [
+  'linear-gradient(135deg, #4c1d95 0%, #2e1065 100%)',
+  'linear-gradient(135deg, #134e4a 0%, #064e3b 100%)',
+  'linear-gradient(135deg, #881337 0%, #4c0519 100%)',
+  'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
+  'linear-gradient(135deg, #78350f 0%, #451a03 100%)',
+  'linear-gradient(135deg, #1e293b 0%, #020617 100%)',
+];
+
+function CommunityCard({ c, idx }: { c: Community; idx: number }) {
   const [joined, setJoined] = useState<boolean>(c.isJoined ?? false);
+  const gradient = BANNER_GRADIENTS[idx % BANNER_GRADIENTS.length];
 
   return (
-    <div className="glass-card p-4 hover:border-opacity-40 transition-all duration-200 shine">
-      {/* Banner placeholder */}
-      <div
-        className="h-20 rounded-xl mb-4 relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, var(--v-violet) 0%, var(--v-cyan) 100%)`, opacity: 0.7 }}
-      >
-        {c.boostLevel > 0 && (
+    <div className="glass-card p-4 hover:border-opacity-40 transition-all duration-200">
+      {/* Banner */}
+      <div className="h-20 rounded-xl mb-4 relative overflow-hidden" style={{ background: gradient }}>
+        <div className="absolute inset-0 opacity-20" style={{ background: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.3) 0%, transparent 70%)' }} />
+        {(c.boostLevel ?? 0) > 0 && (
           <span
             className="absolute top-2 right-2 text-[10px] font-bold px-2 py-1 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.5)', color: BOOST_COLORS[c.boostLevel], border: `1px solid ${BOOST_COLORS[c.boostLevel]}` }}
+            style={{ background: 'rgba(0,0,0,0.5)', color: BOOST_COLORS[c.boostLevel ?? 0], border: `1px solid ${BOOST_COLORS[c.boostLevel ?? 0]}` }}
           >
-            {BOOST_LABELS[c.boostLevel]}
+            {BOOST_LABELS[c.boostLevel ?? 0]}
           </span>
         )}
       </div>
@@ -39,7 +49,7 @@ function CommunityCard({ c }: { c: Community }) {
           className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 -mt-8 relative border-2"
           style={{ background: 'var(--surface)', borderColor: 'var(--border-strong)' }}
         >
-          {c.iconUrl}
+          {c.iconUrl || <Hash size={20} className="text-primary-light" />}
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
           <div className="flex items-center gap-1.5">
@@ -53,10 +63,9 @@ function CommunityCard({ c }: { c: Community }) {
       </div>
 
       <p className="text-xs mt-3 line-clamp-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-        {c.description}
+        {c.description || 'A community on Verlyn.'}
       </p>
 
-      {/* Tags */}
       {c.tags && (
         <div className="flex flex-wrap gap-1 mt-2">
           {c.tags.slice(0, 3).map((tag) => (
@@ -67,7 +76,6 @@ function CommunityCard({ c }: { c: Community }) {
         </div>
       )}
 
-      {/* Join button */}
       <div className="mt-3 flex gap-2">
         <button
           onClick={() => setJoined((v) => !v)}
@@ -76,7 +84,7 @@ function CommunityCard({ c }: { c: Community }) {
         >
           {joined ? 'Joined ✓' : <><Plus size={12} /> Join</>}
         </button>
-        {c.boostLevel < 3 && (
+        {(c.boostLevel ?? 0) < 3 && (
           <button className="btn-glass text-xs px-3 flex-shrink-0" style={{ color: 'var(--v-pink)' }}>
             <Zap size={12} />
           </button>
@@ -88,10 +96,54 @@ function CommunityCard({ c }: { c: Community }) {
 
 export default function CommunitiesPage() {
   const [filter, setFilter] = useState<'all' | 'joined' | 'trending'>('all');
-  const filtered = MOCK_COMMUNITIES.filter((c) => {
-    if (filter === 'joined') return c.isJoined;
-    if (filter === 'trending') return c.memberCount > 100_000;
-    return true;
+  const [query, setQuery] = useState('');
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAppStore();
+  const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    async function loadCommunities() {
+      const { data } = await supabase
+        .from('communities')
+        .select('*')
+        .order('member_count', { ascending: false })
+        .limit(50);
+
+      if (!data || data.length === 0) {
+        setLoading(false);
+        setCommunities([]);
+        return;
+      }
+
+      // Map DB columns to Community type
+      const mapped: Community[] = data.map((c: any) => ({
+        id: c.id,
+        name: c.name || c.id,
+        displayName: c.display_name || c.name || 'Community',
+        description: c.description || '',
+        iconUrl: c.icon_url || '',
+        memberCount: c.member_count || 0,
+        isPrivate: c.is_private || false,
+        isJoined: false,
+        boostLevel: c.boost_level || 0,
+        tags: c.tags || [],
+        createdAt: c.created_at || new Date().toISOString(),
+      }));
+
+      setCommunities(mapped);
+      setLoading(false);
+    }
+    loadCommunities();
+  }, [supabase]);
+
+  const filtered = communities.filter((c) => {
+    const matchesFilter =
+      filter === 'joined' ? c.isJoined :
+      filter === 'trending' ? c.memberCount > 1_000 :
+      true;
+    const matchesQuery = !query || c.displayName.toLowerCase().includes(query.toLowerCase());
+    return matchesFilter && matchesQuery;
   });
 
   return (
@@ -105,15 +157,36 @@ export default function CommunitiesPage() {
           </p>
         </div>
         <button className="btn-primary text-sm shine" id="create-community-btn">
-          <Plus size={15} />
-          Create
+          <Plus size={15} /> Create
         </button>
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
-        <input placeholder="Search communities…" className="v-input pl-11" id="community-search" />
+      <div className="relative group">
+        <div
+          className="absolute inset-0 rounded-2xl transition-opacity duration-300 pointer-events-none opacity-0 group-focus-within:opacity-100"
+          style={{
+            background: 'linear-gradient(135deg, rgba(147,51,234,0.5), rgba(79,209,197,0.5))',
+            padding: '1px', borderRadius: '16px',
+            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+            WebkitMaskComposite: 'xor', maskComposite: 'exclude',
+          }}
+        />
+        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search communities…"
+          className="w-full py-3 pl-11 pr-4 rounded-2xl text-[14px] focus:outline-none transition-all"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: 'rgba(255,255,255,0.9)',
+          }}
+          onFocus={(e) => { e.target.style.background = 'rgba(147,51,234,0.06)'; e.target.style.border = '1px solid rgba(147,51,234,0.4)'; }}
+          onBlur={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.border = '1px solid rgba(255,255,255,0.08)'; }}
+          id="community-search"
+        />
       </div>
 
       {/* Filter tabs */}
@@ -126,31 +199,41 @@ export default function CommunitiesPage() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
             style={{
               background: filter === key ? 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))' : 'var(--surface)',
               color: filter === key ? '#fff' : 'var(--text-secondary)',
               border: `1px solid ${filter === key ? 'transparent' : 'var(--border)'}`,
             }}
           >
-            <Icon size={14} />
-            {label}
+            <Icon size={14} /> {label}
           </button>
         ))}
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map((c, i) => (
-          <div
-            key={c.id}
-            className="animate-slide-up"
-            style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}
-          >
-            <CommunityCard c={c} />
-          </div>
-        ))}
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 size={28} className="animate-spin text-primary-light" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="glass-card p-12 text-center flex flex-col items-center gap-3">
+          <Hash size={40} className="text-primary-light opacity-40" />
+          <h3 className="text-lg font-bold text-on-surface">No communities yet</h3>
+          <p className="text-sm text-on-surface-variant max-w-xs">Be the first to create a community and bring people together.</p>
+          <button className="btn-primary text-sm mt-2 shine" id="create-community-cta">
+            <Plus size={14} /> Create a Community
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filtered.map((c, i) => (
+            <div key={c.id} className="animate-slide-up" style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}>
+              <CommunityCard c={c} idx={i} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
