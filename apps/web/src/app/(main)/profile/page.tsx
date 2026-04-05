@@ -167,8 +167,7 @@ export default function ProfilePage() {
                 src={currentUser.avatar || '/fallback-avatar.png'}
                 alt={`${currentUser.displayName}'s avatar`}
                 width={88} height={88}
-                className="w-22 h-22 rounded-full object-cover block"
-                style={{ width: 88, height: 88, display: 'block', borderRadius: '9999px' }}
+                className="w-[88px] h-[88px] rounded-full object-cover block"
                 onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
               />
             </div>

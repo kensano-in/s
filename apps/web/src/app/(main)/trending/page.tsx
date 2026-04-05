@@ -1,8 +1,10 @@
 'use client';
 
-import { MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/mockData';
+import { useState, useEffect, useMemo } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { TrendingUp, Flame, Hash, Loader2 } from 'lucide-react';
+import type { Post, Community } from '@/lib/types';
 import PostCard from '@/components/features/feed/PostCard';
-import { TrendingUp, Flame, Hash } from 'lucide-react';
 
 const TRENDING_TOPICS = [
   { tag: '#WebRTC', posts: 14_200, change: '+42%' },
@@ -14,6 +16,78 @@ const TRENDING_TOPICS = [
 ];
 
 export default function TrendingPage() {
+  const [trendingCommunities, setTrendingCommunities] = useState<Community[]>([]);
+  const [trendingPosts, setTrendingPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    async function loadTrendingData() {
+      // Fetch trending communities
+      const { data: comms } = await supabase
+        .from('communities')
+        .select('*')
+        .order('member_count', { ascending: false })
+        .limit(5);
+
+      if (comms) {
+        setTrendingCommunities(comms.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          displayName: c.display_name,
+          description: c.description,
+          iconUrl: c.icon_url,
+          memberCount: c.member_count,
+          isPrivate: c.is_private,
+          boostLevel: c.boost_level,
+          createdAt: c.created_at,
+        })));
+      }
+
+      // Fetch top posts
+      const { data: posts } = await supabase
+        .from('posts')
+        .select(`
+          id, content, media_urls, like_count, comment_count, share_count, created_at,
+          users ( id, username, display_name, avatar_url, is_verified, role )
+        `)
+        .order('like_count', { ascending: false })
+        .limit(10);
+
+      if (posts) {
+        setTrendingPosts(posts.map((p: any) => ({
+          id: p.id,
+          content: p.content,
+          mediaUrls: p.media_urls || [],
+          postType: (p.media_urls && p.media_urls.length > 0) ? 'image' : 'text',
+          likeCount: p.like_count || 0,
+          commentCount: p.comment_count || 0,
+          shareCount: p.share_count || 0,
+          createdAt: p.created_at,
+          author: {
+            id: p.users?.id,
+            username: p.users?.username,
+            displayName: p.users?.display_name,
+            avatar: p.users?.avatar_url,
+            isVerified: p.users?.is_verified,
+            role: p.users?.role || 'PUBLIC',
+          } as any
+        })));
+      }
+
+      setLoading(false);
+    }
+    loadTrendingData();
+  }, [supabase]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 size={28} className="animate-spin text-primary-light" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-2">
@@ -55,12 +129,14 @@ export default function TrendingPage() {
         
         <h2 className="font-bold text-sm mb-4 relative z-10" style={{ color: 'var(--text-primary)' }}>🔥 Fastest Growing Communities</h2>
         <div className="space-y-3 pb-2 relative z-10">
-          {MOCK_COMMUNITIES.filter((c) => c.boostLevel >= 2).map((c) => (
+          {trendingCommunities.map((c) => (
             <div key={c.id} className="flex items-center gap-3 p-3 rounded-2xl bg-surface-lowest/50 border border-outline-variant/10 cursor-pointer hover:bg-surface-low transition-all duration-300">
-              <span className="text-2xl drop-shadow-md">{c.iconUrl}</span>
+              <span className="text-2xl drop-shadow-md flex items-center justify-center w-8 h-8 rounded-full bg-surface">
+                {c.iconUrl ? <img src={c.iconUrl} alt="icon" className="w-6 h-6 rounded-full" /> : <Hash size={16} />}
+              </span>
               <div className="flex-1">
                 <div className="font-bold text-[13px]" style={{ color: 'var(--text-primary)' }}>{c.displayName}</div>
-                <div className="text-[11px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>{(c.memberCount / 1000).toFixed(0)}K members</div>
+                <div className="text-[11px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>{c.memberCount} members</div>
               </div>
               <button className="primary-btn text-[11px] px-4 py-1.5 shadow-[0_0_10px_var(--primary-glow)]">Join</button>
             </div>
@@ -73,7 +149,7 @@ export default function TrendingPage() {
         Top Posts This Week
       </div>
       <div className="space-y-4">
-        {[...MOCK_POSTS].sort((a, b) => b.likeCount - a.likeCount).map((p) => (
+        {trendingPosts.map((p) => (
           <PostCard key={p.id} post={p} />
         ))}
       </div>

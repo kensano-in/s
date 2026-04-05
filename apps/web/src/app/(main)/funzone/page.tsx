@@ -15,8 +15,8 @@ function SnakeGame() {
   const [running, setRunning] = useState(false);
   const [score, setScore] = useState(0);
   const [dead, setDead] = useState(false);
-  const dirRef = useRef(dir);
-  dirRef.current = dir;
+  const moveQueue = useRef<number[][]>([]);
+  const lastProcessedDir = useRef<number[]>([0, -1]);
 
   const randFood = useCallback((s: number[][]) => {
     let f: number[];
@@ -28,7 +28,14 @@ function SnakeGame() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const map: Record<string, number[]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
-      if (map[e.key]) { e.preventDefault(); const d = map[e.key]; if (d[0] !== -dirRef.current[0] || d[1] !== -dirRef.current[1]) setDir(d); }
+      if (map[e.key]) {
+        e.preventDefault();
+        const d = map[e.key];
+        const lastQ = moveQueue.current.length > 0 ? moveQueue.current[moveQueue.current.length - 1] : lastProcessedDir.current;
+        if (d[0] !== -lastQ[0] && d[1] !== -lastQ[1]) {
+          moveQueue.current.push(d);
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -38,7 +45,14 @@ function SnakeGame() {
     if (!running || dead) return;
     const id = setInterval(() => {
       setSnake(prev => {
-        const head = [prev[0][0] + dirRef.current[0], prev[0][1] + dirRef.current[1]];
+        let currentDir = lastProcessedDir.current;
+        if (moveQueue.current.length > 0) {
+          currentDir = moveQueue.current.shift()!;
+          lastProcessedDir.current = currentDir;
+          setDir(currentDir);
+        }
+
+        const head = [prev[0][0] + currentDir[0], prev[0][1] + currentDir[1]];
         if (head[0] < 0 || head[0] >= GRID || head[1] < 0 || head[1] >= GRID || prev.some(c => c[0] === head[0] && c[1] === head[1])) {
           setDead(true); setRunning(false); return prev;
         }
@@ -47,11 +61,11 @@ function SnakeGame() {
         if (ate) { setScore(s => s + 10); setFood(randFood(ns)); }
         return ns;
       });
-    }, 120);
+    }, 110);
     return () => clearInterval(id);
   }, [running, dead, food, randFood]);
 
-  const reset = () => { setSnake([[10, 10], [10, 11], [10, 12]]); setFood([5, 5]); setDir([0, -1]); setScore(0); setDead(false); setRunning(true); };
+  const reset = () => { setSnake([[10, 10], [10, 11], [10, 12]]); setFood([5, 5]); setDir([0, -1]); moveQueue.current = []; lastProcessedDir.current = [0, -1]; setScore(0); setDead(false); setRunning(true); };
 
   return (
     <div className="flex flex-col items-center gap-4 select-none">
@@ -91,6 +105,7 @@ function TicTacToe() {
   const [board, setBoard] = useState<(string | null)[]>(Array(9).fill(null));
   const [turn, setTurn] = useState<'X' | 'O'>('X');
   const [winner, setWinner] = useState<string | null>(null);
+  const [playVsComputer, setPlayVsComputer] = useState(true);
 
   const checkWin = (b: (string | null)[]) => {
     const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
@@ -98,23 +113,58 @@ function TicTacToe() {
     return b.every(Boolean) ? 'Draw' : null;
   };
 
-  const click = (i: number) => {
+  const click = useCallback((i: number) => {
     if (board[i] || winner) return;
     const nb = [...board]; nb[i] = turn;
     const w = checkWin(nb);
     setBoard(nb); setWinner(w); if (!w) setTurn(t => t === 'X' ? 'O' : 'X');
-  };
+  }, [board, turn, winner]);
+
+  // AI logic
+  useEffect(() => {
+    if (playVsComputer && turn === 'O' && !winner) {
+      const id = setTimeout(() => {
+        // Simple Minimax or strategic random
+        const emptyIndices = board.map((c, i) => c === null ? i : -1).filter(i => i !== -1);
+        if (emptyIndices.length > 0) {
+          // Try to win
+          let move = -1;
+          for (const i of emptyIndices) {
+            const nb = [...board]; nb[i] = 'O'; if (checkWin(nb) === 'O') { move = i; break; }
+          }
+          // Try to block
+          if (move === -1) {
+            for (const i of emptyIndices) {
+              const nb = [...board]; nb[i] = 'X'; if (checkWin(nb) === 'X') { move = i; break; }
+            }
+          }
+          // Center or random
+          if (move === -1) {
+            if (emptyIndices.includes(4)) move = 4;
+            else move = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+          }
+          click(move);
+        }
+      }, 500);
+      return () => clearTimeout(id);
+    }
+  }, [board, turn, playVsComputer, winner, click]);
 
   const reset = () => { setBoard(Array(9).fill(null)); setTurn('X'); setWinner(null); };
 
   return (
     <div className="flex flex-col items-center gap-5">
+      <div className="flex items-center gap-4 bg-white/5 p-1 rounded-xl">
+        <button onClick={() => { setPlayVsComputer(true); reset(); }} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${playVsComputer ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}>Vs Computer</button>
+        <button onClick={() => { setPlayVsComputer(false); reset(); }} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${!playVsComputer ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}>PvP</button>
+      </div>
+
       <div className="text-base font-bold text-white">
         {winner ? (winner === 'Draw' ? "It's a draw!" : `${winner} wins! 🎉`) : `Player ${turn}'s turn`}
       </div>
       <div className="grid grid-cols-3 gap-2">
         {board.map((cell, i) => (
-          <button key={i} onClick={() => click(i)}
+          <button key={i} onClick={() => { if (!playVsComputer || turn === 'X') click(i); }}
             className="w-20 h-20 rounded-2xl text-3xl font-black transition-all duration-200 border border-white/10 hover:border-white/30 hover:bg-white/5"
             style={{ background: 'rgba(255,255,255,0.04)', color: cell === 'X' ? '#a78bfa' : '#22d3ee' }}
           >{cell}</button>
@@ -260,6 +310,123 @@ function TypingGame() {
   );
 }
 
+// ─── 2048 GAME ───────────────────────────────────────────────────────────────────
+function Game2048() {
+  const [board, setBoard] = useState<number[]>(Array(16).fill(0));
+  const [score, setScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+
+  const initGame = useCallback(() => {
+    let nb = Array(16).fill(0);
+    nb = addRandom(addRandom(nb));
+    setBoard(nb);
+    setScore(0);
+    setGameOver(false);
+  }, []);
+
+  useEffect(() => { initGame(); }, [initGame]);
+
+  const addRandom = (b: number[]) => {
+    const e = b.map((v, i) => v === 0 ? i : -1).filter(i => i !== -1);
+    if (e.length === 0) return b;
+    const nb = [...b];
+    nb[e[Math.floor(Math.random() * e.length)]] = Math.random() < 0.9 ? 2 : 4;
+    return nb;
+  };
+
+  const moveLeft = (b: number[]) => {
+    let changed = false;
+    let s = 0;
+    const nb = [...b];
+    for (let i = 0; i < 4; i++) {
+      let row = nb.slice(i * 4, i * 4 + 4).filter(v => v !== 0);
+      for (let j = 0; j < row.length - 1; j++) {
+        if (row[j] === row[j + 1]) {
+          row[j] *= 2; s += row[j]; row[j + 1] = 0;
+        }
+      }
+      row = row.filter(v => v !== 0);
+      while (row.length < 4) row.push(0);
+      for (let j = 0; j < 4; j++) {
+        if (nb[i * 4 + j] !== row[j]) changed = true;
+        nb[i * 4 + j] = row[j];
+      }
+    }
+    return { nb, changed, s };
+  };
+
+  const rotateRight = (b: number[]) => {
+    const nb = Array(16).fill(0);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) nb[j * 4 + (3 - i)] = b[i * 4 + j];
+    return nb;
+  };
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (gameOver) return;
+    let nb = [...board], changed = false, addedScore = 0;
+    if (e.key === 'ArrowLeft') { const r = moveLeft(nb); nb = r.nb; changed = r.changed; addedScore = r.s; }
+    else if (e.key === 'ArrowRight') { const r = moveLeft(rotateRight(rotateRight(nb))); nb = rotateRight(rotateRight(r.nb)); changed = r.changed; addedScore = r.s; }
+    else if (e.key === 'ArrowUp') { const r = moveLeft(rotateRight(rotateRight(rotateRight(nb)))); nb = rotateRight(r.nb); changed = r.changed; addedScore = r.s; }
+    else if (e.key === 'ArrowDown') { const r = moveLeft(rotateRight(nb)); nb = rotateRight(rotateRight(rotateRight(r.nb))); changed = r.changed; addedScore = r.s; }
+    else return;
+
+    e.preventDefault();
+    if (changed) {
+      nb = addRandom(nb);
+      setBoard(nb);
+      setScore(sc => sc + addedScore);
+      if (nb.every(v => v !== 0)) {
+        // check if any move possible
+        const r1 = moveLeft([...nb]), r2 = moveLeft(rotateRight([...nb]));
+        if (!r1.changed && !r2.changed) setGameOver(true);
+      }
+    }
+  }, [board, gameOver]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const colors: Record<number, string> = {
+    0: 'rgba(255,255,255,0.05)', 2: '#eee4da', 4: '#ede0c8', 8: '#f2b179', 16: '#f59563', 32: '#f67c5f',
+    64: '#f65e3b', 128: '#edcf72', 256: '#edcc61', 512: '#edc850', 1024: '#edc53f', 2048: '#edc22e',
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4 select-none">
+      <div className="flex w-full justify-between items-center mb-2 px-2">
+        <div className="text-3xl font-black text-white/90">2048</div>
+        <div className="bg-white/10 px-4 py-2 rounded-xl text-center">
+          <div className="text-[10px] uppercase font-bold text-white/50">Score</div>
+          <div className="font-black text-white">{score}</div>
+        </div>
+      </div>
+      <div className="relative bg-white/10 p-3 rounded-2xl">
+        <div className="grid grid-cols-4 gap-3">
+          {board.map((v, i) => (
+            <div key={i} className="w-16 h-16 rounded-xl flex items-center justify-center font-black text-2xl transition-all duration-150"
+              style={{
+                background: colors[v] || '#3c3a32',
+                color: v <= 4 ? '#776e65' : '#f9f6f2',
+                boxShadow: v > 0 ? '0 4px 10px rgba(0,0,0,0.2)' : 'none',
+              }}>
+              {v > 0 ? v : ''}
+            </div>
+          ))}
+        </div>
+        {gameOver && (
+          <div className="absolute inset-0 bg-black/60 rounded-2xl flex flex-col items-center justify-center animate-fade-in z-10 backdrop-blur-[2px]">
+            <div className="text-2xl font-black text-white mb-4">Game Over!</div>
+            <button onClick={initGame} className="px-6 py-2 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-500 shadow-lg">Try Again</button>
+          </div>
+        )}
+      </div>
+      <button onClick={initGame} className="mt-2 px-5 py-2 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 flex items-center gap-2"><RotateCcw size={14} /> Restart</button>
+    </div>
+  );
+}
+
 // ─── GAME MODAL ────────────────────────────────────────────────────────────────
 function GameModal({ game, onClose }: { game: MiniGame; onClose: () => void }) {
   const gameMap: Record<string, React.ReactNode> = {
@@ -267,6 +434,7 @@ function GameModal({ game, onClose }: { game: MiniGame; onClose: () => void }) {
     '2': <TicTacToe />,
     '3': <MemoryGame />,
     '4': <TypingGame />,
+    '5': <Game2048 />,
   };
 
   return (

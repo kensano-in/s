@@ -140,9 +140,9 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
 // ── Mini Games ─────────────────────────────────────────────────────
 export const MOCK_GAMES: MiniGame[] = [
   { id: '1', title: 'Snake', description: 'Classic snake game — eat food, grow longer, don\'t hit the walls. Use arrow keys to control.', thumbnail: '🐍', category: 'arcade', players: 8420, isHot: true },
-  { id: '2', title: 'Tic-Tac-Toe', description: 'Play the ultimate strategy game against a friend. X vs O — who reigns supreme?', thumbnail: '✖️', category: 'strategy', players: 3210, isHot: false },
+  { id: '2', title: 'Tic-Tac-Toe', description: 'Play strategy against the computer or a friend. X vs O — who reigns supreme?', thumbnail: '✖️', category: 'strategy', players: 3210, isHot: false },
   { id: '3', title: 'Memory Flip', description: 'Flip cards and find matching emoji pairs. Train your memory and beat your score.', thumbnail: '🃏', category: 'puzzle', players: 12800, isHot: true, isCommunity: true },
   { id: '4', title: 'Typing Speed', description: 'How fast can you type? Race against our sentences and measure your WPM score.', thumbnail: '⌨️', category: 'trivia', players: 1900, isHot: false },
-  { id: '5', title: 'Neon Drift', description: 'Synthwave infinite runner with global ghost racing. Coming soon!', thumbnail: '🏎️', category: 'arcade', players: 6100, isHot: true },
+  { id: '5', title: '2048', description: 'Merge numbers to reach the mythical 2048 tile. A premium, ultra-smooth puzzle experience.', thumbnail: '🧩', category: 'puzzle', players: 14200, isHot: true },
   { id: '6', title: 'Word Architect', description: 'Community word-building game. Build vocabulary empires with your friends. Coming soon!', thumbnail: '📝', category: 'community', players: 4300, isCommunity: true },
 ];

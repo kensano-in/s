@@ -4,6 +4,7 @@ export interface IUser {
   displayName: string;
   avatarUrl?: string;
   isVerified: boolean;
+  isPrivate?: boolean;
 }
 
 export interface IMessage {

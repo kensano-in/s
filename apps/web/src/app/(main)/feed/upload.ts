@@ -24,6 +24,9 @@ export async function uploadMedia(formData: FormData): Promise<{ url: string } |
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
+  // Ensure bucket exists before uploading. Fails silently if it already exists or if no permissions (which is fine, we just want to try)
+  await supabase.storage.createBucket('media', { public: true }).catch(() => {});
+
   const { error } = await supabase.storage
     .from('media')
     .upload(path, buffer, {

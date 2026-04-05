@@ -9,6 +9,7 @@ export interface User {
   avatar: string;
   bio?: string;
   isVerified: boolean;
+  isPrivate?: boolean;
   karmaScore: number;
   followerCount: number;
   followingCount: number;
