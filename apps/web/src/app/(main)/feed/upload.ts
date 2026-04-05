@@ -25,18 +25,19 @@ export async function uploadMedia(formData: FormData): Promise<{ url: string } |
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   // Ensure bucket exists via Service Role Client to bypass restrict bucket RLS policies
   try {
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
     await supabaseAdmin.storage.createBucket('media', { public: true });
   } catch (err) {
     // Fails silently if it already exists or if key restricts it
   }
 
-  const { error } = await supabase.storage
+  const { error } = await supabaseAdmin.storage
     .from('media')
     .upload(path, buffer, {
       contentType: file.type,
@@ -46,6 +47,6 @@ export async function uploadMedia(formData: FormData): Promise<{ url: string } |
 
   if (error) return { error: error.message };
 
-  const { data } = supabase.storage.from('media').getPublicUrl(path);
+  const { data } = supabaseAdmin.storage.from('media').getPublicUrl(path);
   return { url: data.publicUrl };
 }
