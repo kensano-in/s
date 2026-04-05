@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Image as ImageIcon, Video, Smile, MapPin, X, Upload, Loader2 } from 'lucide-react';
 import { submitPost } from '@/app/(main)/feed/actions';
-import { createClient } from '@/lib/supabase/client';
+import { uploadMedia } from '@/app/(main)/feed/upload';
 import { useRouter } from 'next/navigation';
 
 const EMOJIS = ['😀','😂','🥹','😍','🤩','🔥','💎','⚡','🌊','🎯','🚀','🎭','👏','💪','🤝','❤️','💜','🌸','✨','🎉','👀','🧠','💡','🔑','🎨','🎮','🏆','💫','🌈','🦋'];
@@ -33,7 +33,7 @@ export default function CreatePost() {
   const [shake, setShake] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [mediaPreviews, setMediaPreviews] = useState<MediaPreview[]>([]);
-  const supabase = createClient();
+  const supabase = null; // uploads go through server action
 
   // Auto-resize textarea
   useEffect(() => {
@@ -46,19 +46,16 @@ export default function CreatePost() {
   const charLeft = MAX_CHARS - content.length;
   const charColor = charLeft < 0 ? '#EF4444' : charLeft < 50 ? '#F59E0B' : 'var(--text-muted)';
 
-  const uploadFile = async (file: File): Promise<string | null> => {
-    const ext = file.name.split('.').pop();
-    const path = `posts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase.storage.from('media').upload(path, file, {
-      cacheControl: '3600',
-      upsert: false,
-    });
-    if (error) {
-      console.error('Upload error:', error.message);
+  const uploadFile = async (file: File, folder: string = 'posts'): Promise<string | null> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('folder', folder);
+    const result = await uploadMedia(fd);
+    if ('error' in result) {
+      console.error('Upload error:', result.error);
       return null;
     }
-    const { data } = supabase.storage.from('media').getPublicUrl(path);
-    return data.publicUrl;
+    return result.url;
   };
 
   const handleFileSelect = async (files: FileList | null, type: 'image' | 'video') => {
