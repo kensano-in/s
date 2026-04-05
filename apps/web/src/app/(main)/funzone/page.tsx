@@ -25,21 +25,17 @@ function SnakeGame() {
     return f;
   }, []);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const map: Record<string, number[]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
-      if (map[e.key]) {
-        e.preventDefault();
-        const d = map[e.key];
-        const lastQ = moveQueue.current.length > 0 ? moveQueue.current[moveQueue.current.length - 1] : lastProcessedDir.current;
-        if (d[0] !== -lastQ[0] && d[1] !== -lastQ[1]) {
-          moveQueue.current.push(d);
-        }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const map: Record<string, number[]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0] };
+    if (map[e.key]) {
+      e.preventDefault();
+      const d = map[e.key];
+      const lastQ = moveQueue.current.length > 0 ? moveQueue.current[moveQueue.current.length - 1] : lastProcessedDir.current;
+      if (d[0] !== -lastQ[0] && d[1] !== -lastQ[1]) {
+        moveQueue.current.push(d);
       }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+    }
+  };
 
   useEffect(() => {
     if (!running || dead) return;
@@ -73,9 +69,11 @@ function SnakeGame() {
         <span>Score: <span className="text-green-400">{score}</span></span>
         {dead && <span className="text-red-400 animate-pulse">Game Over!</span>}
       </div>
-      <div className="relative border border-white/10 rounded-xl overflow-hidden bg-black/40"
+      <div className="relative border border-white/10 rounded-xl overflow-hidden bg-black/40 outline-none focus:ring-2 focus:ring-primary-light transition-shadow"
         style={{ width: GRID * CELL, height: GRID * CELL }}
         tabIndex={0}
+        onKeyDown={handleKeyDown}
+        autoFocus
       >
         {/* Food */}
         <div className="absolute w-4 h-4 rounded-full bg-red-400 shadow-[0_0_12px_red]"
@@ -113,41 +111,43 @@ function TicTacToe() {
     return b.every(Boolean) ? 'Draw' : null;
   };
 
-  const click = useCallback((i: number) => {
+  const click = useCallback((i: number, isComputerHit = false) => {
     if (board[i] || winner) return;
-    const nb = [...board]; nb[i] = turn;
+    const nb = [...board]; nb[i] = playVsComputer && isComputerHit ? 'O' : turn;
     const w = checkWin(nb);
-    setBoard(nb); setWinner(w); if (!w) setTurn(t => t === 'X' ? 'O' : 'X');
-  }, [board, turn, winner]);
+    setBoard(nb); 
+    setWinner(w); 
+    if (!w) {
+      if (playVsComputer && !isComputerHit) setTurn('O');
+      else if (!playVsComputer) setTurn(t => t === 'X' ? 'O' : 'X');
+      else setTurn('X');
+    }
+  }, [board, turn, winner, playVsComputer]);
 
   // AI logic
   useEffect(() => {
-    if (playVsComputer && turn === 'O' && !winner) {
-      const id = setTimeout(() => {
-        // Simple Minimax or strategic random
+    const timeoutId = setTimeout(() => {
+      if (playVsComputer && turn === 'O' && !winner) {
         const emptyIndices = board.map((c, i) => c === null ? i : -1).filter(i => i !== -1);
         if (emptyIndices.length > 0) {
-          // Try to win
           let move = -1;
           for (const i of emptyIndices) {
             const nb = [...board]; nb[i] = 'O'; if (checkWin(nb) === 'O') { move = i; break; }
           }
-          // Try to block
           if (move === -1) {
             for (const i of emptyIndices) {
               const nb = [...board]; nb[i] = 'X'; if (checkWin(nb) === 'X') { move = i; break; }
             }
           }
-          // Center or random
           if (move === -1) {
             if (emptyIndices.includes(4)) move = 4;
             else move = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
           }
-          click(move);
+          click(move, true);
         }
-      }, 500);
-      return () => clearTimeout(id);
-    }
+      }
+    }, 450);
+    return () => clearTimeout(timeoutId);
   }, [board, turn, playVsComputer, winner, click]);
 
   const reset = () => { setBoard(Array(9).fill(null)); setTurn('X'); setWinner(null); };
@@ -184,17 +184,19 @@ function MemoryGame() {
   const [cards, setCards] = useState(makeCards());
   const [selected, setSelected] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
-  const [locked, setLocked] = useState(false);
+  const isLocked = useRef(false);
 
   const flip = (id: number) => {
-    if (locked || cards[id].flipped || cards[id].matched || selected.length === 2) return;
+    if (isLocked.current || cards[id].flipped || cards[id].matched || selected.length >= 2) return;
     const newSel = [...selected, id];
     setCards(c => c.map((card) => card.id === id ? { ...card, flipped: true } : card));
     setSelected(newSel);
+
     if (newSel.length === 2) {
       setMoves(m => m + 1);
-      setLocked(true);
+      isLocked.current = true;
       const [a, b] = newSel;
+      
       setTimeout(() => {
         setCards(c => c.map(card => {
           if (card.id === a || card.id === b) {
@@ -205,8 +207,8 @@ function MemoryGame() {
           return card;
         }));
         setSelected([]);
-        setLocked(false);
-      }, 900);
+        isLocked.current = false;
+      }, 800);
     }
   };
 
@@ -235,7 +237,7 @@ function MemoryGame() {
           </button>
         ))}
       </div>
-      <button onClick={() => { setCards(makeCards()); setSelected([]); setMoves(0); setLocked(false); }}
+      <button onClick={() => { setCards(makeCards()); setSelected([]); setMoves(0); isLocked.current = false; }}
         className="px-5 py-2 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 transition-colors flex items-center gap-2">
         <RotateCcw size={14} /> Shuffle
       </button>
