@@ -5,6 +5,7 @@ import { Search, TrendingUp, Users, FileText, X, Loader2, UserPlus, UserCheck, H
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useAppStore } from '@/lib/store';
 
 interface DBUser {
   id: string;
@@ -98,13 +99,8 @@ function ExploreInner() {
     return () => clearTimeout(debounce);
   }, [query, hasQuery, supabase]);
 
-  const toggleFollow = (uid: string) => {
-    setFollowedIds(prev => {
-      const next = new Set(prev);
-      next.has(uid) ? next.delete(uid) : next.add(uid);
-      return next;
-    });
-  };
+  // Sync with global store instead of phantom array
+  const { isFollowing, toggleFollow } = useAppStore();
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -208,7 +204,7 @@ function ExploreInner() {
                 </div>
               )}
               {users.map((u) => {
-                const isFollowing = followedIds.has(u.id);
+                const isFollowingUser = isFollowing(u.id);
                 return (
                   <div key={u.id} className="glass-card flex items-center gap-3 p-3">
                     <Link href="/profile" className="relative flex-shrink-0">
@@ -228,12 +224,12 @@ function ExploreInner() {
                       onClick={() => toggleFollow(u.id)}
                       className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full flex-shrink-0 transition-all duration-200 font-semibold border"
                       style={{
-                        background: isFollowing ? 'transparent' : 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))',
-                        color: isFollowing ? 'var(--text-secondary)' : 'white',
-                        borderColor: isFollowing ? 'var(--border)' : 'transparent',
+                        background: isFollowingUser ? 'transparent' : 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))',
+                        color: isFollowingUser ? 'var(--text-secondary)' : 'white',
+                        borderColor: isFollowingUser ? 'var(--border)' : 'transparent',
                       }}
                     >
-                      {isFollowing ? <><UserCheck size={12} /> Following</> : <><UserPlus size={12} /> Follow</>}
+                      {isFollowingUser ? <><UserCheck size={12} /> Following</> : <><UserPlus size={12} /> Follow</>}
                     </button>
                   </div>
                 );
