@@ -6,6 +6,7 @@ import { Camera, Settings, Grid3x3, FileText, Bookmark, Award, Sparkles, Palette
 import { useState, useEffect, useMemo, useRef } from 'react';
 import EditProfileModal from '@/components/features/profile/EditProfileModal';
 import { createClient } from '@/lib/supabase/client';
+import { uploadMedia } from '@/app/(main)/feed/upload';
 
 function kFmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -43,12 +44,15 @@ export default function ProfilePage() {
   const handleAvatarUpload = async (files: FileList | null) => {
     if (!files || !files[0] || !currentUser) return;
     const file = files[0];
-    const ext = file.name.split('.').pop();
-    const path = `avatars/${currentUser.id}.${ext}`;
-    const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
-    if (error) { console.error('Avatar upload error:', error.message); return; }
-    const { data } = supabase.storage.from('media').getPublicUrl(path);
-    updateProfile({ avatar: data.publicUrl });
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('folder', 'avatars');
+    const result = await uploadMedia(fd);
+    if ('error' in result) {
+      console.error('Avatar upload error:', result.error);
+      return;
+    }
+    updateProfile({ avatar: result.url });
   };
 
   // Fetch only THIS user's posts from DB
@@ -182,8 +186,8 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Profile info */}
-      <div className="px-1 pb-4">
+      {/* Profile info — pt-16 clears the avatar that overlaps from the banner */}
+      <div className="px-1 pb-4 pt-16">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
