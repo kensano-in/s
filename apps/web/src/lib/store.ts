@@ -210,9 +210,13 @@ export const useAppStore = create<AppState>()(
         });
 
         if (state.currentUser?.id) {
-          import('@/app/(main)/profile/actions').then((m) => {
-            m.toggleFollowDB(state.currentUser!.id, userId, !isFollowingNow).catch(console.error);
-          });
+          // Send to global window queue to evade strict Webpack action boundary
+          if (typeof window !== 'undefined') {
+             (window as any)._verlynFollowQueue = (window as any)._verlynFollowQueue || [];
+             (window as any)._verlynFollowQueue.push({ userId, state: !isFollowingNow });
+             // Fire event
+             window.dispatchEvent(new CustomEvent('verlyn-follow-sync'));
+          }
         }
       },
       toggleSave: (postId) => set((s) => ({

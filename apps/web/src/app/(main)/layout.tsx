@@ -11,6 +11,7 @@ import MobileDrawer from '@/components/layout/MobileDrawer';
 import { usePathname } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import clsx from 'clsx';
+import GlobalRealtimeMonitor from '@/components/layout/GlobalRealtimeMonitor';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,6 +27,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <div className="flex h-screen overflow-hidden bg-background text-on-surface">
       <ThemeEngineProvider />
       <AuthProvider />
+      <GlobalRealtimeMonitor />
 
       {/* Mobile drawer overlay */}
       {isMobileDrawerOpen && (
