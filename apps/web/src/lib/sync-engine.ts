@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
+import { submitProfileUpdateDB } from '@/app/(main)/profile/actionsCore';
 
 // Retry configuration
 const MAX_RETRIES = 5;
@@ -51,7 +52,6 @@ export async function syncProfileToSupabase(
   updates: ProfileSyncPayload
 ): Promise<void> {
   await withExponentialBackoff(async () => {
-    const { submitProfileUpdateDB } = await import('@/app/(main)/profile/actionsCore');
     const res = await submitProfileUpdateDB(userId, updates);
     if (!res.success) throw new Error(res.error);
   });

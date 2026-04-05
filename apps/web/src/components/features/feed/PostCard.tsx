@@ -5,7 +5,7 @@ import type { Post } from '@/lib/types';
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Repeat2, Pencil, Trash2, X, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
-import { deletePost, editPost } from '@/app/(main)/feed/actions';
+import { deletePost, editPost, submitCommentDB } from '@/app/(main)/feed/actions';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -134,9 +134,7 @@ export default function PostCard({ post, currentUserId }: Props) {
     setCommentText('');
     
     if (currentUserId) {
-      import('@/app/(main)/feed/actions').then((m) => {
-        m.submitCommentDB(post.id, currentUserId, submittedText).catch(console.error);
-      });
+      submitCommentDB(post.id, currentUserId, submittedText).catch((err) => console.error("RPC Error:", err));
     }
   };
 
