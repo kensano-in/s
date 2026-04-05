@@ -119,10 +119,10 @@ export default function PublicProfilePage() {
             <div className="p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500">
               <div className="p-[3px] bg-background rounded-full">
                 <img
-                  src={profileUser.avatar || '/fallback-avatar.png'}
+                  src={profileUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
                   alt={`${profileUser.displayName}'s avatar`}
                   className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block"
-                  onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`; }}
                 />
               </div>
             </div>

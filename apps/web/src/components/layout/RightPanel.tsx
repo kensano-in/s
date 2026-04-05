@@ -83,7 +83,7 @@ export default function RightPanel() {
                       alt={`${u.display_name}'s avatar`}
                       width={36} height={36}
                       className="w-9 h-9 rounded-full object-cover hover:opacity-90 transition-opacity"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
                     />
                   </Link>
                   <div className="flex-1 min-w-0">

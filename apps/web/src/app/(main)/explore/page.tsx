@@ -217,7 +217,7 @@ function ExploreInner() {
                         src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`}
                         alt={u.display_name}
                         className="w-10 h-10 rounded-full object-cover"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
                       />
                     </Link>
                     <div className="flex-1 min-w-0">
@@ -262,7 +262,7 @@ function ExploreInner() {
                       src={p.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.author?.username || 'user'}`}
                       alt={p.author?.display_name || 'User'}
                       className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm text-on-surface">{p.author?.display_name || p.author?.username || 'Unknown'}</div>
