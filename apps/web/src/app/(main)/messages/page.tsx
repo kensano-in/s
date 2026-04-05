@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '@/lib/store';
@@ -47,9 +47,14 @@ function MessagesContent() {
   const [isSending, setIsSending] = useState(false);
   const lastSendRef = useRef<number>(0);
 
+  // Pagination states
+  const [hasMoreMsgs, setHasMoreMsgs] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const observerRef = useRef<HTMLDivElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chatWallpaperUrl, chatWallpaperBlur, chatWallpaperDim, currentUser } = useAppStore();
-  const bgRef = useRef<HTMLDivElement>(null);
+  const bgRef = useRef<HTMLImageElement>(null);
   const supabase = useMemo(() => createClient(), []);
 
   // UX Micro-detailing: High-performance Synthesized Audio Feedback
@@ -156,19 +161,70 @@ function MessagesContent() {
         .or(
           `and(sender_id.eq.${currentUser!.id},recipient_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser!.id})`
         )
-        .order('sent_at', { ascending: true });
+        .order('sent_at', { ascending: false })
+        .limit(50);
 
-      setMessages((data || []).map(m => ({
+      if (!data || data.length < 50) setHasMoreMsgs(false);
+      else setHasMoreMsgs(true);
+
+      const parsed = (data || []).map(m => ({
         id: m.id,
         content: m.content,
         sender_id: m.sender_id,
         sent_at: m.sent_at,
         is_mine: m.sender_id === currentUser!.id,
-      })));
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      })).reverse(); // Reverse because we fetched desc
+
+      setMessages(parsed);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
     }
     loadMessages();
   }, [activeConvId, currentUser?.id, supabase]);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (loadingMore || !hasMoreMsgs || messages.length === 0 || !activeConvId || !currentUser?.id) return;
+    setLoadingMore(true);
+    
+    // The cursor is the sent_at of the oldest message we currently have
+    const oldestMsgTime = messages[0].sent_at;
+    
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .or(
+        `and(sender_id.eq.${currentUser.id},recipient_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser.id})`
+      )
+      .lt('sent_at', oldestMsgTime)
+      .order('sent_at', { ascending: false })
+      .limit(50);
+
+    if (!data || data.length < 50) setHasMoreMsgs(false);
+
+    if (data && data.length > 0) {
+      const parsed = data.map(m => ({
+        id: m.id,
+        content: m.content,
+        sender_id: m.sender_id,
+        sent_at: m.sent_at,
+        is_mine: m.sender_id === currentUser.id,
+      })).reverse();
+      
+      setMessages(prev => [...parsed, ...prev]);
+    }
+    setLoadingMore(false);
+  }, [loadingMore, hasMoreMsgs, messages, activeConvId, currentUser?.id, supabase]);
+
+  // Viewport Observer for Infinite Scroll Trigger
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadMoreMessages();
+      }
+    }, { threshold: 1.0 });
+
+    if (observerRef.current) observer.observe(observerRef.current);
+    return () => observer.disconnect();
+  }, [loadMoreMessages]);
 
   // Global User Search Logic for New Chats
   useEffect(() => {
@@ -421,45 +477,43 @@ function MessagesContent() {
 
       {/* Chat Area */}
       {activeConv ? (
-        <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden bg-surface-lowest">
-          {chatWallpaperUrl ? (
-            <>
+        <div className="flex-1 flex flex-col min-w-0 bg-background relative -ml-4 z-0 rounded-l-3xl shadow-[-10px_0_30px_rgba(0,0,0,0.3)] border-l border-outline-variant/10 overflow-hidden transform transition-transform duration-300">
+          
+          {/* Dynamic Background */}
+          {chatWallpaperUrl && (
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
               {isVideo ? (
-                <video autoPlay loop muted playsInline src={chatWallpaperUrl}
-                  className="absolute inset-0 z-0 object-cover w-full h-full"
-                  style={{ filter: `blur(${chatWallpaperBlur}px)`, transform: 'scale(1.1) translate3d(0,0,0)', willChange: 'transform' }}
-                />
+                <video src={chatWallpaperUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
               ) : (
-                <div ref={bgRef} className="absolute inset-0 z-0 bg-cover bg-center"
-                  style={{ backgroundImage: `url(${chatWallpaperUrl})`, filter: `blur(${chatWallpaperBlur}px)`, transform: 'scale(1.1) translate3d(0,0,0)', willChange: 'transform' }}
-                />
+                <img ref={bgRef} src={chatWallpaperUrl} alt="" className="w-full h-full object-cover will-change-transform" />
               )}
-              <div className="absolute inset-0 z-0 bg-black transition-opacity duration-300" style={{ opacity: chatWallpaperDim }} />
-            </>
-          ) : (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] bg-primary-dark/20 rounded-full blur-[100px] pointer-events-none opacity-20 z-0" />
+              <div 
+                className="absolute inset-0 transition-opacity duration-300" 
+                style={{ 
+                  backdropFilter: `blur(${chatWallpaperBlur}px)`, 
+                  backgroundColor: `rgba(0,0,0,${chatWallpaperDim})` 
+                }} 
+              />
+            </div>
           )}
 
-          {/* Header */}
-          <div className="flex items-center gap-4 px-6 py-4 bg-surface-highest/80 backdrop-blur-3xl border-b border-outline-variant/15 flex-shrink-0 z-10 shadow-ambient">
-            <div className="relative flex-shrink-0">
+          {/* Active Chat Header */}
+          <div className="px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-outline-variant/10 bg-surface/80 backdrop-blur-md relative z-10 sticky top-0">
+            <div className="flex items-center gap-4">
+              <div className="flex sm:hidden mr-2 cursor-pointer" onClick={() => setActiveConvId(null)}><ArrowLeft size={20} /></div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`}
                 alt={activeConv.participant_name}
-                className="w-10 h-10 rounded-full object-cover shadow-ambient border border-outline-variant/10"
+                className="w-12 h-12 rounded-full object-cover shadow-ambient border border-outline-variant/20"
                 onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
               />
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-secondary-light border-2 border-surface-highest rounded-full" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-display font-bold text-base tracking-tight text-on-surface">{activeConv.participant_name}</span>
-                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-[6px] bg-secondary-dark/30 text-secondary-light border border-secondary-DEFAULT/20">
-                  <Lock size={10} /> E2EE
-                </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base sm:text-lg text-on-surface">{activeConv.participant_name}</h3>
+                </div>
+                <div className="text-[14px] text-on-surface-variant">@{activeConv.participant_username}</div>
               </div>
-              <div className="text-xs font-medium text-secondary-light mt-0.5">@{activeConv.participant_username}</div>
             </div>
             <div className="flex items-center gap-2">
               <button className="icon-btn hover:bg-surface-low p-2.5 rounded-2xl text-primary-light transition-colors shadow-ambient border border-outline-variant/5 bg-surface-highest"><Phone size={18} /></button>
@@ -476,6 +530,13 @@ function MessagesContent() {
                 <Lock size={12} className="opacity-80" /> Secured by Verlyn Matrix End-to-End Encryption
               </span>
             </div>
+            
+            {hasMoreMsgs && (
+              <div ref={observerRef} className="h-8 flex items-center justify-center mb-4">
+                {loadingMore && <Loader2 size={16} className="animate-spin text-primary-light" />}
+              </div>
+            )}
+
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.is_mine ? 'justify-end' : 'justify-start'} gap-3 items-end relative group`}>
                 {!message.is_mine && (
