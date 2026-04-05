@@ -13,6 +13,48 @@ function fmt(n: number): string {
   return String(n);
 }
 
+// FIX: Parses literal string attachments (e.g. `[ 📸 Sano Shinichiro.jpg ]`) and renders beautiful synthetic attachments
+function renderParsedContent(rawText: string) {
+  const parts = rawText.split(/(\[\s*[📸|🎬|📍].*?\])/g);
+  return (
+    <div className="text-[15px] leading-relaxed whitespace-pre-line text-on-surface font-medium space-y-2">
+      {parts.map((p, i) => {
+        if (p.startsWith('[') && p.endsWith(']')) {
+          const inner = p.slice(1, -1).trim();
+          const isImage = inner.includes('📸');
+          const isVideo = inner.includes('🎬');
+          const isLocation = inner.includes('📍');
+          const label = inner.replace('📸', '').replace('🎬', '').replace('📍', '').trim();
+          
+          if (isImage || isVideo) {
+            return (
+              <div key={i} className="flex items-center gap-3 bg-surface-highest/50 px-4 py-3 rounded-xl border border-outline-variant/10 shadow-ambient w-fit mt-1 hover:bg-surface-high transition-colors cursor-pointer">
+                <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-lg shadow-inner">
+                  {isImage ? '📸' : '🎬'}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-on-surface">{label}</span>
+                  <span className="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">
+                    {isImage ? 'IMAGE ATTACHMENT' : 'VIDEO ASSET'}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+          if (isLocation) {
+            return (
+              <div key={i} className="flex items-center gap-2 text-sm text-primary-light bg-primary-dark/10 px-3 py-1.5 rounded-full w-fit mt-1">
+                📍 <span className="font-bold">{label}</span>
+              </div>
+            );
+          }
+        }
+        return <span key={i}>{p}</span>;
+      })}
+    </div>
+  );
+}
+
 interface Props {
   post: Post;
   currentUserId?: string;
@@ -266,9 +308,7 @@ export default function PostCard({ post, currentUserId }: Props) {
               </div>
             </div>
           ) : (
-            <div className="text-[15px] leading-relaxed whitespace-pre-line text-on-surface font-medium">
-              {post.content}
-            </div>
+            renderParsedContent(post.content)
           )}
         </div>
 

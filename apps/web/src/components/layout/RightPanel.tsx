@@ -77,13 +77,12 @@ export default function RightPanel() {
               return (
                 <div key={u.id} className="flex items-center gap-3">
                   <Link href="/profile" className="relative flex-shrink-0" title={`View ${u.display_name}'s profile`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`}
                       alt={`${u.display_name}'s avatar`}
                       width={36} height={36}
-                      className="w-9 h-9 rounded-full object-cover hover:opacity-90 transition-opacity"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
+                      className="w-9 h-9 rounded-full object-cover hover:opacity-90 transition-opacity bg-surface-low"
+                      onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`; }}
                     />
                   </Link>
                   <div className="flex-1 min-w-0">
