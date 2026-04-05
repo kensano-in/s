@@ -43,11 +43,34 @@ function MessagesContent() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  
+  const [isSending, setIsSending] = useState(false);
+  const lastSendRef = useRef<number>(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chatWallpaperUrl, chatWallpaperBlur, chatWallpaperDim, currentUser } = useAppStore();
   const bgRef = useRef<HTMLDivElement>(null);
   const supabase = useMemo(() => createClient(), []);
+
+  // UX Micro-detailing: High-performance Synthesized Audio Feedback
+  const playPopSound = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    } catch (e) {}
+  };
 
   const isVideo = chatWallpaperUrl?.match(/\.(mp4|webm|ogg)$/i);
   const activeConv = conversations.find(c => c.id === activeConvId) || null;
@@ -199,8 +222,29 @@ function MessagesContent() {
   }, [currentUser?.id, activeConvId, supabase]);
 
   const sendMessage = async () => {
-    const trimmed = msg.trim();
+    const now = Date.now();
+    // Security: Token Bucket / Debounce (preventing 10ms INSERT spams locking DB)
+    if (now - lastSendRef.current < 500) return;
+
+    let trimmed = msg.trim();
     if (!trimmed || !activeConvId || !currentUser?.id) return;
+    
+    setIsSending(true);
+    lastSendRef.current = now;
+
+    // Command Membrane Logic
+    if (trimmed.startsWith('/')) {
+      const args = trimmed.split(' ');
+      const command = args[0].toLowerCase();
+      if (command === '/shrug') {
+        trimmed = (args.slice(1).join(' ') + ' ¯\\_(ツ)_/¯').trim();
+      } else if (command === '/coinflip') {
+        const result = Math.random() > 0.5 ? 'Heads' : 'Tails';
+        trimmed = `🪙 Flipped a coin: **${result}**`;
+      } else if (command === '/ai') {
+        trimmed = `🤖 Processing query: "${args.slice(1).join(' ')}"... (AI Node offline)`;
+      }
+    }
 
     const optimistic: ChatMessage = {
       id: `opt_${Date.now()}`,
@@ -209,6 +253,10 @@ function MessagesContent() {
       sent_at: new Date().toISOString(),
       is_mine: true,
     };
+    
+    // Kinetic Feedback
+    playPopSound();
+
     setMessages(prev => [...prev, optimistic]);
     setMsg('');
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
@@ -219,6 +267,8 @@ function MessagesContent() {
       recipient_id: activeConvId,
       content: trimmed,
     });
+    
+    setIsSending(false);
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
