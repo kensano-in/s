@@ -2,8 +2,8 @@
 
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
-import { Camera, Settings, Grid3x3, FileText, Bookmark, Award, Sparkles } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { Camera, Settings, Grid3x3, FileText, Bookmark, Award, Sparkles, Palette } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import EditProfileModal from '@/components/features/profile/EditProfileModal';
 import { createClient } from '@/lib/supabase/client';
 
@@ -18,9 +18,38 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
-  const { currentUser } = useAppStore();
+  // Banner color state — user can pick a gradient preset
+  const [bannerColor, setBannerColor] = useState<string>('purple');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const { currentUser, updateProfile } = useAppStore();
   // FIX 8: Memoize Supabase client — prevents new client+WebSocket per render cycle
   const supabase = useMemo(() => createClient(), []);
+
+  const BANNER_GRADIENTS: Record<string, string> = {
+    purple: 'linear-gradient(135deg, #2D1B69 0%, #1a1040 40%, #0a2060 100%)',
+    violet: 'linear-gradient(135deg, #4c1d95 0%, #2e1065 50%, #1e1b4b 100%)',
+    rose: 'linear-gradient(135deg, #881337 0%, #4c0519 40%, #1c1917 100%)',
+    teal: 'linear-gradient(135deg, #134e4a 0%, #042f2e 40%, #0f172a 100%)',
+    amber: 'linear-gradient(135deg, #78350f 0%, #451a03 40%, #1c1917 100%)',
+    slate: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)',
+  };
+
+  const BANNER_LABELS: Record<string, string> = {
+    purple: '#7C3AED', violet: '#8B5CF6', rose: '#E11D48',
+    teal: '#0D9488', amber: '#D97706', slate: '#475569',
+  };
+
+  const handleAvatarUpload = async (files: FileList | null) => {
+    if (!files || !files[0] || !currentUser) return;
+    const file = files[0];
+    const ext = file.name.split('.').pop();
+    const path = `avatars/${currentUser.id}.${ext}`;
+    const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
+    if (error) { console.error('Avatar upload error:', error.message); return; }
+    const { data } = supabase.storage.from('media').getPublicUrl(path);
+    updateProfile({ avatar: data.publicUrl });
+  };
 
   // Fetch only THIS user's posts from DB
   useEffect(() => {
@@ -63,47 +92,88 @@ export default function ProfilePage() {
   return (
     <div className="space-y-0 animate-fade-in relative">
       {isEditing && (
-        <EditProfileModal
-          onClose={() => setIsEditing(false)}
-        />
+        <EditProfileModal onClose={() => setIsEditing(false)} />
       )}
 
-      {/* Banner */}
-      <div
-        className="h-36 rounded-2xl relative overflow-hidden mb-16"
-        style={{ background: 'linear-gradient(135deg, #2D1B69 0%, #1a1040 40%, #0a2060 100%)' }}
-      >
-        <div className="absolute top-4 left-8 w-20 h-20 rounded-full blur-2xl opacity-40" style={{ background: 'var(--v-violet)' }} />
-        <div className="absolute bottom-2 right-12 w-28 h-28 rounded-full blur-2xl opacity-30" style={{ background: 'var(--v-cyan)' }} />
-        <button
-          className="absolute bottom-3 right-3 btn-glass text-xs px-3 py-1.5 flex items-center gap-1.5"
-          id="edit-banner-btn"
-          aria-label="Edit profile banner"
-        >
-          <Camera size={12} />
-          Edit
-        </button>
+      {/* Hidden avatar file input */}
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleAvatarUpload(e.target.files)}
+        aria-label="Upload avatar"
+      />
 
-        {/* Avatar */}
-        <div className="absolute -bottom-14 left-6">
+      {/* Banner — no overflow-hidden so avatar is never clipped */}
+      <div className="relative mb-20">
+        {/* Background layer (clipped) */}
+        <div
+          className="h-40 rounded-2xl overflow-hidden relative"
+          style={{ background: BANNER_GRADIENTS[bannerColor] }}
+        >
+          <div className="absolute top-4 left-8 w-24 h-24 rounded-full blur-3xl opacity-40" style={{ background: 'var(--v-violet)' }} />
+          <div className="absolute bottom-2 right-16 w-32 h-32 rounded-full blur-3xl opacity-30" style={{ background: 'var(--v-cyan)' }} />
+
+          {/* Banner controls */}
+          <div className="absolute bottom-3 right-3 flex items-center gap-2">
+            {/* Color picker toggle */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColorPicker(v => !v)}
+                className="btn-glass text-xs px-3 py-1.5 flex items-center gap-1.5"
+                id="change-color-btn"
+                aria-label="Change banner color"
+              >
+                <Palette size={12} />
+                Color
+              </button>
+              {showColorPicker && (
+                <div className="absolute bottom-9 right-0 flex gap-2 p-3 rounded-2xl shadow-2xl animate-fade-in"
+                  style={{ background: 'rgba(10,8,20,0.95)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  {Object.entries(BANNER_LABELS).map(([key, hex]) => (
+                    <button
+                      key={key}
+                      onClick={() => { setBannerColor(key); setShowColorPicker(false); }}
+                      className="w-7 h-7 rounded-full transition-transform hover:scale-110 flex-shrink-0"
+                      style={{
+                        background: hex,
+                        outline: bannerColor === key ? `2px solid white` : '2px solid transparent',
+                        outlineOffset: '2px',
+                      }}
+                      aria-label={`Set ${key} banner`}
+                      title={key}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Avatar — positioned outside the overflow-hidden banner */}
+        <div className="absolute -bottom-12 left-6 z-10">
           <div
-            className="p-0.5 rounded-full"
+            className="p-[2px] rounded-full"
             style={{ background: 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))' }}
           >
-            <div className="p-1 rounded-full" style={{ background: 'var(--bg)' }}>
+            <div className="p-[3px] rounded-full" style={{ background: 'var(--bg, #0a0814)' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={currentUser.avatar || '/fallback-avatar.png'}
                 alt={`${currentUser.displayName}'s avatar`}
-                width={80} height={80}
-                className="w-20 h-20 rounded-full object-cover"
+                width={88} height={88}
+                className="w-22 h-22 rounded-full object-cover block"
+                style={{ width: 88, height: 88, display: 'block', borderRadius: '9999px' }}
                 onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.png'; }}
               />
             </div>
           </div>
+          {/* Camera button */}
           <button
-            className="absolute bottom-1 right-1 w-7 h-7 rounded-full flex items-center justify-center border-2 cursor-pointer"
-            style={{ background: 'var(--v-violet)', borderColor: 'var(--bg)' }}
+            onClick={() => avatarInputRef.current?.click()}
+            className="absolute bottom-1 right-1 w-7 h-7 rounded-full flex items-center justify-center border-2 cursor-pointer hover:opacity-90 transition-opacity"
+            style={{ background: 'var(--v-violet)', borderColor: 'var(--bg, #0a0814)' }}
             id="change-avatar-btn"
             aria-label="Change avatar"
           >

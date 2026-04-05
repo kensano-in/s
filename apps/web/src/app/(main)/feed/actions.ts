@@ -12,12 +12,14 @@ export async function submitPost(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
+  const mediaUrls = formData.getAll('mediaUrls') as string[];
+
   const { error } = await supabase.from('posts').insert({
     author_id: user.id,
     content: content.trim(),
     like_count: 0,
     comment_count: 0,
-    media_urls: []
+    media_urls: mediaUrls.filter(Boolean),
   });
 
   if (error) {
