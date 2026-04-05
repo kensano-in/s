@@ -385,18 +385,30 @@ function Game2048() {
     }
   }, [board, gameOver]);
 
-  useEffect(() => {
+  // Remove global listener
+  /* useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  }, [handleKeyDown]); */
 
   const colors: Record<number, string> = {
     0: 'rgba(255,255,255,0.05)', 2: '#eee4da', 4: '#ede0c8', 8: '#f2b179', 16: '#f59563', 32: '#f67c5f',
     64: '#f65e3b', 128: '#edcf72', 256: '#edcc61', 512: '#edc850', 1024: '#edc53f', 2048: '#edc22e',
   };
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
   return (
-    <div className="flex flex-col items-center gap-4 select-none">
+    <div 
+      className="flex flex-col items-center gap-4 select-none outline-none focus:ring-2 focus:ring-violet-500/20 rounded-2xl p-4"
+      tabIndex={0}
+      autoFocus
+      ref={containerRef}
+      onKeyDown={(e) => handleKeyDown(e.nativeEvent as any)}
+    >
       <div className="flex w-full justify-between items-center mb-2 px-2">
         <div className="text-3xl font-black text-white/90">2048</div>
         <div className="bg-white/10 px-4 py-2 rounded-xl text-center">
@@ -420,11 +432,13 @@ function Game2048() {
         {gameOver && (
           <div className="absolute inset-0 bg-black/60 rounded-2xl flex flex-col items-center justify-center animate-fade-in z-10 backdrop-blur-[2px]">
             <div className="text-2xl font-black text-white mb-4">Game Over!</div>
-            <button onClick={initGame} className="px-6 py-2 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-500 shadow-lg">Try Again</button>
+            <button onClick={() => { initGame(); setTimeout(() => containerRef.current?.focus(), 100); }} className="px-6 py-2 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-500 shadow-lg">Try Again</button>
           </div>
         )}
       </div>
-      <button onClick={initGame} className="mt-2 px-5 py-2 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 flex items-center gap-2"><RotateCcw size={14} /> Restart</button>
+      <button onClick={() => { initGame(); setTimeout(() => containerRef.current?.focus(), 100); }} className="mt-2 px-5 py-2 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 flex items-center gap-2">
+        <RotateCcw size={14} /> Restart
+      </button>
     </div>
   );
 }
