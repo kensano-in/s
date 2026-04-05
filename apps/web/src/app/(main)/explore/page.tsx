@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Search, TrendingUp, Users, Hash, FileText, X, Loader2, UserPlus, UserCheck } from 'lucide-react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
+import { Search, TrendingUp, Users, FileText, X, Loader2, UserPlus, UserCheck, Hash } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -42,10 +42,10 @@ function timeAgo(dateStr: string) {
 
 type Tab = 'top' | 'people' | 'posts';
 
-export default function ExplorePage() {
+// Inner component uses useSearchParams — must be inside <Suspense>
+function ExploreInner() {
   const searchParams = useSearchParams();
   const initialQ = searchParams.get('q') || '';
-
   const [query, setQuery] = useState(initialQ);
   const [activeTab, setActiveTab] = useState<Tab>('top');
   const [users, setUsers] = useState<DBUser[]>([]);
@@ -297,5 +297,18 @@ export default function ExplorePage() {
         </>
       )}
     </div>
+  );
+}
+
+// Default export wraps inner component in Suspense (required by Next.js for useSearchParams)
+export default function ExplorePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-24">
+        <Loader2 size={28} className="animate-spin text-primary-light" />
+      </div>
+    }>
+      <ExploreInner />
+    </Suspense>
   );
 }
