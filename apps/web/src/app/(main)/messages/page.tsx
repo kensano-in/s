@@ -317,12 +317,13 @@ function MessagesContent() {
     setMsg('');
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
 
-    // Save to DB
-    await supabase.from('messages').insert({
-      sender_id: currentUser.id,
-      recipient_id: activeConvId,
-      content: trimmed,
-    });
+    // Save to DB securely through the authenticated tunnel bypass
+    const { sendMessageDB } = await import('./actions');
+    const res = await sendMessageDB(currentUser.id, activeConvId, trimmed);
+    
+    if (!res.success) {
+      console.error('Core routing failure: ', res.error);
+    }
     
     setIsSending(false);
   };
