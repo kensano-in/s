@@ -34,7 +34,7 @@ export async function signup(formData: FormData) {
   // Server-side Tier 1 namespace guard (PUBLIC accounts)
   const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_]/g, '')
   if (cleanUsername.length < 5) {
-    return redirect('/login?message=Namespace Denied: Username must be at least 5 characters.')
+    return redirect('/login?message=Username must be at least 5 characters.')
   }
 
   const { data: authData, error: authError } = await supabase.auth.signUp({ email, password })
