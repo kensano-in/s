@@ -1,19 +1,40 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { revalidatePath } from 'next/cache';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabase = createClient(supabaseUrl, supabaseServiceRole);
+const supabase = createAdminClient(supabaseUrl, supabaseServiceRole);
 
-export async function createCommunity(formData: FormData) {
+export async function getCommunities(userId?: string) {
+    try {
+        // Fetch all communities and whether the current user is a member
+        const { data: communities, error } = await supabase
+            .from('communities')
+            .select(`
+                *,
+                members:community_members(user_id)
+            `)
+            .order('member_count', { ascending: false });
+
+        if (error) throw error;
+
+        const results = communities.map(c => ({
+            ...c,
+            isJoined: userId ? c.members.some((m: any) => m.user_id === userId) : false
+        }));
+
+        return { success: true, communities: results };
+    } catch (err: any) {
+        return { success: false, error: err.message };
+    }
+}
+
+export async function createCommunity(formData: { name: string; displayName: string; description: string; isPrivate: boolean; userId: string }) {
   try {
-    const name = formData.get('name') as string;
-    const displayName = formData.get('displayName') as string;
-    const description = formData.get('description') as string;
-    const isPrivate = formData.get('isPrivate') === 'true';
-    const userId = formData.get('userId') as string;
+    const { name, displayName, description, isPrivate, userId } = formData;
 
     if (!name || !displayName || !description || !userId) {
       return { success: false, error: 'All fields and authentication are required.' };
@@ -36,7 +57,7 @@ export async function createCommunity(formData: FormData) {
       .single();
 
     if (error) {
-      console.error('Community creation error:', error);
+      if (error.code === '23505') return { success: false, error: 'Protocol identifier already registered.' };
       return { success: false, error: error.message };
     }
 
@@ -47,6 +68,7 @@ export async function createCommunity(formData: FormData) {
       role: 'admin',
     });
 
+    revalidatePath('/communities');
     return { success: true, community };
   } catch (err: any) {
     return { success: false, error: err.message || 'Internal error checking community' };
@@ -56,7 +78,6 @@ export async function createCommunity(formData: FormData) {
 export async function toggleCommunityJoin(communityId: string, userId: string, isJoining: boolean) {
   try {
     if (isJoining) {
-      // INSERT triggers trg_community_member_count automatically — no RPC needed
       const { error } = await supabase.from('community_members').insert({
         community_id: communityId,
         user_id: userId,
@@ -64,12 +85,12 @@ export async function toggleCommunityJoin(communityId: string, userId: string, i
       });
       if (error) return { success: false, error: error.message };
     } else {
-      // DELETE triggers trg_community_member_count automatically
       const { error } = await supabase.from('community_members')
         .delete()
         .match({ community_id: communityId, user_id: userId });
       if (error) return { success: false, error: error.message };
     }
+    revalidatePath('/communities');
     return { success: true };
   } catch(e: any) {
     return { success: false, error: e.message };

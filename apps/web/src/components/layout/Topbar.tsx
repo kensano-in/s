@@ -2,9 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
-import { Search, Bell, MessageCircle, Menu, X } from 'lucide-react';
+import { Search, Bell, MessageCircle, Menu, X, Radio, Activity, Cpu, Zap, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
 
 export default function Topbar() {
   const { unreadNotifCount, setNotifPanelOpen, setMobileDrawerOpen, currentUser } = useAppStore();
@@ -33,160 +35,125 @@ export default function Topbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/[0.06] transition-all duration-300"
-      style={{ background: 'rgba(10,8,20,0.75)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
-      <div className="flex h-14 items-center px-4 md:px-6 justify-between max-w-[1400px] mx-auto w-full gap-3">
+    <header className="sticky top-0 z-50 w-full border-b border-white/5 transition-all duration-500 italic"
+      style={{ background: 'rgba(5,5,10,0.8)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)' }}>
+      {/* Dynamic Sync Beam */}
+      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-v-cyan to-transparent opacity-30 animate-pulse" />
 
-        {/* Left: Mobile Menu */}
-        <button
-          onClick={() => setMobileDrawerOpen(true)}
-          className="md:hidden flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/8 transition-colors text-on-surface flex-shrink-0"
-          aria-label="Open navigation menu"
-        >
-          <Menu size={22} />
-        </button>
+      <div className="flex h-16 items-center px-6 md:px-10 justify-between max-w-[1600px] mx-auto w-full gap-8">
 
-        {/* Logo — mobile only */}
-        <Link href="/feed" className="md:hidden flex items-center gap-2 flex-shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary-gradient flex items-center justify-center text-white font-black text-base shadow-ambient">V</div>
-          <span className="text-base font-display font-black tracking-tight text-on-surface">Verlyn</span>
+        {/* ── Sovereign Logo ── */}
+        <Link href="/feed" className="flex items-center gap-4 group">
+            <div className="relative">
+                <div className="w-10 h-10 rounded-[14px] bg-black border border-white/10 flex items-center justify-center text-white font-black text-xl shadow-2xl group-hover:border-v-cyan/50 transition-all duration-500 overflow-hidden">
+                    <span className="relative z-10 group-hover:scale-125 transition-transform">V</span>
+                    <div className="absolute inset-0 bg-primary-gradient opacity-20 group-hover:opacity-40 transition-opacity" />
+                </div>
+                <div className="absolute -inset-1 border border-v-cyan/10 rounded-[16px] -z-10 group-hover:scale-110 transition-transform opacity-0 group-hover:opacity-100" />
+            </div>
+            <div className="hidden lg:flex flex-col leading-none">
+                <span className="text-lg font-black tracking-tighter text-white uppercase group-hover:text-v-cyan transition-colors">Verlyn</span>
+                <span className="text-[8px] font-black tracking-[0.4em] text-on-surface-variant opacity-40 uppercase">Intelligence Matrix</span>
+            </div>
         </Link>
 
-        {/* ── Premium Search Bar ── */}
-        <div className="flex-1 max-w-lg mx-auto hidden sm:block">
-          <div
-            className="relative group transition-all duration-300"
-            style={{
-              filter: isFocused ? 'drop-shadow(0 0 16px rgba(147,51,234,0.25))' : 'none',
-            }}
-          >
-            {/* Glow border on focus */}
-            <div
-              className="absolute inset-0 rounded-2xl transition-opacity duration-300 pointer-events-none"
-              style={{
-                opacity: isFocused ? 1 : 0,
-                background: 'linear-gradient(135deg, rgba(147,51,234,0.5), rgba(79,209,197,0.5))',
-                padding: '1px',
-                borderRadius: '16px',
-                WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                WebkitMaskComposite: 'xor',
-                maskComposite: 'exclude',
-              }}
-            />
-
-            {/* Search icon */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <Search
-                size={15}
-                className="transition-colors duration-200"
-                style={{ color: isFocused ? 'rgba(167,139,250,1)' : 'rgba(255,255,255,0.3)' }}
-              />
+        {/* ── Intelligence Search Hub (HUD Style) ── */}
+        <div className="flex-1 max-w-2xl mx-auto hidden md:block">
+          <div className={clsx(
+              "relative group transition-all duration-500 rounded-2xl p-[1px]",
+              isFocused ? "bg-v-cyan/20 shadow-[0_0_40px_rgba(0,255,255,0.05)]" : "bg-white/5"
+          )}>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-3">
+              <Search size={14} className={clsx('transition-colors duration-500', isFocused ? 'text-v-cyan' : 'text-white/20')} />
+              {isFocused && (
+                  <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="h-4 w-px bg-v-cyan/40" />
+              )}
             </div>
 
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search people, posts, tags…"
+              placeholder={isFocused ? "SCANNING_NODES..." : "SCAN NETWORK FOR INTELLIGENCE..."}
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
               onKeyDown={handleSearch}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              className="w-full py-2.5 pl-11 pr-12 rounded-2xl text-[13.5px] font-medium transition-all duration-200 focus:outline-none"
-              style={{
-                background: isFocused ? 'rgba(147,51,234,0.06)' : 'rgba(255,255,255,0.05)',
-                border: isFocused ? '1px solid rgba(147,51,234,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                color: 'rgba(255,255,255,0.9)',
-                caretColor: 'rgba(167,139,250,1)',
-              }}
-              id="global-search"
-              aria-label="Search Verlyn"
+              className="w-full py-3 pl-12 pr-12 rounded-[14px] text-[12px] font-black tracking-widest bg-black border-none focus:ring-0 text-white placeholder:text-white/10 uppercase transition-all duration-500"
               autoComplete="off"
             />
 
-            {/* Right side: clear or Enter hint */}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {searchVal ? (
-                <>
-                  <button
-                    onMouseDown={(e) => { e.preventDefault(); setSearchVal(''); }}
-                    className="w-5 h-5 rounded-full flex items-center justify-center transition-opacity hover:opacity-80"
-                    style={{ background: 'rgba(255,255,255,0.12)' }}
-                    aria-label="Clear search"
-                  >
-                    <X size={10} color="white" />
-                  </button>
-                  <button
-                    onMouseDown={(e) => { e.preventDefault(); handleSearchClick(); }}
-                    className="px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors"
-                    style={{ background: 'rgba(147,51,234,0.3)', color: 'rgba(167,139,250,1)', border: '1px solid rgba(147,51,234,0.4)' }}
-                    aria-label="Search"
-                  >
-                    ↵
-                  </button>
-                </>
-              ) : (
-                <kbd
-                  className="text-[10px] px-1.5 py-0.5 rounded opacity-0 group-focus-within:opacity-100 transition-opacity hidden md:block"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}
-                >
-                  ⌘K
-                </kbd>
-              )}
+            {/* HUD Metadata */}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3 opacity-30 group-hover:opacity-100 transition-opacity">
+                <AnimatePresence>
+                    {searchVal ? (
+                        <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} onClick={() => setSearchVal('')} className="text-white/40 hover:text-rose-500"><X size={14} /></motion.button>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                             <div className="w-1.5 h-1.5 rounded-full bg-v-emerald animate-pulse shadow-[0_0_8px_var(--v-emerald)]" />
+                             <span className="text-[8px] font-mono tracking-widest text-v-emerald hidden lg:block">SYS_ONLINE</span>
+                        </div>
+                    )}
+                </AnimatePresence>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 ml-auto">
-          {/* Notifications */}
-          <button
-            id="notif-btn"
-            className="relative flex items-center justify-center w-10 h-10 rounded-full text-on-surface hover:bg-surface-high transition-colors"
-            onClick={() => setNotifPanelOpen(true)}
-            title="Notifications"
-            aria-label="Open notifications"
-          >
-            <Bell size={20} />
-            {unreadNotifCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 border-2 border-surface-highest rounded-full bg-secondary-light shadow-[0_0_8px_var(--secondary-glow)]" />
-            )}
-          </button>
+        {/* ── Operational Actions ── */}
+        <div className="flex items-center gap-3">
+          
+          {/* Signal Indicator (New feature: real-time activity) */}
+          <div className="hidden xl:flex items-center gap-4 px-5 py-2.5 rounded-2xl bg-white/[0.02] border border-white/5 mr-4">
+               <div className="flex flex-col items-end">
+                    <span className="text-[8px] font-black text-v-cyan uppercase tracking-widest">Global_Sync</span>
+                    <span className="text-[10px] font-mono text-white/50 tracking-tighter">0.04ms</span>
+               </div>
+               <Activity size={20} className="text-v-cyan animate-pulse opacity-50" />
+          </div>
 
-          {/* Messages */}
-          <Link
-            href="/messages"
-            className="flex items-center justify-center w-10 h-10 rounded-full text-on-surface hover:bg-surface-high transition-colors"
-            title="Messages"
-            aria-label="Go to messages"
-          >
-            <MessageCircle size={20} />
+          <NavAction 
+            id="notif-btn" 
+            onClick={() => setNotifPanelOpen(true)} 
+            icon={Bell} 
+            badge={unreadNotifCount > 0} 
+            label="Signals"
+          />
+
+          <Link href="/messages" className="hidden sm:block">
+            <NavAction icon={MessageCircle} label="Signals" />
           </Link>
 
-          {/* Avatar */}
-          <Link
-            href="/profile"
-            id="profile-btn"
-            className="relative ml-1 flex-shrink-0 transition-all duration-200"
-            title="My Profile"
-            aria-label="Go to my profile"
-          >
-            <div className="p-[2px] rounded-full transition-all duration-200 hover:scale-105"
-              style={{ background: 'linear-gradient(135deg, rgba(147,51,234,0.7), rgba(79,209,197,0.7))' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={currentUser?.avatar || '/fallback-avatar.svg'}
-                alt={`${currentUser?.displayName || 'User'}'s avatar`}
-                width={34} height={34}
-                className="w-[34px] h-[34px] rounded-full object-cover block"
-                style={{ display: 'block' }}
-                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-              />
+          {/* User Identity Kernel */}
+          <Link href="/profile" className="group relative ml-2">
+            <div className="p-[2.5px] rounded-[15px] bg-white/10 group-hover:bg-primary-gradient transition-all duration-500">
+                <div className="rounded-[13px] overflow-hidden bg-black p-[1px]">
+                    <img 
+                        src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.username}`} 
+                        className="w-9 h-9 object-cover rounded-[12px] group-hover:scale-110 transition-transform" 
+                        alt="me"
+                    />
+                </div>
             </div>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-secondary-light border-2 border-surface-highest rounded-full" />
+            {/* Identity Shield Badge */}
+            {(currentUser as any)?.security_score >= 80 && (
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-v-cyan text-black rounded-lg flex items-center justify-center border-2 border-black shadow-lg">
+                    <ShieldCheck size={10} />
+                </div>
+            )}
           </Link>
+          
+          <button onClick={() => setMobileDrawerOpen(true)} className="md:hidden w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-white"><Menu size={20} /></button>
         </div>
       </div>
     </header>
   );
+}
+
+function NavAction({ icon: Icon, badge, onClick, label }: any) {
+    return (
+        <button onClick={onClick} className="relative w-11 h-11 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-center text-white/60 hover:text-v-cyan hover:bg-white/[0.08] transition-all group">
+             <Icon size={20} className="group-hover:scale-110 transition-transform" />
+             {badge && <span className="absolute top-2 right-2 w-2 h-2 bg-v-cyan rounded-full shadow-[0_0_10px_var(--v-cyan)] animate-pulse" />}
+        </button>
+    )
 }

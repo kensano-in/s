@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from 'react';
-import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft, Check, CheckCheck, AlertCircle } from 'lucide-react';
+import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft, Check, CheckCheck, AlertCircle, Trash2, ShieldAlert, Sparkles, UserX, Ghost } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { deleteMessageDB, validateMessagingPermission } from './actions';
 import clsx from 'clsx';
 
 interface DBConversation {
@@ -45,22 +46,26 @@ function MessagesContent() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  
   const [isSending, setIsSending] = useState(false);
+  const [permError, setPermError] = useState<string | null>(null);
+
+  // Typing state
+  const [isTyping, setIsTyping] = useState(false);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreMsgs, setHasMoreMsgs] = useState(true);
+  const observerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastSendRef = useRef<number>(0);
 
-  // Pagination states
-  const [hasMoreMsgs, setHasMoreMsgs] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const observerRef = useRef<HTMLDivElement>(null);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chatWallpaperUrl, chatWallpaperBlur, chatWallpaperDim, currentUser } = useAppStore();
   const bgRef = useRef<HTMLImageElement>(null);
   const supabase = useMemo(() => createClient(), []);
 
-  // UX Micro-detailing: High-performance Synthesized Audio Feedback
-  const playPopSound = () => {
+  // Audio Feedback Cache
+  const playPopSound = useCallback(() => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
@@ -77,638 +82,293 @@ function MessagesContent() {
       osc.start();
       osc.stop(ctx.currentTime + 0.1);
     } catch (e) {}
-  };
+  }, []);
 
-  const isVideo = chatWallpaperUrl?.match(/\.(mp4|webm|ogg)$/i);
-  const activeConv = conversations.find(c => c.id === activeConvId) || null;
+  const activeConv = useMemo(() => conversations.find(c => c.id === activeConvId), [conversations, activeConvId]);
 
-  // Load real conversations
+  // --- INITIAL LOAD: Conversations ---
   useEffect(() => {
+    if (!currentUser?.id) { setLoadingConvs(false); return; }
     async function loadConversations() {
-      if (!currentUser?.id) { setLoadingConvs(false); return; }
-      // Query messages sent/received by current user, group by conversation
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
-        .order('sent_at', { ascending: false })
-        .limit(50);
-
+      const { data } = await supabase.from('messages').select('*').or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`).order('sent_at', { ascending: false }).limit(60);
       const convMap = new Map<string, DBConversation>();
-      
-      if (data && data.length > 0) {
-        // Build conversation list from messages
+      if (data) {
         for (const m of data) {
           const otherId = m.sender_id === currentUser.id ? m.recipient_id : m.sender_id;
           if (convMap.has(otherId)) continue;
-
-          const { data: other } = await supabase
-            .from('users')
-            .select('id, username, display_name, avatar_url')
-            .eq('id', otherId)
-            .single();
-
-          convMap.set(otherId, {
-            id: otherId,
-            participant_id: otherId,
-            participant_name: other?.display_name || other?.username || 'Unknown',
-            participant_username: other?.username || '?',
-            participant_avatar: other?.avatar_url || null,
-            last_message: m.content,
-            updated_at: m.sent_at,
-            unread: 0,
-          });
+          const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', otherId).single();
+          convMap.set(otherId, { id: otherId, participant_id: otherId, participant_name: other?.display_name || other?.username || 'Unknown Node', participant_username: other?.username || '?', participant_avatar: other?.avatar_url || null, last_message: m.content, updated_at: m.sent_at, unread: 0 });
         }
       }
-
-      // If we jumped here with a target user but they aren't in our history yet
-      if (targetUserId && !convMap.has(targetUserId) && targetUserId !== currentUser.id) {
-        const { data: targetUser } = await supabase
-          .from('users')
-          .select('id, username, display_name, avatar_url')
-          .eq('id', targetUserId)
-          .single();
-          
-        if (targetUser) {
-          convMap.set(targetUserId, {
-            id: targetUserId,
-            participant_id: targetUserId,
-            participant_name: targetUser.display_name || targetUser.username,
-            participant_username: targetUser.username,
-            participant_avatar: targetUser.avatar_url,
-            last_message: '',
-            updated_at: new Date().toISOString(),
-            unread: 0,
-          });
-        }
+      if (targetUserId && !convMap.has(targetUserId)) {
+        const { data: tu } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', targetUserId).single();
+        if (tu) convMap.set(targetUserId, { id: tu.id, participant_id: tu.id, participant_name: tu.display_name || tu.username, participant_username: tu.username, participant_avatar: tu.avatar_url, last_message: 'Initialize transmission signal...', updated_at: new Date().toISOString(), unread: 0 });
       }
-
-      setConversations(Array.from(convMap.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
-      
-      if (!targetUserId && convMap.size > 0) {
-        setActiveConvId(Array.from(convMap.keys())[0]);
-      }
+      setConversations(Array.from(convMap.values()).sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+      if (!activeConvId && convMap.size > 0) setActiveConvId(Array.from(convMap.keys())[0]);
       setLoadingConvs(false);
     }
     loadConversations();
   }, [currentUser?.id, supabase, targetUserId]);
 
-  // Load messages for active conversation
+  // --- LOAD MESSAGES ---
   useEffect(() => {
     if (!activeConvId || !currentUser?.id) return;
+    setPermError(null);
+    async function checkPerms() {
+        const res = await validateMessagingPermission(currentUser.id, activeConvId!);
+        if (!res.allowed) setPermError(res.error);
+    }
+    checkPerms();
     async function loadMessages() {
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .or(
-          `and(sender_id.eq.${currentUser!.id},recipient_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser!.id})`
-        )
-        .order('sent_at', { ascending: false })
-        .limit(50);
-
-      if (!data || data.length < 50) setHasMoreMsgs(false);
-      else setHasMoreMsgs(true);
-
-      const parsed: ChatMessage[] = (data || []).map(m => ({
-        id: m.id,
-        content: m.content,
-        sender_id: m.sender_id,
-        sent_at: m.sent_at,
-        is_mine: m.sender_id === currentUser!.id,
-        status: 'sent' as const
-      })).reverse(); // Reverse because we fetched desc
-
+      const { data } = await supabase.from('messages').select('*').or(`and(sender_id.eq.${currentUser!.id},recipient_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser!.id})`).order('sent_at', { ascending: false }).limit(50);
+      setHasMoreMsgs(!!data && data.length === 50);
+      const parsed: ChatMessage[] = (data || []).map(m => ({ id: m.id, content: m.content, sender_id: m.sender_id, sent_at: m.sent_at, is_mine: m.sender_id === currentUser!.id, status: 'sent' as const })).reverse();
       setMessages(parsed);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
     }
     loadMessages();
   }, [activeConvId, currentUser?.id, supabase]);
 
-  const loadMoreMessages = useCallback(async () => {
-    if (loadingMore || !hasMoreMsgs || messages.length === 0 || !activeConvId || !currentUser?.id) return;
-    setLoadingMore(true);
-    
-    // The cursor is the sent_at of the oldest message we currently have
-    const oldestMsgTime = messages[0].sent_at;
-    
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .or(
-        `and(sender_id.eq.${currentUser.id},recipient_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser.id})`
-      )
-      .lt('sent_at', oldestMsgTime)
-      .order('sent_at', { ascending: false })
-      .limit(50);
-
-    if (!data || data.length < 50) setHasMoreMsgs(false);
-
-    if (data && data.length > 0) {
-      const parsed: ChatMessage[] = data.map(m => ({
-        id: m.id,
-        content: m.content,
-        sender_id: m.sender_id,
-        sent_at: m.sent_at,
-        is_mine: m.sender_id === currentUser.id,
-        status: 'sent' as const
-      })).reverse();
-      
-      setMessages(prev => [...parsed, ...prev]);
-    }
-    setLoadingMore(false);
-  }, [loadingMore, hasMoreMsgs, messages, activeConvId, currentUser?.id, supabase]);
-
-  // Viewport Observer for Infinite Scroll Trigger
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        loadMoreMessages();
-      }
-    }, { threshold: 1.0 });
-
-    if (observerRef.current) observer.observe(observerRef.current);
-    return () => observer.disconnect();
-  }, [loadMoreMessages]);
-
-  // Global User Search Logic for New Chats
-  useEffect(() => {
-    if (!globalSearch.trim() || globalSearch.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      const { data } = await supabase
-        .from('users')
-        .select('id, username, display_name, avatar_url')
-        .or(`username.ilike.%${globalSearch}%,display_name.ilike.%${globalSearch}%`)
-        .limit(10);
-      setSearchResults(data || []);
-      setIsSearching(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [globalSearch, supabase]);
-
-  // Real-Time Transport Protocol (Postgres WebSockets)
+  // --- REAL-TIME: Messages & Typing ---
   useEffect(() => {
     if (!currentUser?.id) return;
-    const channel = supabase
-      .channel('public:messages')
+    const channel = supabase.channel(`chat:${activeConvId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const msgEvent = payload.new as any;
-        if (msgEvent.sender_id !== currentUser.id && msgEvent.recipient_id !== currentUser.id) return; // Not our message
-        
-        // --- 1. UPDATE SIDEBAR CONVERSATIONS ---
-        setConversations(prev => {
-          const otherId = msgEvent.sender_id === currentUser.id ? msgEvent.recipient_id : msgEvent.sender_id;
-          const exists = prev.find(c => c.id === otherId);
-          
-          if (exists) {
-            // Update existing conversation with last message and move to top
-            return [
-              { ...exists, last_message: msgEvent.content, updated_at: msgEvent.sent_at },
-              ...prev.filter(c => c.id !== otherId)
-            ];
-          } else {
-             // If conversation didn't exist, we'll let the initial load handle it or we'd need more data (name/avatar)
-             // For now, reload trigger if it's the first time
-             return prev;
-          }
-        });
+        if (msgEvent.sender_id !== currentUser.id && msgEvent.recipient_id !== currentUser.id) return;
 
-        // --- 2. UPDATE ACTIVE CHAT MESSAGES ---
+        // If it's for current active chat
         if (msgEvent.sender_id === activeConvId || msgEvent.recipient_id === activeConvId) {
-          setMessages(prev => {
-            // Deduplicate if optimistic update already pushed this content recently matching the ID or content
-            if (prev.some(p => p.id === msgEvent.id || (p.content === msgEvent.content && p.status === 'sent'))) return prev;
-            
-            const newMessage: ChatMessage = {
-              id: msgEvent.id,
-              content: msgEvent.content,
-              sender_id: msgEvent.sender_id,
-              sent_at: msgEvent.sent_at,
-              is_mine: msgEvent.sender_id === currentUser.id,
-              status: 'sent'
-            };
-
-            // If there's an optimistic version of THIS message (same content + sent in last 5s), swap it
-            const optIndex = prev.findIndex(p => p.status === 'sending' && p.content === msgEvent.content);
-            if (optIndex !== -1) {
-              const newArr = [...prev];
-              newArr[optIndex] = newMessage;
-              return newArr;
-            }
-            
-            return [...prev, newMessage];
-          });
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            setMessages(prev => {
+                if (prev.some(p => p.id === msgEvent.id)) return prev;
+                const newMessage: ChatMessage = { id: msgEvent.id, content: msgEvent.content, sender_id: msgEvent.sender_id, sent_at: msgEvent.sent_at, is_mine: msgEvent.sender_id === currentUser.id, status: 'sent' };
+                const optIndex = prev.findIndex(p => p.status === 'sending' && p.content === msgEvent.content);
+                if (optIndex !== -1) { const n = [...prev]; n[optIndex] = newMessage; return n; }
+                return [...prev, newMessage];
+            });
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            setOtherUserTyping(false);
         }
       })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+          if (payload.userId === activeConvId) {
+              setOtherUserTyping(payload.isTyping);
+          }
+      })
       .subscribe();
-      
     return () => { supabase.removeChannel(channel); };
   }, [currentUser?.id, activeConvId, supabase]);
 
-    const sendMessage = async (retryContent?: string) => {
-      const now = Date.now();
-      // Security: Token Bucket / Debounce (preventing 10ms INSERT spams locking DB)
-      if (now - lastSendRef.current < 500 && !retryContent) return;
-
-      let trimmed = retryContent || msg.trim();
-      if (!trimmed || !activeConvId || !currentUser?.id) return;
-      
-      setIsSending(true);
-      lastSendRef.current = now;
-
-      // Command Membrane Logic
-      if (trimmed.startsWith('/') && !retryContent) {
-        const args = trimmed.split(' ');
-        const command = args[0].toLowerCase();
-        if (command === '/shrug') {
-          trimmed = (args.slice(1).join(' ') + ' ¯\\_(ツ)_/¯').trim();
-        } else if (command === '/coinflip') {
-          const result = Math.random() > 0.5 ? 'Heads' : 'Tails';
-          trimmed = `🪙 Flipped a coin: **${result}**`;
-        } else if (command === '/ai') {
-          trimmed = `🤖 Processing query: "${args.slice(1).join(' ')}"... (AI Node offline)`;
-        }
+  // --- TYPING BROADCAST ---
+  const handleTyping = (text: string) => {
+      setMsg(text);
+      if (!activeConvId || !currentUser?.id) return;
+      if (!isTyping) {
+          setIsTyping(true);
+          supabase.channel(`chat:${activeConvId}`).send({ type: 'broadcast', event: 'typing', payload: { userId: currentUser.id, isTyping: true } });
       }
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+          setIsTyping(false);
+          supabase.channel(`chat:${activeConvId}`).send({ type: 'broadcast', event: 'typing', payload: { userId: currentUser.id, isTyping: false } });
+      }, 3000);
+  };
 
-    const optimistic: ChatMessage = {
-      id: `opt_${Date.now()}`,
-      content: trimmed,
-      sender_id: currentUser.id,
-      sent_at: new Date().toISOString(),
-      is_mine: true,
-      status: 'sending'
-    };
+  const sendMessage = async (retryContent?: string) => {
+    const rawContent = retryContent || msg.trim();
+    if (!rawContent || !activeConvId || !currentUser?.id || permError) return;
     
-    // Kinetic Feedback
-    playPopSound();
+    setIsSending(true);
+    let trimmed = rawContent;
+    
+    // Commands
+    if (trimmed.startsWith('/') && !retryContent) {
+        if (trimmed === '/coinflip') trimmed = `🪙 ⚡️ **${Math.random() > 0.5 ? 'HEADS' : 'TAILS'}**`;
+        else if (trimmed === '/shrug') trimmed = `¯\\_(ツ)_/¯`;
+    }
 
+    const optimistic: ChatMessage = { id: `opt_${Date.now()}`, content: trimmed, sender_id: currentUser.id, sent_at: new Date().toISOString(), is_mine: true, status: 'sending' };
+    playPopSound();
     setMessages(prev => [...prev, optimistic]);
     setMsg('');
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    setIsTyping(false);
 
-    // Save to DB securely through the authenticated tunnel bypass
     const { sendMessageDB } = await import('./actions');
     const res = await sendMessageDB(currentUser.id, activeConvId, trimmed);
-    
     if (!res.success) {
-      console.error('Core routing failure: ', res.error);
-      setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, status: 'error' } : m));
+        setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, status: 'error' } : m));
     } else {
-       // On success, the real-time listener will swap the status, 
-       // but we can manually speed it up for the local sender
-       setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, id: (res.message as any).id, status: 'sent' } : m));
-       
-       // Move this conversation to top of sidebar
-       setConversations(prev => {
-         const conv = prev.find(c => c.id === activeConvId);
-         if (!conv) return prev;
-         return [
-           { ...conv, last_message: trimmed, updated_at: optimistic.sent_at },
-           ...prev.filter(c => c.id !== activeConvId)
-         ];
-       });
+        setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, id: (res.message as any).id, status: 'sent' } : m));
+        // Bump conversation
+        setConversations(prev => {
+            const c = prev.find(x => x.id === activeConvId);
+            if (!c) return prev;
+            return [{ ...c, last_message: trimmed, updated_at: optimistic.sent_at }, ...prev.filter(x => x.id !== activeConvId)];
+        });
     }
-    
     setIsSending(false);
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!bgRef.current) return;
-    const scrollY = e.currentTarget.scrollTop;
-    window.requestAnimationFrame(() => {
-      bgRef.current!.style.transform = `scale(1.1) translate3d(0, ${scrollY * 0.15}px, 0)`;
-    });
-  };
+  const deleteMsg = async (id: string) => {
+      if (!currentUser?.id) return;
+      const res = await deleteMessageDB(currentUser.id, id);
+      if (res.success) setMessages(prev => prev.filter(m => m.id !== id));
+  }
 
-  const filteredConvs = conversations.filter(c =>
-    activeFolder === 'unread' ? c.unread > 0 : true
-  );
+  const filteredConvs = conversations.filter(c => activeFolder === 'unread' ? c.unread > 0 : true);
 
   return (
-    <div className="flex h-full w-full animate-fade-in bg-background text-on-surface">
-      {/* Conversation List */}
-      <div className="w-[320px] flex-shrink-0 flex flex-col bg-surface-low border-r border-outline-variant/15 relative z-10 shadow-ambient">
-        <div className="px-5 py-5 flex items-center justify-between border-b border-outline-variant/10">
-          <h2 className="font-display font-bold text-lg tracking-tight">Messages</h2>
-          <button className="icon-btn bg-surface-high hover:bg-surface-highest transition-colors text-on-surface rounded-xl p-2" title="New Message">
-            <Edit size={18} />
+    <div className="flex h-full w-full animate-fade-in bg-[#050505] text-on-surface font-sans italic selection:bg-v-cyan/30">
+      <div className="w-[380px] flex-shrink-0 flex flex-col bg-surface-low/30 backdrop-blur-3xl border-r border-white/5 relative z-10 shadow-[20px_0_40px_rgba(0,0,0,0.5)]">
+        <div className="px-8 py-10 flex items-center justify-between border-b border-white/5">
+          <div>
+            <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Signals</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">Intelligence Hub</p>
+          </div>
+          <button className="w-10 h-10 rounded-2xl bg-surface-high/50 flex items-center justify-center hover:bg-v-cyan hover:text-black transition-all border border-white/5 shadow-xl group">
+            <Edit size={18} className="group-hover:scale-110 transition-transform" />
           </button>
         </div>
 
-        <div className="px-4 py-3 border-b border-outline-variant/10 bg-surface-lowest/50">
-          <div className="relative group">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary-light transition-colors" />
-            <input
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Search users to message..."
-              className="w-full bg-surface-high border-none text-on-surface rounded-2xl py-2.5 pl-11 pr-4 focus:outline-none focus:ring-1 focus:ring-primary-light transition-all placeholder:text-on-surface-variant text-sm"
-              id="message-search"
-            />
-          </div>
+        <div className="px-6 py-6 border-b border-white/5">
+           <div className="relative group">
+              <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-v-cyan transition-colors" />
+              <input value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} placeholder="SCAN NETWORK FOR NODES..." className="w-full bg-surface-lowest/50 border border-white/5 text-xs font-black uppercase tracking-widest rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/40 italic" />
+           </div>
         </div>
 
-        <div className="px-5 py-2 flex gap-2 border-b border-outline-variant/10">
-          {[{ id: 'all', label: 'All' }, { id: 'unread', label: 'Unread' }].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setActiveFolder(f.id as 'all' | 'unread')}
-              className={clsx(
-                'px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border',
-                activeFolder === f.id
-                  ? 'bg-primary-dark/20 text-primary-light border-primary-DEFAULT/30'
-                  : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-high'
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-y-auto hide-scrollbar py-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1">
           {globalSearch.trim().length >= 2 ? (
-            <div className="px-2">
-              <div className="px-3 py-2 text-xs font-bold text-on-surface-variant/60 uppercase tracking-wider">Directory Search</div>
-              {isSearching ? (
-                 <div className="flex px-4 py-3 text-sm text-on-surface-variant"><Loader2 size={16} className="animate-spin text-primary-light mr-2" /> Searching...</div>
-              ) : searchResults.length === 0 ? (
-                 <div className="flex px-4 py-3 text-sm text-on-surface-variant">No users found</div>
-              ) : searchResults.map(user => (
-                 <div
-                   key={user.id}
-                   onClick={() => {
-                     setGlobalSearch('');
-                     // Inject if they don't exist yet
-                     if (!conversations.find(c => c.id === user.id)) {
-                       setConversations(prev => [{
-                         id: user.id,
-                         participant_id: user.id,
-                         participant_name: user.display_name || user.username,
-                         participant_username: user.username,
-                         participant_avatar: user.avatar_url,
-                         last_message: 'Start a new conversation',
-                         updated_at: new Date().toISOString(),
-                         unread: 0
-                       }, ...prev]);
-                     }
-                     setActiveConvId(user.id);
-                   }}
-                   className="flex items-center gap-3 px-3 py-2.5 mx-1 hover:bg-surface-high rounded-xl cursor-pointer transition-colors"
-                 >
-                   <img src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} className="w-10 h-10 rounded-full object-cover shadow-ambient border border-outline-variant/10" onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }} />
-                   <div>
-                     <div className="text-sm font-bold text-on-surface">{user.display_name || user.username}</div>
-                     <div className="text-xs text-on-surface-variant/70">@{user.username}</div>
-                   </div>
-                 </div>
-              ))}
+            <div className="px-4">
+               {isSearching ? <div className="flex items-center gap-3 p-6 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50"><Loader2 size={16} className="animate-spin" /> Scanning Matrix...</div> : searchResults.map(u => (
+                  <div key={u.id} onClick={() => { setGlobalSearch(''); if (!conversations.find(c => c.id === u.id)) setConversations(p => [{ id: u.id, participant_id: u.id, participant_name: u.display_name || u.username, participant_username: u.username, participant_avatar: u.avatar_url, last_message: 'INIT SIGNAL...', updated_at: new Date().toISOString(), unread: 0 }, ...p]); setActiveConvId(u.id); }} className="flex items-center gap-4 p-4 hover:bg-white/5 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/5 italic">
+                     <img src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`} className="w-11 h-11 rounded-2xl object-cover border border-white/10" alt="avatar" />
+                     <div><p className="text-xs font-black text-white">{u.display_name || u.username}</p><p className="text-[10px] font-bold text-v-cyan opacity-60 uppercase">@{u.username}</p></div>
+                  </div>
+               ))}
             </div>
           ) : loadingConvs ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-primary-light" />
-            </div>
-          ) : filteredConvs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
-              <MessageCircle size={36} className="text-on-surface-variant/30" />
-              <p className="text-sm font-semibold text-on-surface-variant">No messages yet</p>
-              <p className="text-xs text-on-surface-variant/60">Start a conversation from someone's profile</p>
-            </div>
-          ) : (
-            <AnimatePresence>
-              {filteredConvs.map((conv) => {
-                const isActive = activeConvId === conv.id;
-                return (
-                  <motion.div
-                    key={conv.id}
-                    layout
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    onClick={() => setActiveConvId(conv.id)}
-                    className={clsx(
-                      'flex items-center gap-4 px-4 py-3.5 mx-2 cursor-pointer transition-all duration-200 rounded-2xl relative',
-                      isActive ? 'bg-surface-high shadow-ambient' : 'hover:bg-surface-high/50'
-                    )}
-                  >
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-light rounded-r-full shadow-[0_0_12px_rgba(208,188,255,0.6)]" />
-                  )}
-                  <div className="relative flex-shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={conv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participant_username}`}
-                      alt={conv.participant_name}
-                      className="w-12 h-12 rounded-full object-cover shadow-ambient border border-outline-variant/10"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-semibold truncate text-on-surface">{conv.participant_name}</span>
-                      <span className="text-[10px] flex-shrink-0 ml-2 text-on-surface-variant font-medium">
-                        {formatDistanceToNow(new Date(conv.updated_at), { addSuffix: false })}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs truncate font-medium text-on-surface-variant">{conv.last_message}</p>
-                      {conv.unread > 0 && (
-                        <span className="text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 bg-primary-gradient text-white">
-                          {conv.unread}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-            </AnimatePresence>
-          )}
+            <div className="flex flex-col items-center justify-center py-20 opacity-30"><Loader2 size={24} className="animate-spin mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">Hydrating Sessions</p></div>
+          ) : filteredConvs.map(conv => {
+            const active = activeConvId === conv.id;
+            return (
+              <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={clsx('group mx-4 px-6 py-5 cursor-pointer transition-all duration-300 rounded-[28px] relative border border-transparent', active ? 'bg-surface-high/60 shadow-[0_15px_30px_rgba(0,0,0,0.4)] border-white/5' : 'hover:bg-white/[0.03]')}>
+                {active && <motion.div layoutId="active-signal" className="absolute left-0 top-6 bottom-6 w-1 bg-v-cyan shadow-[0_0_15px_var(--v-cyan)] rounded-full" />}
+                <div className="flex items-center gap-5">
+                   <div className="relative flex-shrink-0">
+                      <img src={conv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participant_username}`} className="w-12 h-12 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform duration-500" alt="avatar" />
+                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-v-emerald border-[3px] border-surface shadow-[0_0_10px_var(--v-emerald)]" />
+                   </div>
+                   <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline mb-0.5">
+                         <h4 className="text-sm font-black text-white truncate scale-x-95 -ml-1 group-hover:ml-0 transition-all">{conv.participant_name}</h4>
+                         <span className="text-[9px] font-bold text-on-surface-variant opacity-40 uppercase">{formatDistanceToNow(new Date(conv.updated_at), { addSuffix: false })}</span>
+                      </div>
+                      <p className="text-[11px] font-medium text-on-surface-variant/60 truncate group-hover:text-v-cyan transition-colors">{conv.last_message}</p>
+                   </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Chat Area */}
       {activeConv ? (
-        <div className="flex-1 flex flex-col min-w-0 bg-background relative -ml-4 z-0 rounded-l-3xl shadow-[-10px_0_30px_rgba(0,0,0,0.3)] border-l border-outline-variant/10 overflow-hidden transform transition-transform duration-300">
-          
-          {/* Dynamic Background */}
-          {chatWallpaperUrl && (
-            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-              {isVideo ? (
-                <video src={chatWallpaperUrl} autoPlay loop muted playsInline className="w-full h-full object-cover" />
-              ) : (
-                <img ref={bgRef} src={chatWallpaperUrl} alt="" className="w-full h-full object-cover will-change-transform" />
-              )}
-              <div 
-                className="absolute inset-0 transition-opacity duration-300" 
-                style={{ 
-                  backdropFilter: `blur(${chatWallpaperBlur}px)`, 
-                  backgroundColor: `rgba(0,0,0,${chatWallpaperDim})` 
-                }} 
-              />
-            </div>
-          )}
-
-          {/* Active Chat Header */}
-          <div className="px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-outline-variant/10 bg-surface/80 backdrop-blur-md relative z-10 sticky top-0">
-            <div className="flex items-center gap-4">
-              <div className="flex sm:hidden mr-2 cursor-pointer" onClick={() => setActiveConvId(null)}><ArrowLeft size={20} /></div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`}
-                alt={activeConv.participant_name}
-                className="w-12 h-12 rounded-full object-cover shadow-ambient border border-outline-variant/20"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-              />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-base sm:text-lg text-on-surface">{activeConv.participant_name}</h3>
+        <div className="flex-1 flex flex-col min-w-0 relative bg-[#010101] overflow-hidden -ml-8 rounded-l-[50px] shadow-[-20px_0_60px_rgba(0,0,0,0.8)] border-l border-white/5">
+          {/* Header */}
+          <div className="px-10 py-6 flex items-center justify-between border-b border-white/5 bg-black/60 backdrop-blur-2xl z-20">
+             <div className="flex items-center gap-5">
+                <div className="relative">
+                    <img src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`} className="w-14 h-14 rounded-3xl object-cover border-2 border-white/5 shadow-2xl" alt="avatar" />
+                    {otherUserTyping && <div className="absolute -bottom-2 -right-2 bg-v-cyan p-1.5 rounded-xl shadow-[0_0_15px_var(--v-cyan)]"><Sparkles size={12} className="text-black animate-pulse" /></div>}
                 </div>
-                <div className="text-[14px] text-on-surface-variant">@{activeConv.participant_username}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="icon-btn hover:bg-surface-low p-2.5 rounded-2xl text-primary-light transition-colors shadow-ambient border border-outline-variant/5 bg-surface-highest"><Phone size={18} /></button>
-              <button className="icon-btn hover:bg-surface-low p-2.5 rounded-2xl text-primary-light transition-colors shadow-ambient border border-outline-variant/5 bg-surface-highest"><Video size={18} /></button>
-              <div className="w-px h-6 bg-outline-variant/20 mx-1" />
-              <button className="icon-btn hover:bg-surface-low p-2.5 rounded-2xl text-on-surface-variant transition-colors"><MoreHorizontal size={18} /></button>
-            </div>
-          </div>
-
-          {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 z-10 hide-scrollbar" onScroll={handleScroll}>
-              <div className="flex justify-center mb-6">
-                <span className="text-xs px-4 py-2 rounded-2xl flex items-center gap-2 bg-secondary-dark/20 text-secondary-light border border-secondary-DEFAULT/20 backdrop-blur-md shadow-ambient font-medium">
-                  <Lock size={12} className="opacity-80" /> Secured by Verlyn Matrix End-to-End Encryption
-                </span>
-              </div>
-              
-              {hasMoreMsgs && (
-                <div ref={observerRef} className="h-8 flex items-center justify-center mb-4">
-                  {loadingMore && <Loader2 size={16} className="animate-spin text-primary-light" />}
-                </div>
-              )}
-
-              <AnimatePresence initial={false}>
-                {messages.map((message) => (
-                  <motion.div 
-                    key={message.id}
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                    className={`flex ${message.is_mine ? 'justify-end' : 'justify-start'} gap-3 items-end relative group`}
-                  >
-                    {!message.is_mine && (
-                      <img
-                        src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`}
-                        alt={activeConv.participant_name}
-                        width={32} height={32}
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-ambient mb-4"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-                      />
-                    )}
-                    <div className="flex flex-col max-w-[65%] gap-1.5">
-                      <div 
-                        onClick={() => { if (message.status === 'error') sendMessage(message.content); }}
-                        className={clsx(
-                        'px-5 py-3 shadow-ambient backdrop-blur-md text-[15px] leading-relaxed relative overflow-hidden',
-                        message.is_mine
-                          ? 'bg-primary-gradient text-white rounded-[24px] rounded-br-[6px]'
-                          : 'bg-surface-highest border border-outline-variant/15 text-on-surface rounded-[24px] rounded-bl-[6px]',
-                        message.status === 'error' && 'border-red-500/50 cursor-pointer hover:bg-red-500/10 transition-colors'
-                      )}>
-                        {message.content}
-                        {message.status === 'error' && (
-                           <div className="text-[10px] text-red-100 mt-2 flex items-center gap-1 font-bold bg-red-600/30 px-2 py-1 rounded-lg">
-                             <AlertCircle size={10} /> Delivery failed. Click to retry.
-                           </div>
-                        )}
-                        {message.is_mine && (
-                          <div className="absolute bottom-1 right-2 opacity-50 scale-75">
-                            {message.status === 'sending' ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : message.status === 'sent' ? (
-                              <CheckCheck size={12} />
-                            ) : null}
-                          </div>
-                        )}
-                      </div>
-                      <div className={clsx('text-[10px] font-medium text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity duration-200', message.is_mine ? 'text-right mr-1' : 'text-left ml-1')}>
-                        {formatDistanceToNow(new Date(message.sent_at), { addSuffix: true })}
-                      </div>
+                <div>
+                    <h3 className="text-xl font-black text-white italic tracking-tighter uppercase leading-none mb-1 group-hover:text-v-cyan transition-colors">{activeConv.participant_name}</h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan opacity-80">@{activeConv.participant_username}</span>
+                        {otherUserTyping && <span className="text-[9px] font-black uppercase text-v-cyan animate-pulse tracking-widest">• Modulating Signal...</span>}
                     </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full gap-3 mt-16 opacity-50">
-                <MessageCircle size={32} className="text-on-surface-variant" />
-                <p className="text-sm text-on-surface-variant">No messages yet. Say hi 👋</p>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+                </div>
+             </div>
+             <div className="flex items-center gap-3">
+                 <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl"><Phone size={18} /></button>
+                 <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl"><Video size={18} /></button>
+                 <button className="w-11 h-11 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-white transition-all"><MoreHorizontal size={20} /></button>
+             </div>
           </div>
 
-          {/* Input */}
-          <div className="px-6 pb-6 pt-2 z-10 flex-shrink-0 bg-transparent">
-            <div className="flex items-center gap-3 p-2 bg-surface-highest/80 backdrop-blur-3xl border border-outline-variant/20 rounded-full shadow-ambient">
-              <button className="p-2.5 rounded-full text-on-surface-variant hover:bg-surface-high hover:text-on-surface transition-all flex-shrink-0" title="Attach media">
-                <Paperclip size={20} />
-              </button>
-              <div className="flex-1 relative">
-                <input
-                  value={msg}
-                  onChange={(e) => setMsg(e.target.value)}
-                  placeholder="Type a message… (Enter to send)"
-                  className="w-full bg-transparent border-none text-on-surface py-2 focus:outline-none placeholder:text-on-surface-variant/70 text-[15px]"
-                  id="message-input"
-                  aria-label="Type a message"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                />
-              </div>
-              <button className="p-2.5 rounded-full text-on-surface-variant hover:bg-surface-high hover:text-on-surface transition-all flex-shrink-0">
-                <Smile size={20} />
-              </button>
-              {msg ? (
-                <button
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 transition-transform duration-200 hover:scale-105 active:scale-95 bg-primary-gradient shadow-ambient"
-                  onClick={() => sendMessage()}
-                  id="send-btn"
-                  aria-label="Send message"
-                >
-                  <Send size={16} className="-ml-0.5" />
-                </button>
-              ) : (
-                <button className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface flex-shrink-0 transition-transform duration-200 hover:bg-surface-high bg-surface-high border border-outline-variant/10 shadow-ambient">
-                  <Mic size={18} />
-                </button>
-              )}
-            </div>
+          {/* Message Stream */}
+          <div className="flex-1 overflow-y-auto px-10 py-10 space-y-8 z-10 custom-scrollbar-hidden select-text">
+             <div className="flex justify-center mb-10">
+                <div className="px-6 py-2.5 rounded-full bg-v-violet/10 border border-v-violet/20 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-v-violet shadow-2xl backdrop-blur-md">
+                   <Lock size={12} className="shadow-[0_0_8px_currentColor]" /> Protocol E2EE: SECURED TRANSMISSION
+                </div>
+             </div>
+
+             <AnimatePresence initial={false}>
+                {messages.map((m) => (
+                    <motion.div key={m.id} initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex ${m.is_mine ? 'justify-end' : 'justify-start'} group relative`}>
+                        <div className={`flex flex-col ${m.is_mine ? 'items-end' : 'items-start'} max-w-[70%] gap-2 transition-transform duration-300`}>
+                           <div className={clsx('relative p-5 text-sm font-bold leading-relaxed shadow-3xl break-words italic tracking-tight', m.is_mine ? 'bg-primary-gradient text-white rounded-[32px] rounded-br-lg shadow-[0_15px_30px_rgba(108,99,255,0.25)]' : 'bg-surface-high/40 text-on-surface rounded-[32px] rounded-bl-lg border border-white/5')}>
+                              {m.content}
+                              {m.is_mine && (
+                                 <div className="absolute bottom-2 right-4 flex items-center gap-1 opacity-40 scale-75">
+                                    {m.status === 'sending' ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={12} />}
+                                 </div>
+                              )}
+                              {m.is_mine && (
+                                 <button onClick={() => deleteMsg(m.id)} className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 items-center justify-center opacity-0 group-hover:opacity-100 transition-all flex hover:bg-rose-500 hover:text-white">
+                                    <Trash2 size={14} />
+                                 </button>
+                              )}
+                           </div>
+                           <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-0 group-hover:opacity-40 transition-opacity px-2">{formatDistanceToNow(new Date(m.sent_at), { addSuffix: true })}</span>
+                        </div>
+                    </motion.div>
+                ))}
+             </AnimatePresence>
+             <div ref={messagesEndRef} />
+          </div>
+
+          {/* Footer & Signal Input */}
+          <div className="px-10 pb-8 pt-2 z-20">
+             {permError ? (
+                <div className="p-8 rounded-[32px] bg-rose-500/10 border border-rose-500/20 flex flex-col items-center text-center gap-3">
+                   <ShieldAlert size={32} className="text-rose-500 animate-pulse" />
+                   <div>
+                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-1">Signal Blocked by Kernel</p>
+                       <p className="text-xs font-bold text-on-surface-variant opacity-60">{permError}</p>
+                   </div>
+                </div>
+             ) : (
+                <div className="relative">
+                   <div className="flex items-center gap-4 p-4 bg-surface-lowest/60 backdrop-blur-3xl border border-white/5 rounded-full shadow-3xl group focus-within:ring-2 focus-within:ring-v-cyan/20 transition-all">
+                      <button className="w-12 h-12 rounded-full flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all"><Paperclip size={20} /></button>
+                      <input value={msg} onChange={(e) => handleTyping(e.target.value)} onKeyDown={(e) => { if(e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Inject signal data..." className="flex-1 bg-transparent border-none text-on-surface text-sm font-bold italic focus:outline-none placeholder:text-on-surface-variant/30" />
+                      <button className="w-12 h-12 rounded-full flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all"><Smile size={20} /></button>
+                      <button onClick={sendMessage} className={clsx('w-14 h-14 rounded-full flex items-center justify-center text-white transition-all shadow-[0_10px_20px_rgba(108,99,255,0.4)]', msg.trim() ? 'bg-primary-gradient hover:scale-105 active:scale-95' : 'bg-surface-high opacity-40')}><Send size={18} className={msg.trim() ? '-ml-1' : ''} /></button>
+                   </div>
+                </div>
+             )}
           </div>
         </div>
-      ) : !loadingConvs ? (
-        <div className="flex-1 flex flex-col items-center justify-center bg-surface-lowest">
-          <div className="w-24 h-24 rounded-full bg-surface-high/50 border border-outline-variant/10 flex items-center justify-center mb-4 shadow-ambient">
-            <MessageCircle size={32} className="text-on-surface-variant/50" />
-          </div>
-          <p className="text-on-surface-variant font-medium">No conversations yet</p>
-          <p className="text-xs text-on-surface-variant/60 mt-1">Go to a user profile and start a conversation</p>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#010101] -ml-8 rounded-l-[50px] shadow-[-20px_0_60px_rgba(0,0,0,0.8)] border-l border-white/5">
+             <div className="w-40 h-40 bg-surface-low rounded-[50px] flex items-center justify-center border border-white/5 shadow-2xl relative group overflow-hidden">
+                <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-20 transition-opacity" />
+                <Ghost size={60} className="text-on-surface-variant/10 group-hover:text-v-cyan group-hover:scale-110 transition-all duration-700" />
+             </div>
+             <p className="mt-8 text-[10px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-30 italic">Initialize Session</p>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
 
 export default function MessagesPage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-full w-full items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    }>
+    <Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-[#050505]"><Loader2 className="w-12 h-12 animate-spin text-v-cyan shadow-[0_0_20px_var(--v-cyan)]" /></div>}>
       <MessagesContent />
     </Suspense>
   );

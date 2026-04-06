@@ -1,315 +1,243 @@
 'use client';
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
-import { Search, TrendingUp, Users, FileText, X, Loader2, UserPlus, UserCheck, Hash } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { Search, TrendingUp, Compass, Hash, Sparkles, Activity, Radio, Globe, Zap, Loader2, Signal, Eye, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { getTrendingWaves, getDiscoverySignals } from './actions';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useAppStore } from '@/lib/store';
+import PostCard from '@/components/features/feed/PostCard';
 
-interface DBUser {
-  id: string;
-  username: string;
-  display_name: string;
-  avatar_url: string | null;
-  is_verified: boolean;
-  follower_count: number;
-  role: string;
-}
-
-interface DBPost {
-  id: string;
-  content: string;
-  media_urls: string[];
-  like_count: number;
-  comment_count: number;
-  created_at: string;
-  author: DBUser | null;
-}
-
-function fmt(n: number) {
+function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-function timeAgo(dateStr: string) {
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
+const CATEGORIES = [
+  { id: 'trending', label: 'Trending', icon: TrendingUp },
+  { id: 'broadcast', label: 'Broadcasts', icon: Radio },
+  { id: 'nodes', label: 'Top Nodes', icon: Globe },
+  { id: 'matrix', label: 'Network Matrix', icon: Signal }
+];
 
-type Tab = 'top' | 'people' | 'posts';
-
-// Inner component uses useSearchParams — must be inside <Suspense>
-function ExploreInner() {
-  const searchParams = useSearchParams();
-  const initialQ = searchParams.get('q') || '';
-  const [query, setQuery] = useState(initialQ);
-  const [activeTab, setActiveTab] = useState<Tab>('top');
-  const [users, setUsers] = useState<DBUser[]>([]);
-  const [posts, setPosts] = useState<DBPost[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
-  const supabase = useMemo(() => createClient(), []);
-
-  const hasQuery = query.trim().length > 0;
-
-  // Search both users + posts from real DB
-  useEffect(() => {
-    async function runSearch() {
-      if (!hasQuery) {
-        // No query: fetch recent posts and recent users for discovery
-        setLoading(true);
-        const [{ data: recentPosts }, { data: recentUsers }] = await Promise.all([
-          supabase.from('posts').select('*, author:users(*)').order('created_at', { ascending: false }).limit(20),
-          supabase.from('users').select('*').order('created_at', { ascending: false }).limit(10),
-        ]);
-        setPosts((recentPosts || []) as unknown as DBPost[]);
-        setUsers((recentUsers || []) as DBUser[]);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      const q = query.trim();
-
-      const [{ data: matchedUsers }, { data: matchedPosts }] = await Promise.all([
-        supabase
-          .from('users')
-          .select('*')
-          .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
-          .limit(10),
-        supabase
-          .from('posts')
-          .select('*, author:users(*)')
-          .ilike('content', `%${q}%`)
-          .order('created_at', { ascending: false })
-          .limit(20),
-      ]);
-
-      setUsers((matchedUsers || []) as DBUser[]);
-      setPosts((matchedPosts || []) as unknown as DBPost[]);
-      setLoading(false);
-    }
-
-    const debounce = setTimeout(runSearch, 300);
-    return () => clearTimeout(debounce);
-  }, [query, hasQuery, supabase]);
-
-  // Sync with global store instead of phantom array
-  const { isFollowing, toggleFollow } = useAppStore();
-
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <h1 className="text-2xl font-black gradient-text">Explore</h1>
-
-      {/* Premium Search Bar — inline in explore */}
-      <div className="relative group">
-        <div
-          className="absolute inset-0 rounded-2xl transition-opacity duration-300 pointer-events-none opacity-0 group-focus-within:opacity-100"
-          style={{
-            background: 'linear-gradient(135deg, rgba(147,51,234,0.5), rgba(79,209,197,0.5))',
-            padding: '1px', borderRadius: '16px',
-            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            WebkitMaskComposite: 'xor', maskComposite: 'exclude',
-          }}
-        />
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary-light transition-colors pointer-events-none" />
-        <input
-          id="explore-search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search users, posts…"
-          autoComplete="off"
-          className="w-full py-3 pl-12 pr-10 rounded-2xl text-[15px] font-medium focus:outline-none transition-all duration-300 shadow-ambient"
-          style={{
-            background: 'rgba(20,20,30,0.4)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.95)',
-            caretColor: 'rgba(167,139,250,1)',
-            backdropFilter: 'blur(16px)',
-          }}
-          onFocus={(e) => {
-            e.target.style.background = 'rgba(147,51,234,0.08)';
-            e.target.style.border = '1px solid rgba(167,139,250,0.5)';
-            e.target.style.boxShadow = '0 0 20px rgba(147,51,234,0.2)';
-            e.target.style.transform = 'translateY(-1px)';
-          }}
-          onBlur={(e) => {
-            e.target.style.background = 'rgba(20,20,30,0.4)';
-            e.target.style.border = '1px solid rgba(255,255,255,0.08)';
-            e.target.style.boxShadow = 'none';
-            e.target.style.transform = 'translateY(0px)';
-          }}
-        />
-        {hasQuery && (
-          <button
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-opacity hover:opacity-80"
-            style={{ background: 'rgba(255,255,255,0.12)' }}
-            onClick={() => setQuery('')}
-            aria-label="Clear search"
-          >
-            <X size={11} color="white" />
-          </button>
-        )}
-      </div>
-
-      {/* Tabs — only when searching */}
-      {hasQuery && (
-        <div className="flex gap-1 border-b border-outline-variant/15">
-          {([
-            { key: 'top', label: 'All', icon: TrendingUp },
-            { key: 'people', label: 'People', icon: Users },
-            { key: 'posts', label: 'Posts', icon: FileText },
-          ] as const).map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold transition-colors relative"
-              style={{ color: activeTab === key ? 'var(--text-primary)' : 'var(--text-secondary)' }}
-            >
-              <Icon size={14} />
-              {label}
-              {activeTab === key && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: 'var(--v-violet)' }} />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={28} className="animate-spin text-primary-light" />
-        </div>
-      )}
-
-      {!loading && (
-        <>
-          {/* PEOPLE */}
-          {(activeTab === 'top' || activeTab === 'people') && users.length > 0 && (
-            <div className="space-y-2">
-              {hasQuery && (
-                <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
-                  People
-                </div>
-              )}
-              {!hasQuery && (
-                <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
-                  Discover People
-                </div>
-              )}
-              {users.map((u) => {
-                const isFollowingUser = isFollowing(u.id);
-                return (
-                  <div key={u.id} className="glass-card flex items-center gap-3 p-3">
-                    <Link href={`/profile/${u.username}`} className="relative flex-shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`}
-                        alt={u.display_name}
-                        className="w-10 h-10 rounded-full object-cover"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-                      />
-                    </Link>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm text-on-surface truncate">{u.display_name || u.username}</div>
-                      <div className="text-xs text-on-surface-variant">@{u.username} · {fmt(u.follower_count || 0)} followers</div>
-                    </div>
-                    <button
-                      onClick={() => toggleFollow(u.id)}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full flex-shrink-0 transition-all duration-200 font-semibold border"
-                      style={{
-                        background: isFollowingUser ? 'transparent' : 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))',
-                        color: isFollowingUser ? 'var(--text-secondary)' : 'white',
-                        borderColor: isFollowingUser ? 'var(--border)' : 'transparent',
-                      }}
-                    >
-                      {isFollowingUser ? <><UserCheck size={12} /> Following</> : <><UserPlus size={12} /> Follow</>}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* POSTS */}
-          {(activeTab === 'top' || activeTab === 'posts') && posts.length > 0 && (
-            <div className="space-y-3">
-              {hasQuery && (
-                <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
-                  Posts
-                </div>
-              )}
-              {!hasQuery && (
-                <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
-                  Recent Posts
-                </div>
-              )}
-              {posts.map((p) => (
-                <div key={p.id} className="glass-card p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.author?.username || 'user'}`}
-                      alt={p.author?.display_name || 'User'}
-                      className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm text-on-surface">{p.author?.display_name || p.author?.username || 'Unknown'}</div>
-                      <div className="text-xs text-on-surface-variant">@{p.author?.username} · {timeAgo(p.created_at)}</div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-on-surface leading-relaxed">{p.content}</p>
-                  {p.media_urls?.length > 0 && (
-                    <div className={`grid gap-2 ${p.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                      {p.media_urls.slice(0, 4).map((url, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={url} alt="Post media" className="w-full rounded-xl object-cover" style={{ maxHeight: 280 }} />
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-4 text-xs text-on-surface-variant">
-                    <span>❤️ {fmt(p.like_count)}</span>
-                    <span>💬 {fmt(p.comment_count)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!loading && users.length === 0 && posts.length === 0 && (
-            <div className="glass-card p-12 text-center flex flex-col items-center gap-3">
-              <Hash size={40} className="text-primary-light opacity-40" />
-              <h3 className="text-lg font-bold text-on-surface">
-                {hasQuery ? `No results for "${query}"` : 'Nothing yet'}
-              </h3>
-              <p className="text-sm text-on-surface-variant max-w-xs">
-                {hasQuery ? 'Try a different search term.' : 'Be the first to post and explore the community.'}
-              </p>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-// Default export wraps inner component in Suspense (required by Next.js for useSearchParams)
 export default function ExplorePage() {
+  const [activeTab, setActiveTab] = useState('trending');
+  const [waves, setWaves] = useState<any[]>([]);
+  const [signals, setSignals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadExploreData = useCallback(async () => {
+    setLoading(true);
+    const wavesData = await getTrendingWaves();
+    if (Array.isArray(wavesData)) setWaves(wavesData);
+    
+    const signalsRes = await getDiscoverySignals();
+    if (signalsRes.success) {
+        setSignals((signalsRes.signals || []).map((m: any) => ({
+            ...m,
+            mediaUrls: m.media_urls || [],
+            author: {
+               id: m.author?.id,
+               username: m.author?.username,
+               displayName: m.author?.display_name,
+               avatar: m.author?.avatar_url,
+               security_score: m.author?.security_score
+            }
+        })));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadExploreData();
+  }, [loadExploreData]);
+
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-24">
-        <Loader2 size={28} className="animate-spin text-primary-light" />
+    <div className="space-y-12 max-w-[1200px] mx-auto pb-40 animate-fade-in text-on-surface font-sans italic italic">
+      
+      {/* Sovereign Radar HUD */}
+      <div className="glass-card p-12 bg-surface-lowest/40 border-none rounded-[60px] shadow-[0_0_100px_rgba(0,255,255,0.05)] relative overflow-hidden group">
+         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(var(--white) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+         <div className="absolute -inset-20 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity blur-[100px] -z-10" />
+         
+         <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+            <div className="flex-1 w-full space-y-4">
+                <div className="flex items-center gap-3 opacity-40 mb-2">
+                    <Activity size={14} className="text-v-cyan animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Network_Recon_Active</span>
+                </div>
+                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none mb-6">Explore <br/><span className="text-v-cyan">The Expanse</span></h1>
+                <div className="relative group/search max-w-xl">
+                   <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within/search:text-v-cyan transition-colors" />
+                   <input 
+                     type="text" 
+                     placeholder="Search node identifiers, wave tags, encrypted signals..." 
+                     className="w-full bg-black/40 border-2 border-white/5 rounded-[30px] py-6 pl-16 pr-8 text-lg font-bold tracking-tight text-white placeholder:text-on-surface-variant/20 focus:outline-none focus:border-v-cyan/20 focus:ring-0 transition-all font-mono"
+                   />
+                   <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-2 opacity-30">
+                       <span className="text-[8px] font-black uppercase tracking-[0.2em]">Ready</span>
+                       <Zap size={10} className="text-v-emerald" />
+                   </div>
+                </div>
+            </div>
+            
+            <div className="hidden lg:flex items-center justify-center relative">
+                 <div className="w-64 h-64 border-4 border-white/5 rounded-full relative flex items-center justify-center animate-spin-slow">
+                     <span className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-v-cyan rounded-full shadow-[0_0_20px_var(--v-cyan)]" />
+                     <div className="w-48 h-48 border-[1px] border-white/5 rounded-full" />
+                 </div>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <Signal size={40} className="text-v-cyan opacity-40 mb-2" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Scanning</span>
+                 </div>
+            </div>
+         </div>
       </div>
-    }>
-      <ExploreInner />
-    </Suspense>
+
+      {/* Wave Selectors */}
+      <div className="flex flex-wrap gap-4 justify-center sm:justify-start px-4">
+        {CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            const active = activeTab === cat.id;
+            return (
+                <button
+                    key={cat.id}
+                    onClick={() => setActiveTab(cat.id)}
+                    className={clsx(
+                        'group flex items-center gap-4 px-10 py-5 rounded-[25px] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 overflow-hidden relative shadow-2xl',
+                        active ? 'bg-primary-gradient text-white scale-105 ring-2 ring-v-cyan/20 translate-y-[-4px]' : 'bg-surface-lowest/40 text-on-surface-variant border border-white/5 hover:bg-white/5'
+                    )}
+                >
+                    <Icon size={16} className={clsx('relative z-10 transition-all duration-700', active ? 'text-white' : 'group-hover:text-v-cyan group-hover:scale-125')} />
+                    <span className="relative z-10">{cat.label}</span>
+                    {active && <div className="absolute inset-0 bg-white opacity-10 blur-xl animate-pulse" />}
+                </button>
+            )
+        })}
+      </div>
+
+      {/* Discovery Matrix Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 px-2">
+        {/* WAVE TRENDS (LEFT) */}
+        <div className="lg:col-span-1 space-y-8">
+            <div className="flex items-center gap-4 px-4">
+                <TrendingUp size={18} className="text-v-violet" />
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white">Active_Waves</h3>
+            </div>
+            
+            <div className="glass-card p-10 bg-surface-lowest/20 border-none rounded-[50px] shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-v-violet/5 blur-3xl rounded-full" />
+                
+                {loading ? (
+                    <div className="py-20 flex flex-col items-center opacity-30">
+                        <Loader2 size={24} className="animate-spin mb-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Hydrating Waves...</span>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {(waves.length > 0 ? waves : [
+                            { tag: '#SignalCore', count: 1200 },
+                            { tag: '#VerlynOS', count: 840 },
+                            { tag: '#NeuralGrid', count: 520 },
+                            { tag: '#E2EE_Privacy', count: 310 },
+                            { tag: '#CyberExpanse', count: 220 },
+                            { tag: '#PrimeIdentity', count: 180 }
+                        ]).map((t, index) => (
+                            <motion.div 
+                                key={t.tag}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className="flex items-center justify-between p-5 rounded-[24px] hover:bg-white/5 border border-transparent hover:border-white/5 transition-all cursor-pointer group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <Hash size={16} className="text-v-violet opacity-40 group-hover:opacity-100 transition-opacity" />
+                                    <span className="text-sm font-black italic group-hover:text-v-cyan transition-colors uppercase tracking-tight">{t.tag}</span>
+                                </div>
+                                <div className="flex flex-col items-end opacity-40">
+                                    <span className="text-[10px] font-mono text-white leading-none mb-1">{fmt(t.count)}</span>
+                                    <span className="text-[8px] font-black uppercase tracking-widest">Hits</span>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="glass-card p-10 bg-v-cyan/5 border border-v-cyan/10 rounded-[50px] shadow-2xl flex flex-col justify-between h-40 group">
+                <div className="flex justify-between items-start">
+                    <Sparkles size={24} className="text-v-cyan animate-pulse" />
+                    <span className="text-[8px] font-black uppercase tracking-widest text-v-cyan border border-v-cyan/20 px-2 py-0.5 rounded-lg">AI_SCAN_ACTIVE</span>
+                </div>
+                <p className="text-xs font-black italic tracking-tight text-on-surface-variant opacity-80 group-hover:opacity-100 transition-opacity">Discover personalized intelligence nodes based on your current signal modulation.</p>
+            </div>
+        </div>
+
+        {/* FEED SELECTION (RIGHT) */}
+        <div className="lg:col-span-2 space-y-8">
+            <div className="flex items-center gap-4 px-4">
+                <Signal size={18} className="text-v-emerald" />
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white">Intelligence_Signals</h3>
+            </div>
+
+            <div className="space-y-8">
+                {loading ? (
+                    <div className="grid grid-cols-2 gap-8 opacity-20">
+                         {[1,2,3,4].map(i => <div key={i} className="aspect-video bg-white/5 rounded-[40px] animate-pulse" />)}
+                    </div>
+                ) : signals.length === 0 ? (
+                    <div className="py-40 text-center opacity-30 italic glass-card border-none bg-surface-lowest/10 rounded-[60px]">
+                        <Compass size={40} className="mx-auto mb-6 text-on-surface-variant/20" />
+                        <p className="text-[11px] font-black uppercase tracking-[0.5em] leading-none">Mapping Unknown Space</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {signals.map((p, index) => (
+                            <motion.div 
+                                key={p.id}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: index * 0.1 }}
+                                className="group relative"
+                            >
+                                <div className="absolute -inset-1 bg-primary-gradient rounded-[50px] blur-2xl opacity-0 group-hover:opacity-10 transition-opacity" />
+                                <div className="glass-card bg-surface-lowest/40 border-none rounded-[50px] overflow-hidden shadow-2xl relative z-10 transition-transform duration-700 group-hover:translate-y-[-8px]">
+                                    {p.mediaUrls?.[0] ? (
+                                        <div className="aspect-[16/10] overflow-hidden">
+                                            <img src={p.mediaUrls[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="signal" />
+                                        </div>
+                                    ) : (
+                                        <div className="aspect-[16/10] bg-white/[0.02] flex items-center justify-center p-10">
+                                            <p className="text-sm font-black text-center italic text-on-surface opacity-60 uppercase tracking-tighter leading-relaxed">
+                                                {p.content.slice(0, 120)}{p.content.length > 120 ? '...' : ''}
+                                            </p>
+                                        </div>
+                                    )}
+                                    <div className="p-8 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <Link href={`/profile/${p.author?.username}`} className="flex items-center gap-3">
+                                                <img src={p.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.author?.username}`} className="w-8 h-8 rounded-xl" alt="node" />
+                                                <span className="text-[11px] font-black uppercase tracking-widest text-white italic group-hover:text-v-cyan transition-colors">@{p.author?.username}</span>
+                                            </Link>
+                                            <div className="flex items-center gap-4 text-on-surface-variant opacity-40">
+                                                 <div className="flex items-center gap-1.5"><Eye size={12} /> <span className="text-[10px] font-mono">{fmt(p.likeCount * 5)}</span></div>
+                                                 <div className="flex items-center gap-1.5"><MessageCircle size={12} /> <span className="text-[10px] font-mono">{p.commentCount}</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            
+            <button className="w-full py-8 border-2 border-white/5 rounded-[40px] text-[11px] font-black uppercase tracking-[0.6em] text-on-surface-variant hover:text-white hover:bg-white/5 transition-all text-center">
+                Expand_Matrix_Deep_Scan
+            </button>
+        </div>
+      </div>
+    </div>
   );
 }
