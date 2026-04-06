@@ -30,6 +30,7 @@ export default function AuthProvider() {
             id: profileData.id,
             username: profileData.username,
             displayName: profileData.display_name,
+            email: user.email,                   // Real email from Supabase auth session
             avatar: profileData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileData.username}`,
             isVerified: profileData.is_verified || false,
             role: profileData.role,

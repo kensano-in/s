@@ -1,11 +1,12 @@
 // Verlyn Platform — Shared TypeScript Types
 
-export type Theme = 'midnight' | 'oled' | 'corporate' | 'light';
+export type Theme = 'midnight' | 'amoled' | 'frost' | 'light';
 
 export interface User {
   id: string;
   username: string;
   displayName: string;
+  email?: string;           // Available post-auth from Supabase session
   avatar: string;
   bio?: string;
   isVerified: boolean;
