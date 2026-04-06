@@ -22,7 +22,7 @@ export default function CommunitiesPage() {
   const fetchCommunities = useCallback(async () => {
     setLoading(true);
     const res = await getCommunities(currentUser?.id);
-    if (res.success) setCommunities(res.communities);
+    if (res.success) setCommunities(res.communities || []);
     setLoading(false);
   }, [currentUser?.id]);
 
@@ -96,7 +96,7 @@ export default function CommunitiesPage() {
             </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
            {filtered.map((c) => (
              <div key={c.id} className="glass-card group p-10 border-none bg-surface-lowest/30 hover:bg-surface-lowest/50 rounded-[50px] shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all relative overflow-hidden flex flex-col justify-between">
                 <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all duration-700 pointer-events-none">
@@ -121,7 +121,7 @@ export default function CommunitiesPage() {
                         {c.description}
                     </p>
 
-                    <div className="flex items-center gap-6 pt-4">
+                    <div className="flex items-center gap-4 xl:gap-6 pt-4 flex-wrap">
                         <div className="flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan mb-1">{c.member_count}</span>
                             <span className="text-[8px] font-black opacity-30 uppercase tracking-tight">ACTIVE_NODES</span>
@@ -134,7 +134,7 @@ export default function CommunitiesPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between mt-10 pt-8 border-t border-white/5 relative z-10">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mt-10 pt-8 border-t border-white/5 relative z-10">
                     <div className="flex items-center gap-3">
                         {c.is_private ? <Lock size={14} className="text-rose-400" /> : <Globe size={14} className="text-v-emerald" />}
                         <span className={clsx('text-[9px] font-black uppercase tracking-tighter italic', c.is_private ? 'text-rose-400' : 'text-v-emerald')}>

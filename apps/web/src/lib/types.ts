@@ -143,5 +143,5 @@ export const VERLYN_CONTACT: ContactInfo[] = [
   { platform: 'Telegram', label: '@shinichirofr', value: 'shinichirofr', url: 'https://t.me/shinichirofr', icon: '✈️' },
   { platform: 'X (Twitter)', label: '@Shinichirofr', value: 'Shinichirofr', url: 'https://x.com/Shinichirofr', icon: '🐦' },
   { platform: 'WhatsApp', label: '+1 709 700 7361', value: '+17097007361', url: 'https://wa.me/17097007361', icon: '💬' },
-  { platform: 'Email', label: 'shinichiro.in@proton.me', value: 'shinichiro.in@proton.me', url: 'mailto:shinichiro.in@proton.me', icon: '📧' },
+  { platform: 'Email', label: 'support.verlyn@proton.me', value: 'support.verlyn@proton.me', url: 'mailto:support.verlyn@proton.me', icon: '📧' },
 ];

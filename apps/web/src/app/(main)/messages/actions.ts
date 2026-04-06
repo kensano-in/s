@@ -15,13 +15,13 @@ export async function validateMessagingPermission(senderId: string, recipientId:
     try {
         const { data: recipient, error: userErr } = await supabaseAdmin
             .from('users')
-            .select('messaging_permission, is_private')
+            .select('*')
             .eq('id', recipientId)
             .single();
 
         if (userErr || !recipient) return { allowed: false, error: 'Target node has been purged or deactivated from the Matrix' };
 
-        const permission = recipient.messaging_permission;
+        const permission = recipient.messaging_permission || 'everyone';
         
         if (permission === 'none') return { allowed: false, error: 'Recipient has locked all incoming signals' };
         

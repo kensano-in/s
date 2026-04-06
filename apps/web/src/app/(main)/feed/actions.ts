@@ -7,10 +7,10 @@ export async function submitPost(formData: FormData) {
   const supabase = await createClient();
   const content = formData.get('content') as string;
 
-  if (!content || content.trim() === '') return;
+  if (!content || content.trim() === '') return { error: 'Empty content' };
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) return { error: 'Not authenticated' };
 
   const mediaUrls = formData.getAll('mediaUrls') as string[];
 
@@ -24,7 +24,7 @@ export async function submitPost(formData: FormData) {
 
   if (error) {
     console.error("Post Creation Failed:", error);
-    return;
+    return { error: error.message };
   }
 
   revalidatePath('/feed');
