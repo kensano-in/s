@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+
 export interface ProfileSyncPayload {
   displayName?: string;
   username?: string;
@@ -21,8 +23,14 @@ export async function submitProfileUpdateDB(userId: string, updates: ProfileSync
 
     if (Object.keys(dbPayload).length === 0) return { success: true };
 
-    const supabase = await createClient();
-    const { error } = await supabase
+    // Use Admin Client to permanently write to identity and bypass table RLS
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    
+    // 1. Force write to the public users table first
+    const { error } = await supabaseAdmin
       .from('users')
       .update(dbPayload)
       .eq('id', userId);
@@ -30,6 +38,15 @@ export async function submitProfileUpdateDB(userId: string, updates: ProfileSync
     if (error) {
       console.error('[Supabase Update Error]:', error);
       throw error;
+    }
+    
+    // 2. Force write to the user metadata so hydration doesn't overwrite it on refresh
+    if (updates.avatarUrl !== undefined || updates.displayName !== undefined) {
+      const metaUpdates: any = {};
+      if (updates.avatarUrl !== undefined) metaUpdates.avatar_url = updates.avatarUrl;
+      if (updates.displayName !== undefined) metaUpdates.full_name = updates.displayName;
+      
+      await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: metaUpdates });
     }
     
     return { success: true };

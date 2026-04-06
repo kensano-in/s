@@ -132,14 +132,10 @@ export default function EditProfileModal({ onClose }: Props) {
                 <Camera size={24} className="text-white drop-shadow-lg" />
               </div>
             </div>
-            
-            <div className="w-full mt-4">
-              <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Avatar Image URL</label>
-              <input 
-                value={avatar}
-                onChange={(e) => setAvatar(e.target.value)}
-                className="w-full bg-surface-low text-on-surface rounded-xl px-4 py-2 border border-outline-variant/10 focus:ring-1 focus:ring-primary-light"
-              />
+            <div className="w-full mt-4 text-center">
+              <label className="text-[10px] font-mono text-on-surface-variant uppercase tracking-wider mb-1 block">
+                Tap image to change avatar
+              </label>
             </div>
           </div>
 

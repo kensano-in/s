@@ -28,27 +28,15 @@ export default function ProfilePage() {
   // FIX 8: Memoize Supabase client — prevents new client+WebSocket per render cycle
   const supabase = useMemo(() => createClient(), []);
 
-  const BANNER_GRADIENTS: Record<string, string> = {
-    purple: 'linear-gradient(135deg, #2D1B69 0%, #1a1040 40%, #0a2060 100%)',
-    violet: 'linear-gradient(135deg, #4c1d95 0%, #2e1065 50%, #1e1b4b 100%)',
-    rose: 'linear-gradient(135deg, #881337 0%, #4c0519 40%, #1c1917 100%)',
-    teal: 'linear-gradient(135deg, #134e4a 0%, #042f2e 40%, #0f172a 100%)',
-    amber: 'linear-gradient(135deg, #78350f 0%, #451a03 40%, #1c1917 100%)',
-    slate: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)',
-    emerald: 'linear-gradient(135deg, #064e3b 0%, #022c22 40%, #0f172a 100%)',
-    fuchsia: 'linear-gradient(135deg, #701a75 0%, #4a044e 40%, #1c1917 100%)',
-    cyan: 'linear-gradient(135deg, #164e63 0%, #083344 40%, #0f172a 100%)',
-    orange: 'linear-gradient(135deg, #9a3412 0%, #7c2d12 40%, #1c1917 100%)',
-    crimson: 'linear-gradient(135deg, #9f1239 0%, #881337 40%, #1c1917 100%)',
-    obsidian: 'linear-gradient(135deg, #09090b 0%, #000000 50%, #09090b 100%)',
-  };
-
-  const BANNER_LABELS: Record<string, string> = {
-    purple: '#7C3AED', violet: '#8B5CF6', rose: '#E11D48',
-    teal: '#0D9488', amber: '#D97706', slate: '#475569',
-    emerald: '#10B981', fuchsia: '#D946EF', cyan: '#06B6D4',
-    orange: '#F97316', crimson: '#E11D48', obsidian: '#18181B',
-  };
+  const THEME_PRESETS = [
+    { id: 'purple', name: 'Nebula Core',  gradient: 'linear-gradient(135deg, #2D1B69 0%, #1a1040 40%, #0a2060 100%)', badge: 'DEFAULT' },
+    { id: 'fuchsia', name: 'Cyberpunk', gradient: 'linear-gradient(135deg, #701a75 0%, #4a044e 40%, #1c1917 100%)', badge: 'PREMIUM' },
+    { id: 'obsidian', name: 'Obsidian Void', gradient: 'linear-gradient(135deg, #09090b 0%, #000000 50%, #09090b 100%)', badge: 'ELITE' },
+    { id: 'teal', name: 'Quantum Matrix',  gradient: 'linear-gradient(135deg, #134e4a 0%, #042f2e 40%, #0f172a 100%)' },
+    { id: 'rose', name: 'Crimson Dawn',    gradient: 'linear-gradient(135deg, #881337 0%, #4c0519 40%, #1c1917 100%)' },
+    { id: 'orange', name: 'Solar Flare',   gradient: 'linear-gradient(135deg, #9a3412 0%, #7c2d12 40%, #1c1917 100%)' }
+  ];
+  const getCurrentGradient = () => THEME_PRESETS.find(t => t.id === bannerColor)?.gradient || THEME_PRESETS[0].gradient;
 
   const handleVerifySync = async () => {
     if (!currentUser?.id) return;
@@ -171,23 +159,19 @@ export default function ProfilePage() {
       <div className="pt-8 pb-4 px-4 sm:px-8 max-w-[800px] mx-auto">
         <div className="flex items-center gap-6 sm:gap-14 mb-6">
           {/* Avatar (Left) */}
-          <div className="flex-shrink-0 relative">
-            <div className="p-1 rounded-full transition-colors duration-500" style={{ background: BANNER_GRADIENTS[bannerColor] }}>
-              <div className="p-[3px] bg-background rounded-full">
+          <div className="flex-shrink-0 relative group">
+            <div className="p-1.5 rounded-full transition-all duration-1000 shadow-[0_0_30px_rgba(0,0,0,0.5)]" style={{ background: getCurrentGradient() }}>
+              <div className="p-[4px] bg-background rounded-full relative overflow-hidden">
                 <img
                   src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`}
                   alt={`${currentUser.displayName}'s avatar`}
-                  className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block cursor-pointer transition-opacity hover:opacity-90"
-                  onClick={() => avatarInputRef.current?.click()}
+                  className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block transition-transform duration-700 group-hover:scale-105"
                   onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`; }}
                 />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+                  <Camera size={32} className="text-white drop-shadow-lg scale-75 group-hover:scale-100 transition-transform duration-500" />
+                </div>
               </div>
-            </div>
-            {/* Camera icon over avatar */}
-            <div className="absolute bottom-1 right-2 sm:bottom-4 sm:right-4 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 border-background cursor-pointer hover:scale-110 transition-transform shadow-lg"
-                 style={{ background: 'var(--text-primary)' }}
-                 onClick={() => avatarInputRef.current?.click()}>
-              <Camera size={14} className="text-background" />
             </div>
           </div>
 
@@ -218,34 +202,42 @@ export default function ProfilePage() {
               
               {/* Desktop Actions */}
               <div className="hidden sm:flex items-center gap-2 relative z-20">
-                <div className="relative">
-                  <button
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                    className="px-3 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition flex items-center gap-2"
-                  >
-                    <Palette size={14} /> Theme
-                  </button>
-                  {showColorPicker && (
-                    <div className="absolute top-10 right-0 grid grid-cols-4 gap-2 w-48 p-3 rounded-xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
-                      style={{ background: 'rgba(20,20,30,0.95)', backdropFilter: 'blur(12px)' }}>
-                      {Object.entries(BANNER_LABELS).map(([key, hex]) => (
-                        <button
-                          key={key}
-                          onClick={() => { setBannerColor(key); setShowColorPicker(false); }}
-                          className="w-8 h-8 rounded-full transition-transform hover:scale-110 flex-shrink-0 relative overflow-hidden group"
-                          style={{
-                            background: BANNER_GRADIENTS[key],
-                            outline: bannerColor === key ? `2px solid white` : '2px solid transparent',
-                            outlineOffset: '2px',
-                          }}
-                          title={key}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <button
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  className="px-4 py-2 bg-white/5 border border-white/10 text-white rounded-xl text-[14px] font-bold tracking-wide hover:bg-white/10 transition flex items-center gap-2 shadow-lg backdrop-blur-md"
+                >
+                  <Palette size={16} /> Theme Override
+                </button>
               </div>
             </div>
+
+            {/* Futuristic Theme Picker Panel (Desktop) */}
+            {showColorPicker && (
+              <div className="absolute top-[220px] right-8 grid grid-cols-2 gap-3 w-80 p-4 rounded-2xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
+                style={{ background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(20px)' }}>
+                <div className="col-span-2 flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Select Visual Signature</h4>
+                  <button onClick={() => setShowColorPicker(false)} className="opacity-50 hover:opacity-100 text-xs">✕</button>
+                </div>
+                {THEME_PRESETS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setBannerColor(t.id); setShowColorPicker(false); }}
+                    className="relative text-left p-3 rounded-xl border transition-all duration-300 group overflow-hidden"
+                    style={{
+                      borderColor: bannerColor === t.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                      background: 'rgba(0,0,0,0.2)'
+                    }}
+                  >
+                    <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity" style={{ background: t.gradient }} />
+                    <div className="relative z-10 flex flex-col gap-1">
+                      <span className="text-[11px] font-bold text-white uppercase tracking-wider">{t.name}</span>
+                      {t.badge && <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/10 text-white w-max">{t.badge}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Desktop Stats */}
             <div className="hidden sm:flex items-center gap-10 mb-4 text-[15px]">
@@ -296,15 +288,24 @@ export default function ProfilePage() {
         </div>
         {/* Mobile color picker dropdown */}
         {showColorPicker && (
-          <div className="sm:hidden grid grid-cols-6 gap-3 p-4 mb-4 rounded-xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
+          <div className="sm:hidden grid grid-cols-2 gap-3 p-4 mb-4 rounded-xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
             style={{ background: 'rgba(20,20,30,0.95)', backdropFilter: 'blur(12px)' }}>
-            {Object.entries(BANNER_LABELS).map(([key, hex]) => (
+            <div className="col-span-2 flex justify-between items-center mb-1">
+              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Visual Theme</span>
+            </div>
+            {THEME_PRESETS.map((t) => (
               <button
-                key={key}
-                onClick={() => { setBannerColor(key); setShowColorPicker(false); }}
-                className="w-8 h-8 rounded-full transition-transform hover:scale-110 flex-shrink-0"
-                style={{ background: BANNER_GRADIENTS[key], outline: bannerColor === key ? `2px solid white` : '2px solid transparent', outlineOffset: '2px' }}
-              />
+                key={t.id}
+                onClick={() => { setBannerColor(t.id); setShowColorPicker(false); }}
+                className="relative text-left p-2 rounded-xl border transition-all duration-300 group overflow-hidden"
+                style={{
+                  borderColor: bannerColor === t.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                  background: 'rgba(0,0,0,0.2)'
+                }}
+              >
+                <div className="absolute inset-0 opacity-20" style={{ background: t.gradient }} />
+                <span className="relative z-10 text-[10px] font-bold text-white uppercase tracking-wider">{t.name}</span>
+              </button>
             ))}
           </div>
         )}
