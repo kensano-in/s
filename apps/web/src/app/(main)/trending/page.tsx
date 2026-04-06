@@ -51,7 +51,7 @@ export default function TrendingPage() {
         .from('posts')
         .select(`
           id, content, media_urls, like_count, comment_count, share_count, created_at,
-          users ( id, username, display_name, avatar_url, is_verified, role )
+          author:users!posts_author_id_fkey ( id, username, display_name, avatar_url, is_verified, role )
         `)
         .gte('created_at', cutoff)
         .order('like_count', { ascending: false })
@@ -74,12 +74,12 @@ export default function TrendingPage() {
           shareCount: p.share_count || 0,
           createdAt: p.created_at,
           author: {
-            id: p.users?.id,
-            username: p.users?.username,
-            displayName: p.users?.display_name,
-            avatar: p.users?.avatar_url,
-            isVerified: p.users?.is_verified,
-            role: p.users?.role || 'PUBLIC',
+            id: p.author?.id,
+            username: p.author?.username,
+            displayName: p.author?.display_name,
+            avatar: p.author?.avatar_url,
+            isVerified: p.author?.is_verified,
+            role: p.author?.role || 'PUBLIC',
           } as any
         })));
 

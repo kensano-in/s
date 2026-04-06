@@ -78,6 +78,21 @@ export async function sendMessageDB(senderId: string, recipientId: string, conte
       return { success: false, error: error.message };
     }
 
+    // FIX: Create notification for recipient so real-time monitor fires
+    try {
+      await supabaseAdmin.from('notifications').insert({
+        user_id: recipientId,
+        actor_id: senderId,
+        type: 'dm',
+        entity_id: data.id,
+        entity_type: 'message',
+        body: 'You have a new message.',
+        is_read: false,
+      });
+    } catch (notifErr: any) {
+      console.error('Notification insert failed:', notifErr.message);
+    }
+
     return { success: true, message: data };
   } catch (err: any) {
     console.error('Failed to sync message to DB:', err.message);

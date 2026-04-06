@@ -36,14 +36,14 @@ export default function Notifications() {
             title="Global Push Alerts" 
             desc="Broadcast notifications directly to your primary device node." 
             on={settingPushNotifs}
-            onToggle={(v) => handleToggle('push_notifs_enabled', v, setSettingPushNotifs)}
+            onToggle={(v: boolean) => handleToggle('push_notifs_enabled', v, setSettingPushNotifs)}
           />
           <NotifRow 
             icon={Mail} 
             title="Email Chronology" 
             desc="Weekly summary of intelligence and network activity." 
             on={settingEmailDigest}
-            onToggle={(v) => handleToggle('email_digest_enabled', v, setSettingEmailDigest)}
+            onToggle={(v: boolean) => handleToggle('email_digest_enabled', v, setSettingEmailDigest)}
           />
         </div>
       </section>

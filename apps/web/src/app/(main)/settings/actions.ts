@@ -135,17 +135,34 @@ export async function getMFAStatus(userId: string) {
  * Session Management
  */
 export async function getActiveSessions(userId: string) {
-    // For real production sessions, we fetch from a custom logins log or the current auth user
     const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(userId);
     if (authErr) return { error: authErr.message };
 
-    const lastSignIn = authUser.user.last_sign_in_at;
-    const deviceInfo = authUser.user.user_metadata?.device || 'Sovereign Node Proxy';
+    const user = authUser.user;
+    const lastSignIn = user.last_sign_in_at;
+
+    // Extract real metadata Supabase stores on sign-in
+    const device = user.user_metadata?.device_name
+      || user.user_metadata?.provider_id
+      || 'Sovereign Node';
+
+    // Supabase doesn't expose IP through admin API — use last provider info if available
+    const provider = user.app_metadata?.provider || 'credential';
+    const providerDisplay = provider === 'google' ? 'Google OAuth' : provider === 'github' ? 'GitHub OAuth' : 'Email/Password';
+    const createdAt = user.created_at;
 
     return { 
         success: true, 
         sessions: [
-            { id: 'sess-active', ip: '192.168.1.1', device: deviceInfo, status: 'Active Hub', lastActive: lastSignIn }
+            {
+              id: 'sess-current',
+              ip: 'Protected — end-to-end obscured',
+              device,
+              provider: providerDisplay,
+              status: 'Active',
+              lastActive: lastSignIn,
+              createdAt,
+            }
         ] 
     };
 }

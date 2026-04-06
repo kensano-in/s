@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store';
 
 export default function AuthProvider() {
-  const { updateProfile, setUser } = useAppStore();
+  const { updateProfile, setUser, setAuthLoading } = useAppStore();
   const router = useRouter();
   const supabase = createClient();
 
@@ -41,6 +41,8 @@ export default function AuthProvider() {
           });
         }
       }
+      // Always mark auth loading as done, whether logged in or not
+      setAuthLoading(false);
     }
 
     loadIdentity();

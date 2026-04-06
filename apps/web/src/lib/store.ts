@@ -57,6 +57,10 @@ interface AppState {
   // Hydration tracking — prevents settings flicker on SSR rehydration
   _hasHydrated: boolean;
 
+  // Auth loading — blocks UI until identity is resolved
+  isAuthLoading: boolean;
+  setAuthLoading: (v: boolean) => void;
+
   // Visual Sovereignty Theme & Wallpaper Engine
   uiThemeVariant: 'midnight' | 'amoled' | 'frost' | 'light';
   setUIThemeVariant: (variant: 'midnight' | 'amoled' | 'frost' | 'light') => void;
@@ -244,7 +248,9 @@ export const useAppStore = create<AppState>()(
 
         if (state.currentUser?.id) {
           // Real DB sync — fire and forget with optimistic UI above
-          toggleFollowDB(state.currentUser.id, userId, !isFollowingNow).catch(console.error);
+          toggleFollowDB(state.currentUser.id, userId, !isFollowingNow).then((res) => {
+            if (!res.success) console.error('[Store] Follow DB sync failed:', res.error);
+          });
         }
       },
       toggleSave: (postId) => set((s) => ({
@@ -270,6 +276,8 @@ export const useAppStore = create<AppState>()(
       isCommandPaletteOpen: false,
       setCommandPaletteOpen: (v: boolean) => set({ isCommandPaletteOpen: v }),
       _hasHydrated: false,
+      isAuthLoading: true,
+      setAuthLoading: (v: boolean) => set({ isAuthLoading: v }),
     }),
     {
       name: 'verlyn-app-state',

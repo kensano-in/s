@@ -1,7 +1,8 @@
 'use client';
 
 import { Search, TrendingUp, Compass, Hash, Sparkles, Activity, Radio, Globe, Zap, Loader2, Signal, Eye, MessageCircle } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { getTrendingWaves, getDiscoverySignals } from './actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -27,6 +28,10 @@ export default function ExplorePage() {
   const [waves, setWaves] = useState<any[]>([]);
   const [signals, setSignals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
 
   const loadExploreData = useCallback(async () => {
     setLoading(true);
@@ -54,6 +59,22 @@ export default function ExplorePage() {
     loadExploreData();
   }, [loadExploreData]);
 
+  // --- SEARCH: Debounced user + tag search ---
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) { setSearchResults([]); return; }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      const { data } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url')
+        .or(`username.ilike.%${searchQuery.trim()}%,display_name.ilike.%${searchQuery.trim()}%`)
+        .limit(6);
+      setSearchResults(data || []);
+      setIsSearching(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery, supabase]);
+
   return (
     <div className="space-y-12 max-w-[1200px] mx-auto pb-40 animate-fade-in text-on-surface font-sans italic italic">
       
@@ -74,13 +95,21 @@ export default function ExplorePage() {
                         <KineticIcon icon={Search} size={22} color="var(--v-cyan)" active pulse />
                     </div>
                     <input 
-                      type="text" 
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search people, tags, or signals..." 
                       className="w-full bg-black/40 border-2 border-white/5 rounded-[30px] py-6 pl-16 pr-8 text-lg font-black italic tracking-tight text-white placeholder:text-on-surface-variant/20 focus:outline-none focus:border-v-cyan/20 focus:ring-1 focus:ring-v-cyan/20 transition-all font-mono"
                     />
                     <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3 opacity-30">
-                        <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-emerald">Ready</span>
-                        <div className="w-2 h-2 rounded-full bg-v-emerald animate-pulse" />
+                        {isSearching ? (
+                          <Loader2 size={14} className="animate-spin text-v-cyan opacity-100" />
+                        ) : (
+                          <>
+                            <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-emerald">Ready</span>
+                            <div className="w-2 h-2 rounded-full bg-v-emerald animate-pulse" />
+                          </>
+                        )}
                     </div>
                     {/* Scanning Line Animation */}
                     <motion.div 
@@ -88,6 +117,27 @@ export default function ExplorePage() {
                         transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
                         className="absolute left-4 right-4 h-[1px] bg-v-cyan/20 pointer-events-none blur-sm"
                     />
+                    {/* Live Search Results Dropdown */}
+                    <AnimatePresence>
+                      {searchResults.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                          className="absolute top-full mt-3 left-0 right-0 bg-surface-lowest/95 backdrop-blur-2xl border border-white/5 rounded-[24px] overflow-hidden shadow-2xl z-50"
+                        >
+                          {searchResults.map((u: any) => (
+                            <a key={u.id} href={`/profile/${u.username}`} className="flex items-center gap-4 px-6 py-4 hover:bg-white/5 transition-all group/result">
+                              <img src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`} className="w-9 h-9 rounded-xl border border-white/10 object-cover" alt="avatar" />
+                              <div>
+                                <p className="text-xs font-black text-white italic">{u.display_name || u.username}</p>
+                                <p className="text-[10px] font-bold text-v-cyan opacity-60 uppercase tracking-widest">@{u.username}</p>
+                              </div>
+                            </a>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                  </div>
             </div>
             

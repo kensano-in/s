@@ -23,6 +23,7 @@ export default function PublicProfilePage() {
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [localFollowerCount, setLocalFollowerCount] = useState<number | null>(null);
+  const [dbFollowing, setDbFollowing] = useState<boolean | null>(null); // DB-verified follow state
   
   const { currentUser, isFollowing, toggleFollow } = useAppStore();
   const supabase = useMemo(() => createClient(), []);
@@ -58,9 +59,20 @@ export default function PublicProfilePage() {
           createdAt: user.created_at,
         });
 
-        // Only fetch posts if public OR if we are following them
-        // In a real app we'd also check DB follows. For now we use local isFollowing
-        // but we'll fetch them anyway and hide them in the UI if not following.
+        // DB-verified follow check — accurate across devices/sessions
+        if (currentUser?.id) {
+          const { data: followRow } = await supabase
+            .from('follows')
+            .select('id')
+            .eq('follower_id', currentUser.id)
+            .eq('following_id', user.id)
+            .maybeSingle();
+          setDbFollowing(!!followRow);
+        } else {
+          setDbFollowing(false);
+        }
+
+        // Only fetch posts if public OR if DB confirms we're following
         const { data: posts } = await supabase
           .from('posts')
           .select('*, author:users!posts_author_id_fkey(*)')
@@ -109,7 +121,8 @@ export default function PublicProfilePage() {
     );
   }
 
-  const amFollowing = isFollowing(profileUser?.id || '');
+  // Use DB-verified state for gating. Fall back to local Zustand if DB check is still loading.
+  const amFollowing = dbFollowing !== null ? dbFollowing : isFollowing(profileUser?.id || '');
   const canSeePosts = !profileUser?.isPrivate || amFollowing;
   const displayFollowerCount = localFollowerCount ?? profileUser?.followerCount ?? 0;
 
@@ -117,6 +130,7 @@ export default function PublicProfilePage() {
     if (!profileUser?.id) return;
     const willFollow = !amFollowing;
     setLocalFollowerCount(c => (c ?? profileUser.followerCount) + (willFollow ? 1 : -1));
+    setDbFollowing(willFollow); // Optimistic UI update on the DB-verified state
     toggleFollow(profileUser.id);
   };
 

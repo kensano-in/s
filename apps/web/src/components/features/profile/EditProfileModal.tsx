@@ -9,9 +9,10 @@ import KineticIcon from '@/components/ui/KineticIcon';
 
 interface Props {
   onClose: () => void;
+  isOpen?: boolean;
 }
 
-export default function EditProfileModal({ onClose }: Props) {
+export default function EditProfileModal({ onClose, isOpen = true }: Props) {
   const { currentUser, updateProfile, setCustomThemeManifest } = useAppStore();
   
   // Local React state before pushing global mutation
@@ -92,6 +93,8 @@ export default function EditProfileModal({ onClose }: Props) {
     setIsSaving(false);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

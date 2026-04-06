@@ -90,6 +90,20 @@ export async function toggleCommunityJoin(communityId: string, userId: string, i
         .match({ community_id: communityId, user_id: userId });
       if (error) return { success: false, error: error.message };
     }
+
+    // FIX: Update member_count — Supabase does not auto-update this
+    const { data: comm } = await supabase
+      .from('communities')
+      .select('member_count')
+      .eq('id', communityId)
+      .single();
+    if (comm) {
+      await supabase
+        .from('communities')
+        .update({ member_count: Math.max(0, (comm.member_count || 0) + (isJoining ? 1 : -1)) })
+        .eq('id', communityId);
+    }
+
     revalidatePath('/communities');
     return { success: true };
   } catch(e: any) {

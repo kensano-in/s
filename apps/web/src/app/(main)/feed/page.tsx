@@ -23,8 +23,9 @@ export default function FeedPage() {
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
   const [showGuide, setShowGuide] = useState(true);
+  // Use a ref for page so it doesn't cause useCallback recreation on every fetch
+  const pageRef = useRef(1);
   
   const observerRef = useRef<HTMLDivElement>(null);
   const supabase = useMemo(() => createClient(), []);
@@ -61,10 +62,10 @@ export default function FeedPage() {
   const fetchFeed = useCallback(async (isInitial = false) => {
     if (isInitial) {
         setLoading(true);
-        setPage(1);
+        pageRef.current = 1;
     }
     
-    // Get Current user session
+    // Get Current user session — resolve userId inline to avoid race with state
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id;
     if (userId) setCurrentUserId(userId);
@@ -76,28 +77,33 @@ export default function FeedPage() {
 
     // Apply Tab Filtering
     if (activeTab === 'following' && userId) {
-        // Subquery for following IDs (Complex logic using SQL 'in' or 'filter')
         const { data: following } = await supabase.from('follows').select('following_id').eq('follower_id', userId);
-        const followingIds = following?.map(f => f.following_id) || [];
+        const followingIds = following?.map((f: any) => f.following_id) || [];
         query = query.in('author_id', [userId, ...followingIds]); 
     } else if (activeTab === 'communities' && userId) {
         const { data: joined } = await supabase.from('community_members').select('community_id').eq('user_id', userId);
-        const joinedCommIds = joined?.map(j => j.community_id) || [];
+        const joinedCommIds = joined?.map((j: any) => j.community_id) || [];
         query = query.in('community_id', joinedCommIds);
     }
 
-    const { data, error } = await query.range((isInitial ? 0 : page * 10), (isInitial ? 9 : (page + 1) * 10 - 1));
+    const currentPage = pageRef.current;
+    const { data, error } = await query.range(
+      isInitial ? 0 : currentPage * 10,
+      isInitial ? 9 : (currentPage + 1) * 10 - 1
+    );
 
     if (data && !error) {
-       const posts = data.map(p => formatPost(p, userId));
+       // Pass the resolved userId directly so isLiked is accurate from first paint
+       const posts = data.map((p: any) => formatPost(p, userId));
        setLivePosts(prev => isInitial ? posts : [...prev, ...posts]);
        setHasMore(data.length === 10);
-       if (!isInitial) setPage(p => p + 1);
+       if (!isInitial) pageRef.current = currentPage + 1;
     } else if (error) {
        console.error('Feed fetch error:', error.message);
     }
     setLoading(false);
-  }, [activeTab, formatPost, page, supabase]);
+  // Intentionally exclude `pageRef` — it's a ref, not state. Excludes `page` to prevent infinite loop.
+  }, [activeTab, formatPost, supabase]);
 
   useEffect(() => {
     fetchFeed(true);
