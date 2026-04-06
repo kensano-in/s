@@ -62,13 +62,21 @@ export default function RightPanel() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 size={20} className="animate-spin text-primary-light" />
+          <div className="flex flex-col gap-4 py-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-3 items-center animate-pulse">
+                <div className="w-10 h-10 rounded-full bg-surface-lowest border border-outline-variant/10"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-surface-lowest rounded-full w-24"></div>
+                  <div className="h-2 bg-surface-lowest rounded-full w-16"></div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : suggestedUsers.length === 0 ? (
-          <div className="py-4 text-center">
-            <p className="text-xs text-on-surface-variant">No suggestions yet</p>
-            <p className="text-[11px] text-on-surface-variant/60 mt-1">Invite friends to get started</p>
+          <div className="py-8 text-center bg-surface-lowest/50 rounded-2xl border border-outline-variant/10">
+            <p className="text-xs font-semibold text-on-surface-variant">No signals found</p>
+            <p className="text-[10px] text-on-surface-variant/50 mt-1 uppercase tracking-widest">Network is empty</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -121,20 +129,38 @@ export default function RightPanel() {
         )}
       </div>
 
-      {/* Platform info */}
-      <div className="glass-card p-4">
-        <div className="text-xs font-semibold mb-2.5 gradient-text">Verlyn Platform</div>
-        <div className="text-xs space-y-1" style={{ color: 'var(--text-tertiary)' }}>
-          <div>✦ verlyn.in</div>
-          <div>✦ End-to-End Encrypted</div>
-          <div>✦ Zero tracking · Your data, your rules</div>
-        </div>
-        <div className="v-divider my-3" />
-        <div className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
-          Built with ❤️ by{' '}
-          <a href="https://instagram.com/shinichiro.2" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: 'var(--v-violet-light)' }}>
-            @shinichiro.2
-          </a>
+      {/* Futuristic Cyber-Footer */}
+      <div className="mt-2 glass-card p-5 relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary-light/50 to-transparent opacity-30" />
+        <div className="absolute -inset-24 bg-gradient-to-br from-primary-light/10 via-transparent to-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 blur-2xl pointer-events-none" />
+        
+        <div className="relative z-10 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+            <h3 className="text-[13px] font-display font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">
+              Verlyn platform • <a href="https://verlyn.in" target="_blank" rel="noopener noreferrer" className="hover:text-primary-light transition-colors">Verlyn.in</a>
+            </h3>
+          </div>
+          
+          <div className="text-[11px] font-mono leading-relaxed" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="flex items-center gap-1.5 mb-1 text-on-surface-variant">
+              Built with <span className="text-white hover:scale-125 transition-transform cursor-crosshair">🤍</span> <span className="text-outline-variant/40 mx-1">|</span> Signal Protocol E2EE
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-v-cyan opacity-80">▸</span> WebRTC Voice / Video
+            </div>
+          </div>
+          
+          <div className="v-divider !my-3 opacity-50" />
+          
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-semibold tracking-widest uppercase text-primary-light/80">
+              V0.1.0-alpha
+            </div>
+            <div className="text-[10px] font-mono text-on-surface-variant/50">
+              [ 2026 ]
+            </div>
+          </div>
         </div>
       </div>
     </aside>
