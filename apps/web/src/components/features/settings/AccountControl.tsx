@@ -65,7 +65,7 @@ export default function AccountControl() {
   };
 
   return (
-    <div className="space-y-12 max-w-2xl animate-fade-in italic">
+    <div className="space-y-12 max-w-4xl animate-fade-in pb-20 italic">
       <section>
         <div className="flex items-center gap-3 mb-6 px-1">
           <Download size={18} className="text-v-cyan" />

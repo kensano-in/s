@@ -109,8 +109,8 @@ export default function LegalSupport() {
                     </p>
                 </div>
               </div>
-              <div className="space-y-6 flex flex-col">
-                <div className="flex-1">
+              <div className="space-y-6 flex flex-col min-w-0">
+                <div className="flex-1 min-w-0">
                    <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant px-1 mb-2 block">Intelligence Data</label>
                    <textarea required className="w-full h-full bg-surface-lowest border border-white/5 rounded-3xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-v-cyan/30 transition-all font-medium min-h-[120px] resize-none italic" placeholder="Detail your transmission..." />
                 </div>
