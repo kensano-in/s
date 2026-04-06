@@ -46,7 +46,7 @@ export default function StoryReel() {
     async function loadStories() {
       const { data } = await supabase
         .from('stories')
-        .select('id, media_url, media_type, view_count, expires_at, created_at, author:users(id, username, display_name, avatar_url)')
+        .select('id, media_url, media_type, view_count, expires_at, created_at, author:users!stories_author_id_fkey(id, username, display_name, avatar_url)')
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
