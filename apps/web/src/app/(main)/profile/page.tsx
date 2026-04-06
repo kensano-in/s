@@ -2,7 +2,7 @@
 
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
-import { Edit3, Camera, Award, Grid3x3, Bookmark, Loader2, CheckCircle2, ShieldCheck, Database, Palette, Ghost, Zap, Sparkles, Hash, Activity, Globe, Share2, AlertTriangle, Fingerprint } from 'lucide-react';
+import { Edit3, Camera, Award, Grid3x3, Bookmark, Loader2, CheckCircle2, ShieldCheck, Database, Palette, Ghost, Zap, Sparkles, Hash, Activity, Globe, Share2, AlertTriangle, Fingerprint, Users } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import EditProfileModal from '@/components/features/profile/EditProfileModal';
 import { createClient } from '@/lib/supabase/client';

@@ -22,7 +22,7 @@ interface MediaPreview {
 }
 
 export default function CreatePost() {
-  const { currentUser } = useAppStore();
+  const { currentUser, isAuthLoading } = useAppStore();
   const router = useRouter();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -42,6 +42,21 @@ export default function CreatePost() {
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 300) + 'px';
     }
   }, [content]);
+
+  // Early returns MUST be after all hooks (React Rules of Hooks)
+  if (isAuthLoading) return (
+    <div className="glass-card p-8 mb-10 border-none bg-surface-lowest/40 rounded-[40px] shadow-2xl animate-pulse">
+      <div className="flex gap-6 items-start">
+        <div className="w-14 h-14 rounded-2xl bg-white/5" />
+        <div className="flex-1 space-y-3 pt-2">
+          <div className="h-4 bg-white/5 rounded-full w-3/4" />
+          <div className="h-4 bg-white/5 rounded-full w-1/2" />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!currentUser) return null;
 
   const handleFileSelect = async (files: FileList | null, type: 'image' | 'video') => {
     if (!files || files.length === 0) return;
@@ -154,9 +169,21 @@ export default function CreatePost() {
                                     <button type="button" onClick={() => removeMedia(m.url)} className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-black/80 text-white flex items-center justify-center opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-rose-500">
                                         <X size={18} />
                                     </button>
-                                    <div className="absolute bottom-2 left-4 px-2 py-1 rounded-md bg-black/60 text-[8px] font-black uppercase text-v-cyan tracking-widest border border-v-cyan/20">
-                                        UPLOAD COMPLETE
-                                    </div>
+                                    {!m.uploading && !m.error && m.publicUrl && (
+                                        <div className="absolute bottom-2 left-4 px-2 py-1 rounded-md bg-black/60 text-[8px] font-black uppercase text-v-cyan tracking-widest border border-v-cyan/20">
+                                            UPLOAD COMPLETE
+                                        </div>
+                                    )}
+                                    {m.uploading && (
+                                        <div className="absolute bottom-2 left-4 px-2 py-1 rounded-md bg-black/60 text-[8px] font-black uppercase text-v-amber tracking-widest border border-v-amber/20 animate-pulse">
+                                            UPLOADING...
+                                        </div>
+                                    )}
+                                    {m.error && (
+                                        <div className="absolute bottom-2 left-4 px-2 py-1 rounded-md bg-rose-500/20 text-[8px] font-black uppercase text-rose-500 tracking-widest border border-rose-500/20">
+                                            UPLOAD FAILED
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </motion.div>

@@ -19,7 +19,7 @@ export async function getTrendingWaves() {
     const tags = new Map<string, number>();
     fallbackData?.forEach(p => {
         const matches = p.content.match(/#\w+/g);
-        matches?.forEach(t => tags.set(t, (tags.get(t) || 0) + 1));
+        matches?.forEach((t: string) => tags.set(t, (tags.get(t) || 0) + 1));
     });
     
     return Array.from(tags.entries())
@@ -35,7 +35,7 @@ export async function getDiscoverySignals() {
    const supabase = await createClient();
    const { data, error } = await supabase
        .from('posts')
-       .select('*, author:users(*)')
+       .select('*, author:users!posts_author_id_fkey(*)')
        .order('like_count', { ascending: false })
        .limit(20);
    

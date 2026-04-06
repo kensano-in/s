@@ -28,18 +28,17 @@ module.exports = {
           light: '#4CD7F6',
           dark: '#00424E',
         },
-        on: {
-          surface: '#E5E1E4',
-          surfaceVariant: '#CBC3D9',
-        },
+        'on-surface': '#E5E1E4',
+        'on-surface-variant': '#CBC3D9',
         outline: {
           DEFAULT: '#948DA2',
           variant: '#494456',
         }
       },
       fontFamily: {
-        display: ['Manrope', 'sans-serif'],
+        display: ['Inter', 'sans-serif'],
         body: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
         'ambient': '0 32px 64px -12px rgba(229, 225, 228, 0.06)', // Subliminal tonal shadow

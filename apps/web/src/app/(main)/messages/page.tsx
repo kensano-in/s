@@ -87,26 +87,59 @@ function MessagesContent() {
 
   const activeConv = useMemo(() => conversations.find(c => c.id === activeConvId), [conversations, activeConvId]);
 
-  // --- INITIAL LOAD: Conversations ---
+  // --- INITIAL LOAD: Conversations (batched — no N+1) ---
   useEffect(() => {
     if (!currentUser?.id) { setLoadingConvs(false); return; }
     async function loadConversations() {
-      const { data } = await supabase.from('messages').select('*').or(`sender_id.eq.${currentUser!.id},recipient_id.eq.${currentUser!.id}`).order('sent_at', { ascending: false }).limit(60);
-      const convMap = new Map<string, DBConversation>();
-      if (data) {
-        for (const m of data) {
-          const otherId = m.sender_id === currentUser!.id ? m.recipient_id : m.sender_id;
-          if (convMap.has(otherId)) continue;
-          const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', otherId).single();
-          convMap.set(otherId, { id: otherId, participant_id: otherId, participant_name: other?.display_name || other?.username || 'Unknown Node', participant_username: other?.username || '?', participant_avatar: other?.avatar_url || null, last_message: m.content, updated_at: m.sent_at, unread: 0 });
+      const { data } = await supabase
+        .from('messages')
+        .select('id, content, sent_at, sender_id, recipient_id')
+        .or(`sender_id.eq.${currentUser!.id},recipient_id.eq.${currentUser!.id}`)
+        .order('sent_at', { ascending: false })
+        .limit(60);
+
+      if (!data) { setLoadingConvs(false); return; }
+
+      // 1. Collect unique partner IDs (preserve order = most recent first)
+      const seenOrder: string[] = [];
+      const latestMsg: Record<string, typeof data[0]> = {};
+      for (const m of data) {
+        const otherId = m.sender_id === currentUser!.id ? m.recipient_id : m.sender_id;
+        if (!latestMsg[otherId]) {
+          latestMsg[otherId] = m;
+          seenOrder.push(otherId);
         }
       }
-      if (targetUserId && !convMap.has(targetUserId)) {
-        const { data: tu } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', targetUserId).single();
-        if (tu) convMap.set(targetUserId, { id: tu.id, participant_id: tu.id, participant_name: tu.display_name || tu.username, participant_username: tu.username, participant_avatar: tu.avatar_url, last_message: 'Initialize transmission signal...', updated_at: new Date().toISOString(), unread: 0 });
+
+      // Add targetUserId if not in messages yet
+      if (targetUserId && !latestMsg[targetUserId]) seenOrder.push(targetUserId);
+
+      // 2. Single batch query for all unique participants
+      const { data: profiles } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url')
+        .in('id', seenOrder);
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+      const convMap = new Map<string, DBConversation>();
+      for (const otherId of seenOrder) {
+        const p = profileMap.get(otherId) as any;
+        const m = latestMsg[otherId];
+        convMap.set(otherId, {
+          id: otherId,
+          participant_id: otherId,
+          participant_name: p?.display_name || p?.username || 'Unknown Node',
+          participant_username: p?.username || '?',
+          participant_avatar: p?.avatar_url || null,
+          last_message: m ? m.content : 'Initialize transmission signal...',
+          updated_at: m ? m.sent_at : new Date().toISOString(),
+          unread: 0,
+        });
       }
-      setConversations(Array.from(convMap.values()).sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
-      if (!activeConvId && convMap.size > 0) setActiveConvId(Array.from(convMap.keys())[0]);
+
+      setConversations(Array.from(convMap.values()));
+      if (!activeConvId && convMap.size > 0) setActiveConvId(seenOrder[0]);
       setLoadingConvs(false);
     }
     loadConversations();
@@ -130,6 +163,23 @@ function MessagesContent() {
     }
     loadMessages();
   }, [activeConvId, currentUser?.id, supabase]);
+
+  // --- GLOBAL SEARCH: Users ---
+  useEffect(() => {
+    if (globalSearch.trim().length < 2) { setSearchResults([]); return; }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      const { data } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar_url')
+        .or(`username.ilike.%${globalSearch.trim()}%,display_name.ilike.%${globalSearch.trim()}%`)
+        .neq('id', currentUser?.id || '')
+        .limit(10);
+      setSearchResults(data || []);
+      setIsSearching(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [globalSearch, supabase, currentUser?.id]);
 
   // --- REAL-TIME: Messages & Typing ---
   useEffect(() => {

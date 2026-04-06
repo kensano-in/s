@@ -56,7 +56,7 @@ export default function PersonalInformation() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } else {
-      setError(result.error);
+      setError(result.error ?? null);
     }
     setLoading(false);
   };
@@ -132,7 +132,7 @@ export default function PersonalInformation() {
             <InputRow 
                 icon={Mail} 
                 label="Primary Intelligence Channel" 
-                value={currentUser?.email || 'authenticated@verlyn.in'} 
+                value={currentUser?.username ? `@verlyn.in` : 'authenticated@verlyn.in'} 
                 disabled 
                 desc="CRITICAL IDENTITY SIGNAL (MODIFICATION RESTRICTED BY CORE PROTOCOL)"
             />

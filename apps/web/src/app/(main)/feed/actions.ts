@@ -84,16 +84,23 @@ export async function submitCommentDB(postId: string, userId: string, content: s
 
   try {
     // 1. Insert comment
-    await supabaseAdmin.from('comments').insert({
+    const { data: comment, error: commentError } = await supabaseAdmin.from('comments').insert({
       post_id: postId,
       author_id: userId,
       content: content.trim(),
-    });
+    }).select('id').single();
 
-    // 2. Fetch and Increment post count securely
-    const { data: post } = await supabaseAdmin.from('posts').select('comment_count').eq('id', postId).single();
-    if (post) {
-      await supabaseAdmin.from('posts').update({ comment_count: (post.comment_count || 0) + 1 }).eq('id', postId);
+    if (commentError) throw commentError;
+
+    // 2. Atomic increment — eliminates race condition
+    // Try RPC first (deploy via Supabase dashboard: see schema notes)
+    // Falls back to read-then-write if RPC not deployed yet
+    const { error: rpcError } = await supabaseAdmin.rpc('increment_comment_count', { p_post_id: postId });
+    if (rpcError) {
+      const { data: post } = await supabaseAdmin.from('posts').select('comment_count').eq('id', postId).single();
+      if (post) {
+        await supabaseAdmin.from('posts').update({ comment_count: (post.comment_count || 0) + 1 }).eq('id', postId);
+      }
     }
 
     revalidatePath('/feed');

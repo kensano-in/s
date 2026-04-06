@@ -46,7 +46,7 @@ export default function NotificationsPage() {
     async function load() {
       const { data } = await supabase
         .from('notifications')
-        .select('*, actor:users!actor_id(username, display_name, avatar_url)')
+        .select('*, actor:users!notifications_actor_id_fkey(username, display_name, avatar_url)')
         .eq('user_id', currentUser!.id)
         .order('created_at', { ascending: false })
         .limit(50);
