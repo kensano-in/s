@@ -12,6 +12,8 @@ import { usePathname } from 'next/navigation';
 import { useAppStore } from '@/lib/store';
 import clsx from 'clsx';
 import GlobalRealtimeMonitor from '@/components/layout/GlobalRealtimeMonitor';
+import CommandPalette from '@/components/features/command/CommandPalette';
+import CommandPaletteListener from '@/components/features/command/CommandPaletteListener';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,6 +31,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <ThemeEngineProvider />
       <AuthProvider />
       <GlobalRealtimeMonitor />
+      <CommandPalette />
+      <CommandPaletteListener />
 
       {/* Mobile drawer overlay */}
       {isMobileDrawerOpen && (
