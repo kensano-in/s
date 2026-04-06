@@ -71,7 +71,7 @@ export default function FeedPage() {
 
     let query = supabase
       .from('posts')
-      .select('*, author:users!posts_author_id_fkey(*), community:communities(display_name), post_likes!left(user_id)')
+      .select('*, author:users!posts_author_id_fkey(*), post_likes!left(user_id)')
       .order('created_at', { ascending: false });
 
     // Apply Tab Filtering
@@ -93,6 +93,8 @@ export default function FeedPage() {
        setLivePosts(prev => isInitial ? posts : [...prev, ...posts]);
        setHasMore(data.length === 10);
        if (!isInitial) setPage(p => p + 1);
+    } else if (error) {
+       console.error('Feed fetch error:', error.message);
     }
     setLoading(false);
   }, [activeTab, formatPost, page, supabase]);
