@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Theme, Notification, User, Conversation } from '@/lib/types';
 import { dispatchProfileSync } from '@/lib/sync-engine';
+import { toggleFollowDB } from '@/app/(main)/profile/actions';
 
 interface AppState {
   // Theme
@@ -160,7 +161,7 @@ export const useAppStore = create<AppState>()(
       setActiveConversation: (id) => set({ activeConversationId: id }),
       messages: {},
 
-      onlineUsers: ['u1', 'u3', 'u5', 'u_current'],
+      onlineUsers: [],
 
       searchQuery: '',
       setSearchQuery: (q) => set({ searchQuery: q }),
@@ -242,13 +243,8 @@ export const useAppStore = create<AppState>()(
         });
 
         if (state.currentUser?.id) {
-          // Send to global window queue to evade strict Webpack action boundary
-          if (typeof window !== 'undefined') {
-             (window as any)._verlynFollowQueue = (window as any)._verlynFollowQueue || [];
-             (window as any)._verlynFollowQueue.push({ userId, state: !isFollowingNow });
-             // Fire event
-             window.dispatchEvent(new CustomEvent('verlyn-follow-sync'));
-          }
+          // Real DB sync — fire and forget with optimistic UI above
+          toggleFollowDB(state.currentUser.id, userId, !isFollowingNow).catch(console.error);
         }
       },
       toggleSave: (postId) => set((s) => ({
@@ -271,6 +267,8 @@ export const useAppStore = create<AppState>()(
       setSettingPushNotifs: (v: boolean) => set({ settingPushNotifs: v }),
       setSettingEmailDigest: (v: boolean) => set({ settingEmailDigest: v }),
       setSettingPrivateAccount: (v: boolean) => set({ settingPrivateAccount: v }),
+      isCommandPaletteOpen: false,
+      setCommandPaletteOpen: (v: boolean) => set({ isCommandPaletteOpen: v }),
       _hasHydrated: false,
     }),
     {

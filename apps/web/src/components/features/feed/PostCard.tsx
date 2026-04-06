@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { Post } from '@/lib/types';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Repeat2, Pencil, Trash2, X, Check, ShieldCheck, Zap, Sparkles, AlertCircle } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Repeat2, Pencil, Trash2, X, Check, ShieldCheck, Zap, Sparkles, AlertCircle, Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
-import { deletePost, editPost, submitCommentDB, toggleLikeDB } from '@/app/(main)/feed/actions';
+import { deletePost, editPost, submitCommentDB, toggleLikeDB, toggleSaveDB } from '@/app/(main)/feed/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function fmt(n: number): string {
@@ -68,6 +68,7 @@ export default function PostCard({ post, currentUserId }: Props) {
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [isCardHovered, setIsCardHovered] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [repostToast, setRepostToast] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -118,6 +119,29 @@ export default function PostCard({ post, currentUserId }: Props) {
     setLiked(isLiking);
     setLikeCount((c) => isLiking ? c + 1 : c - 1);
     await toggleLikeDB(post.id, currentUserId, isLiking);
+  };
+
+  const handleSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUserId) return;
+    const isSaving = !saved;
+    setSaved(isSaving);
+    await toggleSaveDB(post.id, currentUserId, isSaving);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim()) return;
+    setIsSaving(true);
+    const result = await editPost(post.id, editContent.trim());
+    if (result?.success || !result?.error) {
+      setIsEditing(false);
+    }
+    setIsSaving(false);
+  };
+
+  const handleRepost = () => {
+    setRepostToast(true);
+    setTimeout(() => setRepostToast(false), 2000);
   };
 
   const handleDelete = async () => {
@@ -232,9 +256,18 @@ export default function PostCard({ post, currentUserId }: Props) {
           <div className="flex items-center gap-2">
             <ActionBtn active={liked} icon={Heart} label={fmt(likeCount)} activeColor="text-rose-500" onClick={handleLike} />
             <ActionBtn active={showCommentInput} icon={MessageCircle} label={fmt(commentCount)} activeColor="text-v-cyan" onClick={() => setShowCommentInput(!showCommentInput)} />
-            <ActionBtn icon={Repeat2} label={fmt(post.shareCount || 0)} activeColor="text-v-emerald" onClick={() => {}} />
+            <div className="relative">
+              <ActionBtn icon={Repeat2} label={fmt(post.shareCount || 0)} activeColor="text-v-emerald" onClick={handleRepost} />
+              <AnimatePresence>
+                {repostToast && (
+                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: -4 }} exit={{ opacity: 0 }} className="absolute -top-8 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-v-emerald bg-v-emerald/10 border border-v-emerald/20 px-3 py-1 rounded-full whitespace-nowrap">
+                    Coming Soon
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-          <button onClick={() => setSaved(!saved)} className={clsx('w-10 h-10 rounded-2xl flex items-center justify-center transition-all', saved ? 'bg-v-violet text-white shadow-xl' : 'text-on-surface-variant hover:text-white')}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'} /></button>
+          <button onClick={handleSave} className={clsx('w-10 h-10 rounded-2xl flex items-center justify-center transition-all', saved ? 'bg-v-violet text-white shadow-xl' : 'text-on-surface-variant hover:text-white')}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'} /></button>
         </div>
 
         {/* Inline Comment Feed */}

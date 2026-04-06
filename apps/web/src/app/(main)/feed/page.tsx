@@ -27,7 +27,7 @@ export default function FeedPage() {
   const observerRef = useRef<HTMLDivElement>(null);
   const supabase = useMemo(() => createClient(), []);
 
-  const formatPost = useCallback((dbPost: any): Post => {
+  const formatPost = useCallback((dbPost: any, currentUserId?: string): Post => {
     const author = dbPost.author;
     return {
       id: dbPost.id,
@@ -52,6 +52,7 @@ export default function FeedPage() {
       },
       communityId: dbPost.community_id,
       communityName: dbPost.community?.display_name,
+      isLiked: Array.isArray(dbPost.post_likes) && dbPost.post_likes.some((l: any) => l.user_id === currentUserId),
     };
   }, []);
 
@@ -66,7 +67,10 @@ export default function FeedPage() {
     const userId = authData?.user?.id;
     if (userId) setCurrentUserId(userId);
 
-    let query = supabase.from('posts').select('*, author:users(*), community:communities(display_name)').order('created_at', { ascending: false });
+    let query = supabase
+      .from('posts')
+      .select('*, author:users(*), community:communities(display_name), post_likes!left(user_id)')
+      .order('created_at', { ascending: false });
 
     // Apply Tab Filtering
     if (activeTab === 'following' && userId) {
@@ -83,7 +87,7 @@ export default function FeedPage() {
     const { data, error } = await query.range((isInitial ? 0 : page * 10), (isInitial ? 9 : (page + 1) * 10 - 1));
 
     if (data && !error) {
-       const posts = data.map(formatPost);
+       const posts = data.map(p => formatPost(p, userId));
        setLivePosts(prev => isInitial ? posts : [...prev, ...posts]);
        setHasMore(data.length === 10);
        if (!isInitial) setPage(p => p + 1);
