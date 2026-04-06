@@ -71,7 +71,7 @@ export default function FeedPage() {
 
     let query = supabase
       .from('posts')
-      .select('*, author:users!posts_author_id_fkey(*), community:communities(display_name), post_likes!left(user_id)')
+      .select('*, author:users!posts_author_id_fkey(*), community:communities!posts_community_id_fkey(display_name), post_likes!left(user_id)')
       .order('created_at', { ascending: false });
 
     // Apply Tab Filtering
