@@ -9,14 +9,15 @@ import {
   Home, MessageCircle, Users, Search, Zap, Bell,
   Settings, ChevronLeft, TrendingUp, Plus, Radio, Activity, Cpu, ShieldCheck, Fingerprint, Ghost, Sparkles, Orbit
 } from 'lucide-react';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 const NAV_ITEMS = [
-  { id: 'feed',          label: 'Neural Feed',       icon: Radio,         href: '/feed'        },
-  { id: 'explore',       label: 'Explore Expanse',   icon: Search,        href: '/explore'     },
-  { id: 'messages',      label: 'Signals Hub',       icon: MessageCircle, href: '/messages'    },
-  { id: 'communities',   label: 'Node Matrix',       icon: Users,         href: '/communities' },
-  { id: 'trending',      label: 'Trending Waves',    icon: Orbit,         href: '/trending'    },
-  { id: 'funzone',       label: 'Fun Zone',          icon: Zap,           href: '/funzone'     }
+  { id: 'feed',          label: 'Home',              sub: 'Neural Feed',       icon: Radio,         href: '/feed'        },
+  { id: 'explore',       label: 'Discovery',         sub: 'Explore Expanse',   icon: Search,        href: '/explore'     },
+  { id: 'messages',      label: 'Messages',          sub: 'Signals Hub',       icon: MessageCircle, href: '/messages'    },
+  { id: 'communities',   label: 'Communities',       sub: 'Node Matrix',       icon: Users,         href: '/communities' },
+  { id: 'trending',      label: 'Trending',          sub: 'Neural Waves',      icon: Orbit,         href: '/trending'    },
+  { id: 'funzone',       label: 'Arcade',            sub: 'Neural Simulations',icon: Zap,           href: '/funzone'     }
 ];
 
 const SPRING = { type: 'spring' as const, stiffness: 400, damping: 28, mass: 0.8 };
@@ -48,14 +49,14 @@ export default function Sidebar() {
         
         {/* Identity Head */}
         <div className={clsx('flex items-center gap-4 px-6 mb-10 transition-all duration-500', sidebarCollapsed && 'justify-center px-0')}>
-           <div className="relative group">
-                <div className="w-11 h-11 rounded-[16px] bg-black border border-white/10 flex items-center justify-center text-white font-black text-xl shadow-2xl relative overflow-hidden group-hover:border-v-cyan/50 transition-all duration-500">
-                    <span className="relative z-10">V</span>
-                    <div className="absolute inset-0 bg-primary-gradient opacity-20 group-hover:opacity-100 transition-opacity" />
-                </div>
-                {/* Orbital Status Ring */}
-                {!sidebarCollapsed && <div className="absolute -inset-1 border border-v-cyan/10 rounded-[18px] animate-spin-slow opacity-0 group-hover:opacity-100 transition-opacity" />}
-           </div>
+            <div className="relative group cursor-pointer" onClick={() => router.push('/feed')}>
+                 <div className="w-11 h-11 rounded-[16px] bg-black border border-white/10 flex items-center justify-center text-white font-black text-xl shadow-2xl relative overflow-hidden group-hover:border-v-cyan/50 transition-all duration-500">
+                     <KineticIcon icon={Radio} size={20} color="var(--v-cyan)" pulse glow />
+                     <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-100 transition-opacity" />
+                 </div>
+                 {/* Orbital Status Ring */}
+                 {!sidebarCollapsed && <div className="absolute -inset-1 border border-v-cyan/10 rounded-[18px] animate-spin-slow opacity-0 group-hover:opacity-100 transition-opacity" />}
+            </div>
            {!sidebarCollapsed && (
              <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col">
                 <span className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">Verlyn</span>
@@ -71,12 +72,12 @@ export default function Sidebar() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => router.push('/feed')}
                 className={clsx(
-                    'bg-primary-gradient text-white flex items-center justify-center gap-3 shadow-3xl group relative overflow-hidden transition-all duration-500',
-                    sidebarCollapsed ? 'w-12 h-12 rounded-[18px]' : 'w-full py-4 px-6 rounded-[22px]'
+                    'bg-primary-gradient text-white flex items-center justify-center gap-3 shadow-[0_15px_40px_rgba(108,99,255,0.3)] group relative overflow-hidden transition-all duration-500',
+                    sidebarCollapsed ? 'w-12 h-12 rounded-[18px]' : 'w-full py-5 px-6 rounded-[22px]'
                 )}
              >
-                <Plus size={20} className="relative z-10 group-hover:rotate-90 transition-transform duration-500" />
-                {!sidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-[0.2em] relative z-10">Broadcast Pulse</span>}
+                <KineticIcon icon={Plus} size={20} color="white" pulse={!sidebarCollapsed} />
+                {!sidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-[0.2em] relative z-10">Neural Broadcast</span>}
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
              </motion.button>
         </div>
@@ -95,16 +96,27 @@ export default function Sidebar() {
                                 sidebarCollapsed && 'justify-center px-0'
                             )}
                         >
-                            <div className={clsx('relative z-10 p-0.5 transition-all duration-500', active && 'text-v-cyan scale-110')}>
-                                <Icon size={20} />
-                                {item.id === 'messages' && unreadNotifCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-v-cyan rounded-full border-2 border-black" />}
-                            </div>
-                            
-                            {!sidebarCollapsed && (
-                                <span className={clsx('text-[13px] font-black uppercase tracking-widest relative z-10 transition-all duration-500', active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100')}>
-                                    {item.label}
-                                </span>
-                            )}
+                             <div className={clsx('relative z-10 p-0.5 transition-all duration-500', active && 'text-v-cyan scale-110')}>
+                                 <KineticIcon 
+                                    icon={Icon} 
+                                    size={20} 
+                                    active={active} 
+                                    pulse={active}
+                                    color={active ? 'var(--v-cyan)' : 'currentColor'} 
+                                 />
+                                 {item.id === 'messages' && unreadNotifCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-v-cyan rounded-full border-2 border-black" />}
+                             </div>
+                             
+                             {!sidebarCollapsed && (
+                                <div className="flex flex-col text-left">
+                                    <span className={clsx('text-[13px] font-black uppercase tracking-widest relative z-10 transition-all duration-500', active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100')}>
+                                        {item.label}
+                                    </span>
+                                    <span className={clsx('text-[8px] font-black uppercase tracking-[0.3em] opacity-40 group-hover:opacity-60 transition-opacity', active ? 'text-v-cyan' : 'text-on-surface-variant')}>
+                                        {item.sub}
+                                    </span>
+                                </div>
+                             )}
 
                             {active && <motion.div layoutId="sidebar-active" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-v-cyan rounded-full shadow-[0_0_15px_var(--v-cyan)]" />}
                         </motion.div>
@@ -179,7 +191,7 @@ function SidebarAction({ icon: Icon, label, href, active, onClick, badge, collap
             collapsed && 'justify-center px-0'
         )}>
             <div className="relative">
-                <Icon size={18} className="group-hover:scale-110 transition-transform" />
+                <KineticIcon icon={Icon} size={18} active={active} pulse={active} color={active ? 'var(--v-cyan)' : 'currentColor'} />
                 {badge && <span className="absolute -top-1 -right-1 w-2 h-2 bg-v-cyan rounded-full shadow-[0_0_8px_var(--v-cyan)]" />}
             </div>
             {!collapsed && <span className="text-[11px] font-black uppercase tracking-widest">{label}</span>}

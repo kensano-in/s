@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getCommunities, createCommunity, toggleCommunityJoin } from './actions';
 import { useAppStore } from '@/lib/store';
 import clsx from 'clsx';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 export default function CommunitiesPage() {
   const { currentUser } = useAppStore();
@@ -62,22 +63,24 @@ export default function CommunitiesPage() {
     <div className="space-y-12 max-w-7xl mx-auto pb-32 animate-fade-in text-on-surface p-6 italic">
       {/* Header & Search */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10">
-        <div className="space-y-2">
-          <h1 className="text-6xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Nodes</h1>
-          <div className="flex items-center gap-3">
-             <div className="w-2 h-2 rounded-full bg-v-cyan animate-pulse shadow-[0_0_10px_var(--v-cyan)]" />
-             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-on-surface-variant opacity-60">SOVEREIGN COMMUNITY ENGINE V1.0</p>
+        <div className="space-y-4">
+          <h1 className="text-6xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Communities</h1>
+          <div className="flex items-center gap-4">
+             <KineticIcon icon={Users} size={14} color="var(--v-cyan)" pulse active />
+             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-on-surface-variant opacity-60">Sovereign Node Matrix (Humanized)</p>
           </div>
         </div>
 
-        <div className="flex w-full lg:w-auto gap-4">
+        <div className="flex w-full lg:w-auto gap-4 items-center">
            <div className="relative flex-1 lg:w-96 group">
-             <Search size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-v-cyan transition-colors" />
-             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SCAN PROTOCOLS..." className="w-full bg-surface-lowest/40 border border-white/5 text-xs font-black uppercase tracking-widest rounded-3xl py-5 pl-14 pr-8 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/30 italic shadow-2xl" />
+              <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                 <KineticIcon icon={Search} size={18} color="var(--v-cyan)" active pulse />
+              </div>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SEARCH COMMUNITIES..." className="w-full bg-surface-lowest/40 border border-white/5 text-[10px] font-black uppercase tracking-widest rounded-3xl py-5 pl-14 pr-8 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/30 italic shadow-2xl" />
            </div>
-           <button onClick={() => setShowModal(true)} className="flex items-center justify-center gap-3 px-10 py-5 bg-primary-gradient rounded-3xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-all shadow-[0_20px_40px_rgba(108,99,255,0.25)] active:scale-95 group text-white">
-            <Plus size={18} className="group-hover:rotate-90 transition-transform" />
-            INITIALIZE NODE
+           <button onClick={() => setShowModal(true)} className="flex items-center justify-center gap-4 px-10 py-5 bg-primary-gradient rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] hover:scale-105 active:scale-95 transition-all shadow-[0_20px_40px_rgba(108,99,255,0.25)] group text-white">
+            <KineticIcon icon={Plus} size={18} color="white" active pulse />
+            START_COMMUNITY
            </button>
         </div>
       </div>
@@ -108,11 +111,14 @@ export default function CommunitiesPage() {
                 
                 <div className="relative space-y-6">
                     <div className="flex items-center gap-6">
-                        <img src={c.icon_url} className="w-16 h-16 rounded-[24px] border-2 border-white/5 group-hover:border-v-cyan group-hover:rotate-6 transition-all duration-500" alt="icon" />
+                        <div className="relative group/icon">
+                            <img src={c.icon_url} className="w-16 h-16 rounded-[24px] border-2 border-white/5 group-hover:border-v-cyan transition-all duration-500 relative z-10" alt="icon" />
+                            <div className="absolute -inset-2 bg-v-cyan/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full -z-0" />
+                        </div>
                         <div>
                             <h3 className="text-xl font-black italic tracking-tighter text-white uppercase group-hover:text-v-cyan transition-colors">{c.display_name}</h3>
                             <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 italic">
-                                <Hash size={10} className="text-v-cyan" /> {c.name.toUpperCase()}
+                                <KineticIcon icon={Hash} size={10} color="var(--v-cyan)" /> {c.name.toUpperCase()}
                             </div>
                         </div>
                     </div>
@@ -121,32 +127,32 @@ export default function CommunitiesPage() {
                         {c.description}
                     </p>
 
-                    <div className="flex items-center gap-4 xl:gap-6 pt-4 flex-wrap">
+                    <div className="flex items-center gap-6 xl:gap-8 pt-4 flex-wrap">
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan mb-1">{c.member_count}</span>
-                            <span className="text-[8px] font-black opacity-30 uppercase tracking-tight">ACTIVE_NODES</span>
+                            <span className="text-sm font-black italic tracking-tighter text-v-cyan mb-0.5">{c.member_count}</span>
+                            <span className="text-[7px] font-black opacity-30 uppercase tracking-[0.2em]">Members</span>
                         </div>
                         <div className="w-px h-8 bg-white/5" />
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-v-violet mb-1">LVL {c.boost_level}</span>
-                            <span className="text-[8px] font-black opacity-30 uppercase tracking-tight">SIGNAL_POWER</span>
+                            <span className="text-sm font-black italic tracking-tighter text-v-violet mb-0.5">LVL {c.boost_level}</span>
+                            <span className="text-[7px] font-black opacity-30 uppercase tracking-[0.2em]">Activity_Level</span>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mt-10 pt-8 border-t border-white/5 relative z-10">
                     <div className="flex items-center gap-3">
-                        {c.is_private ? <Lock size={14} className="text-rose-400" /> : <Globe size={14} className="text-v-emerald" />}
-                        <span className={clsx('text-[9px] font-black uppercase tracking-tighter italic', c.is_private ? 'text-rose-400' : 'text-v-emerald')}>
+                        <KineticIcon icon={c.is_private ? Lock : Globe} size={14} color={c.is_private ? '#FB7185' : '#10B981'} active pulse />
+                        <span className={clsx('text-[8px] font-black uppercase tracking-widest italic', c.is_private ? 'text-rose-400' : 'text-v-emerald')}>
                             {c.is_private ? 'Sovereign Private' : 'Public Domain'}
                         </span>
                     </div>
 
                     <button 
                         onClick={() => handleJoinLeave(c.id, !c.isJoined)}
-                        className={clsx('px-6 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border italic', c.isJoined ? 'bg-surface-high text-on-surface-variant border-white/5 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/20' : 'bg-white text-black border-transparent hover:bg-v-cyan')}
+                        className={clsx('px-8 py-3 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 border italic', c.isJoined ? 'bg-surface-high text-on-surface-variant border-white/5 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/20' : 'bg-white text-black border-transparent hover:bg-v-cyan')}
                     >
-                        {c.isJoined ? 'PURGE_NODE' : 'JOIN_PROTOCOL'}
+                        {c.isJoined ? 'LEAVE_NODE' : 'JOIN_COMMUNITY'}
                     </button>
                 </div>
              </div>
@@ -165,21 +171,25 @@ export default function CommunitiesPage() {
                     className="glass-card w-full max-w-2xl p-12 border-none bg-[#050505] shadow-[0_0_120px_rgba(108,99,255,0.1)] rounded-[60px]"
                   >
                       <div className="flex justify-between items-center mb-10">
-                         <div className="flex items-center gap-4">
-                             <div className="w-14 h-14 rounded-3xl bg-primary-gradient flex items-center justify-center text-white"><Zap size={24} /></div>
+                         <div className="flex items-center gap-6">
+                             <div className="w-14 h-14 rounded-3xl bg-primary-gradient flex items-center justify-center text-white shadow-2xl">
+                                <KineticIcon icon={Zap} size={24} color="white" pulse glow active />
+                             </div>
                              <div>
-                                <h3 className="text-3xl font-black italic tracking-tighter uppercase leading-none mb-1 text-white">Initialize Protocol</h3>
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">DEPLOYING NEW SOVEREIGN NODE</p>
+                                <h3 className="text-3xl font-black italic tracking-tighter uppercase leading-none mb-1 text-white">Start Community</h3>
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">DEPLOYING NEW NEURAL HUB</p>
                              </div>
                          </div>
-                         <button onClick={() => setShowModal(false)}><X size={24} className="hover:text-rose-500 transition-colors" /></button>
+                         <button onClick={() => setShowModal(false)} className="p-3 hover:bg-white/5 rounded-2xl transition-all">
+                            <KineticIcon icon={X} size={24} color="var(--on-surface-variant)" />
+                         </button>
                       </div>
 
                       <div className="space-y-8">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <ModalInput label="Protocol Signal Name" value={newComm.displayName} onChange={(v: string) => setNewComm({...newComm, displayName: v, name: v.toLowerCase().replace(/ /g, '_').replace(/[^a-z0-9_]/g, '')})} placeholder="Cyber Intelligence" />
-                            <ModalInput label="Network Identifier" value={newComm.name} disabled labelIcon={<Hash size={10} />} desc="IMMUTABLE KERNEL ID" />
-                         </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                             <ModalInput label="Community Name" value={newComm.displayName} onChange={(v: string) => setNewComm({...newComm, displayName: v, name: v.toLowerCase().replace(/ /g, '_').replace(/[^a-z0-9_]/g, '')})} placeholder="Neural Network" />
+                             <ModalInput label="Namespace Identifier" value={newComm.name} disabled labelIcon={<KineticIcon icon={Hash} size={10} color="var(--v-cyan)" />} desc="IMMUTABLE KERNEL ID" />
+                          </div>
                          <div className="space-y-2">
                              <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant px-1 mb-2 block italic">Intelligence Description</label>
                              <textarea value={newComm.description} onChange={(e) => setNewComm({...newComm, description: e.target.value})} className="w-full bg-surface-lowest border border-white/5 rounded-3xl py-6 px-8 text-sm focus:outline-none focus:ring-2 focus:ring-v-cyan/20 transition-all font-medium min-h-[120px] resize-none italic shadow-inner" placeholder="Briefly define the protocol scope..." />

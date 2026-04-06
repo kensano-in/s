@@ -2,10 +2,12 @@
 
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
-import { Grid3x3, Bookmark, Award, Sparkles, Lock, Loader2, UserPlus, UserCheck } from 'lucide-react';
+import { Grid3x3, Bookmark, Award, Sparkles, Lock, Loader2, UserPlus, UserCheck, Activity, Globe, ShieldCheck, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import KineticIcon from '@/components/ui/KineticIcon';
 import { createClient } from '@/lib/supabase/client';
 import { useParams, useRouter } from 'next/navigation';
+import clsx from 'clsx';
 import type { User } from '@/lib/types';
 
 function kFmt(n: number) {
@@ -119,101 +121,76 @@ export default function PublicProfilePage() {
   };
 
   return (
-    <div className="space-y-0 animate-fade-in pb-12">
-      {/* IG-style Profile Header */}
-      <div className="pt-8 pb-4 px-4 sm:px-8 max-w-[800px] mx-auto">
-        <div className="flex items-center gap-6 sm:gap-14 mb-6">
-          {/* Avatar (Left) */}
-          <div className="flex-shrink-0">
-            <div className="p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500">
-              <div className="p-[3px] bg-background rounded-full">
-                <img
-                  src={profileUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
-                  alt={`${profileUser.displayName}'s avatar`}
-                  className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block"
-                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`; }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Stats & Actions (Right) */}
-          <div className="flex-1 flex flex-col justify-center">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mb-4">
-              <h1 className="text-xl sm:text-2xl font-normal text-on-surface flex items-center gap-2">
-                {profileUser.username}
-                {profileUser.isVerified && (
-                  <div className="verified-badge w-4 h-4 ml-1">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                  </div>
-                )}
-                {profileUser.isPrivate && <Lock size={14} className="text-on-surface-variant ml-1" />}
-              </h1>
-              
-              {/* Desktop Actions */}
-              <div className="hidden sm:flex items-center gap-2">
-                <button
-                  onClick={handleFollow}
-                  className={amFollowing ? 'px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition' : 'px-4 py-1.5 bg-primary text-on-primary rounded-lg text-[14px] font-semibold hover:bg-primary-light transition'}
-                >
-                  {amFollowing ? 'Following' : 'Follow'}
-                </button>
-                <button 
-                  onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
-                  className="px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-[14px] font-semibold hover:bg-surface-highest transition"
-                >
-                  Message
-                </button>
-              </div>
+    <div className="space-y-12 animate-fade-in pb-32 max-w-7xl mx-auto p-6 italic">
+      
+      {/* Sovereign Profile HUD */}
+      <div className="glass-card p-12 bg-surface-lowest/40 border-none rounded-[60px] shadow-[0_0_100px_rgba(0,255,255,0.05)] relative overflow-hidden group">
+         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(var(--white) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+         <div className="absolute -inset-20 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity blur-[100px] -z-10" />
+         
+         <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
+            <div className="flex-shrink-0 relative group">
+                <div className="absolute -inset-4 bg-primary-gradient rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                <div className="w-[180px] h-[180px] rounded-full p-1 bg-white/10 relative z-10">
+                    <img
+                      src={profileUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
+                      alt="profile"
+                      className="w-full h-full rounded-full object-cover border-4 border-black group-hover:scale-105 transition-transform duration-700"
+                    />
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-v-emerald p-2 rounded-2xl shadow-[0_0_20px_var(--v-emerald)] z-20">
+                    <KineticIcon icon={ShieldCheck} size={20} color="white" active pulse />
+                </div>
             </div>
 
-            {/* Desktop Stats */}
-            <div className="hidden sm:flex items-center gap-10 mb-4 text-[15px]">
-              <div><span className="font-semibold text-on-surface">{userPosts.length}</span> posts</div>
-              <div><span className="font-semibold text-on-surface">{kFmt(displayFollowerCount)}</span> followers</div>
-              <div><span className="font-semibold text-on-surface">{kFmt(profileUser!.followingCount)}</span> following</div>
+            <div className="flex-1 space-y-6 text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-start gap-4">
+                    <div className="flex items-center gap-3 opacity-60">
+                        <Activity size={14} className="text-v-cyan animate-pulse" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Identity_Node_Active</span>
+                    </div>
+                </div>
+                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">
+                    {profileUser.displayName} <br/><span className="text-v-cyan">@{profileUser.username}</span>
+                </h1>
+                <p className="text-sm font-bold text-on-surface-variant opacity-60 max-w-xl italic">
+                    {profileUser.bio || "This identity node is currently silent in the collective matrix."}
+                </p>
+                
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4">
+                    <button 
+                        onClick={handleFollow}
+                        className={clsx(
+                            "px-10 py-4 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] transition-all transform active:scale-95 italic",
+                            amFollowing ? "bg-surface-high/60 text-white border border-white/10" : "bg-white text-black hover:bg-v-cyan shadow-2xl"
+                        )}
+                    >
+                        {amFollowing ? 'Joined_Node' : 'Join_Node'}
+                    </button>
+                    <button 
+                        onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
+                        className="px-10 py-4 bg-surface-lowest/40 border border-white/5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] text-white hover:bg-white/5 transition-all italic"
+                    >
+                        Send_Signal
+                    </button>
+                </div>
             </div>
 
-            {/* Desktop Bio */}
-            <div className="hidden sm:block">
-              <div className="font-bold text-[15px] mb-1 text-on-surface">{profileUser.displayName}</div>
-              <p className="text-[15px] whitespace-pre-wrap text-on-surface leading-snug">
-                {profileUser.bio || "This user hasn't written a bio yet."}
-              </p>
+            <div className="hidden lg:grid grid-cols-2 gap-4">
+                {[
+                    { label: 'Posts', val: userPosts.length, icon: Grid3x3 },
+                    { label: 'Followers', val: kFmt(displayFollowerCount), icon: UserPlus },
+                    { label: 'Following', val: kFmt(profileUser.followingCount), icon: Globe },
+                    { label: 'Karma', val: kFmt(profileUser.karmaScore), icon: Award }
+                ].map((stat) => (
+                    <div key={stat.label} className="glass-card p-6 bg-white/[0.02] border-none rounded-[32px] flex flex-col items-center gap-2 hover:bg-white/[0.05] transition-all group">
+                        <KineticIcon icon={stat.icon} size={18} color="var(--v-cyan)" active />
+                        <span className="text-xl font-black italic text-white leading-none">{stat.val}</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest opacity-30">{stat.label}</span>
+                    </div>
+                ))}
             </div>
-          </div>
-        </div>
-
-        {/* Mobile Bio */}
-        <div className="sm:hidden px-2 mb-4">
-          <div className="font-bold text-[14px] mb-1 text-on-surface">{profileUser.displayName}</div>
-          <p className="text-[14px] whitespace-pre-wrap text-on-surface leading-snug">
-            {profileUser.bio || "This user hasn't written a bio yet."}
-          </p>
-        </div>
-
-        {/* Mobile Stats */}
-        <div className="sm:hidden flex items-center justify-around py-3 mb-2 border-t border-outline-variant/30 text-[14px]">
-          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{userPosts.length}</span> <span className="text-on-surface-variant text-[13px]">posts</span></div>
-          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(profileUser.followerCount)}</span> <span className="text-on-surface-variant text-[13px]">followers</span></div>
-          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(profileUser.followingCount)}</span> <span className="text-on-surface-variant text-[13px]">following</span></div>
-        </div>
-
-        {/* Mobile Actions */}
-        <div className="sm:hidden flex items-center gap-2 mb-6">
-          <button
-            onClick={handleFollow}
-            className={amFollowing ? 'flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition' : 'flex-1 py-1.5 bg-primary text-on-primary rounded-lg text-sm font-semibold transition'}
-          >
-            {amFollowing ? 'Following' : 'Follow'}
-          </button>
-          <button 
-            onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
-            className="flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition"
-          >
-            Message
-          </button>
-        </div>
+         </div>
       </div>
 
       {/* Tabs */}

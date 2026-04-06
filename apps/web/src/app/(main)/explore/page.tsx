@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import Link from 'next/link';
 import PostCard from '@/components/features/feed/PostCard';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -15,10 +16,10 @@ function fmt(n: number): string {
 }
 
 const CATEGORIES = [
-  { id: 'trending', label: 'Trending', icon: TrendingUp },
-  { id: 'broadcast', label: 'Broadcasts', icon: Radio },
-  { id: 'nodes', label: 'Top Nodes', icon: Globe },
-  { id: 'matrix', label: 'Network Matrix', icon: Signal }
+  { id: 'trending', label: 'Trending', sub: 'Waves', icon: TrendingUp },
+  { id: 'broadcast', label: 'Broadcasts', sub: 'Live', icon: Radio },
+  { id: 'nodes', label: 'Top Nodes', sub: 'Verified', icon: Globe },
+  { id: 'matrix', label: 'Network Matrix', sub: 'Grid', icon: Signal }
 ];
 
 export default function ExplorePage() {
@@ -67,19 +68,27 @@ export default function ExplorePage() {
                     <Activity size={14} className="text-v-cyan animate-pulse" />
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Network_Recon_Active</span>
                 </div>
-                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none mb-6">Explore <br/><span className="text-v-cyan">The Expanse</span></h1>
-                <div className="relative group/search max-w-xl">
-                   <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within/search:text-v-cyan transition-colors" />
-                   <input 
-                     type="text" 
-                     placeholder="Search node identifiers, wave tags, encrypted signals..." 
-                     className="w-full bg-black/40 border-2 border-white/5 rounded-[30px] py-6 pl-16 pr-8 text-lg font-bold tracking-tight text-white placeholder:text-on-surface-variant/20 focus:outline-none focus:border-v-cyan/20 focus:ring-0 transition-all font-mono"
-                   />
-                   <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-2 opacity-30">
-                       <span className="text-[8px] font-black uppercase tracking-[0.2em]">Ready</span>
-                       <Zap size={10} className="text-v-emerald" />
-                   </div>
-                </div>
+                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none mb-6">Discover <br/><span className="text-v-cyan">The Collective</span></h1>
+                 <div className="relative group/search max-w-xl">
+                    <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                        <KineticIcon icon={Search} size={22} color="var(--v-cyan)" active pulse />
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Search people, tags, or signals..." 
+                      className="w-full bg-black/40 border-2 border-white/5 rounded-[30px] py-6 pl-16 pr-8 text-lg font-black italic tracking-tight text-white placeholder:text-on-surface-variant/20 focus:outline-none focus:border-v-cyan/20 focus:ring-1 focus:ring-v-cyan/20 transition-all font-mono"
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3 opacity-30">
+                        <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-emerald">Ready</span>
+                        <div className="w-2 h-2 rounded-full bg-v-emerald animate-pulse" />
+                    </div>
+                    {/* Scanning Line Animation */}
+                    <motion.div 
+                        animate={{ top: ['0%', '100%', '0%'] }} 
+                        transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                        className="absolute left-4 right-4 h-[1px] bg-v-cyan/20 pointer-events-none blur-sm"
+                    />
+                 </div>
             </div>
             
             <div className="hidden lg:flex items-center justify-center relative">
@@ -96,7 +105,7 @@ export default function ExplorePage() {
       </div>
 
       {/* Wave Selectors */}
-      <div className="flex flex-wrap gap-4 justify-center sm:justify-start px-4">
+      <div className="flex flex-wrap gap-4 justify-center sm:justify-start px-4 relative">
         {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             const active = activeTab === cat.id;
@@ -106,12 +115,30 @@ export default function ExplorePage() {
                     onClick={() => setActiveTab(cat.id)}
                     className={clsx(
                         'group flex items-center gap-4 px-10 py-5 rounded-[25px] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 overflow-hidden relative shadow-2xl',
-                        active ? 'bg-primary-gradient text-white scale-105 ring-2 ring-v-cyan/20 translate-y-[-4px]' : 'bg-surface-lowest/40 text-on-surface-variant border border-white/5 hover:bg-white/5'
+                        active ? 'text-white translate-y-[-4px]' : 'bg-surface-lowest/40 text-on-surface-variant border border-white/5 hover:bg-white/5'
                     )}
                 >
-                    <Icon size={16} className={clsx('relative z-10 transition-all duration-700', active ? 'text-white' : 'group-hover:text-v-cyan group-hover:scale-125')} />
-                    <span className="relative z-10">{cat.label}</span>
-                    {active && <div className="absolute inset-0 bg-white opacity-10 blur-xl animate-pulse" />}
+                    <div className="relative z-10">
+                        <KineticIcon 
+                            icon={Icon} 
+                            size={16} 
+                            active={active} 
+                            pulse={active} 
+                            color={active ? 'white' : 'currentColor'} 
+                        />
+                    </div>
+                    <div className="flex flex-col items-start relative z-10 transition-transform duration-500 group-hover:translate-x-1">
+                        <span className="leading-none mb-0.5">{cat.label}</span>
+                        <span className={clsx('text-[7px] font-black tracking-[0.3em] opacity-40', active && 'text-white/60')}>({cat.sub})</span>
+                    </div>
+                    
+                    {active && (
+                       <motion.div 
+                        layoutId="explore-active-pill"
+                        className="absolute inset-0 bg-primary-gradient -z-0"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                       />
+                    )}
                 </button>
             )
         })}
@@ -122,8 +149,11 @@ export default function ExplorePage() {
         {/* WAVE TRENDS (LEFT) */}
         <div className="lg:col-span-1 space-y-8">
             <div className="flex items-center gap-4 px-4">
-                <TrendingUp size={18} className="text-v-violet" />
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white">Active_Waves</h3>
+                <KineticIcon icon={TrendingUp} size={18} color="var(--v-violet)" pulse />
+                <div className="flex flex-col">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic leading-none">Active_Waves</h3>
+                    <span className="text-[7px] font-black tracking-[0.2em] text-on-surface-variant opacity-40 uppercase">Global Trends</span>
+                </div>
             </div>
             
             <div className="glass-card p-10 bg-surface-lowest/20 border-none rounded-[50px] shadow-2xl relative overflow-hidden">
@@ -214,18 +244,18 @@ export default function ExplorePage() {
                                             </p>
                                         </div>
                                     )}
-                                    <div className="p-8 space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <Link href={`/profile/${p.author?.username}`} className="flex items-center gap-3">
-                                                <img src={p.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.author?.username}`} className="w-8 h-8 rounded-xl" alt="node" />
-                                                <span className="text-[11px] font-black uppercase tracking-widest text-white italic group-hover:text-v-cyan transition-colors">@{p.author?.username}</span>
-                                            </Link>
-                                            <div className="flex items-center gap-4 text-on-surface-variant opacity-40">
-                                                 <div className="flex items-center gap-1.5"><Eye size={12} /> <span className="text-[10px] font-mono">{fmt(p.likeCount * 5)}</span></div>
-                                                 <div className="flex items-center gap-1.5"><MessageCircle size={12} /> <span className="text-[10px] font-mono">{p.commentCount}</span></div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                     <div className="p-8 space-y-4">
+                                         <div className="flex items-center justify-between">
+                                             <Link href={`/profile/${p.author?.username}`} className="flex items-center gap-3">
+                                                 <img src={p.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.author?.username}`} className="w-8 h-8 rounded-xl border border-white/10" alt="node" />
+                                                 <span className="text-[11px] font-black uppercase tracking-widest text-white italic group-hover:text-v-cyan transition-colors">@{p.author?.username}</span>
+                                             </Link>
+                                             <div className="flex items-center gap-4 text-on-surface-variant opacity-40">
+                                                  <div className="flex items-center gap-1.5"><KineticIcon icon={Eye} size={12} color="currentColor" /> <span className="text-[10px] font-mono">{fmt(p.likeCount * 5)}</span></div>
+                                                  <div className="flex items-center gap-1.5"><KineticIcon icon={MessageCircle} size={12} color="currentColor" /> <span className="text-[10px] font-mono">{p.commentCount}</span></div>
+                                             </div>
+                                         </div>
+                                     </div>
                                 </div>
                             </motion.div>
                         ))}
