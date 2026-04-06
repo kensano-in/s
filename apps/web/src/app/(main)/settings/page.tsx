@@ -109,7 +109,7 @@ export default function SettingsPage() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 max-w-4xl">
         <AccountIntegrity />
 
         <div className="mb-12 px-2 italic">
