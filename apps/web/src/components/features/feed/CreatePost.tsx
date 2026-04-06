@@ -24,6 +24,7 @@ interface MediaPreview {
 export default function CreatePost() {
   const { currentUser } = useAppStore();
   const router = useRouter();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +85,14 @@ export default function CreatePost() {
     fd.append('privacy', privacy);
     mediaPreviews.forEach(p => { if (p.publicUrl) fd.append('mediaUrls', p.publicUrl); });
 
-    await submitPost(fd);
+    setErrorMsg(null);
+    const res = await submitPost(fd);
+    
+    if (res?.error) {
+       setErrorMsg(res.error);
+       setIsPosting(false);
+       return;
+    }
 
     mediaPreviews.forEach(p => URL.revokeObjectURL(p.url));
     setMediaPreviews([]);
@@ -154,6 +162,13 @@ export default function CreatePost() {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                {errorMsg && (
+                    <div className="mt-4 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest flex items-center justify-between">
+                        <span>ERROR: {errorMsg}</span>
+                        <button type="button" onClick={() => setErrorMsg(null)}><X size={14} /></button>
+                    </div>
+                )}
             </div>
 
             {/* Signal Control Bar */}

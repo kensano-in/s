@@ -8,6 +8,7 @@ import { requestDataExport } from '@/app/(main)/settings/export-actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import clsx from 'clsx';
+import AccountIntegrity from './AccountIntegrity';
 
 export default function AccountControl() {
   const { currentUser } = useAppStore();
@@ -66,6 +67,8 @@ export default function AccountControl() {
 
   return (
     <div className="space-y-12 max-w-4xl animate-fade-in pb-20 italic">
+      <AccountIntegrity />
+
       <section>
         <div className="flex items-center gap-3 mb-6 px-1">
           <Download size={18} className="text-v-cyan" />

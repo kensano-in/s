@@ -189,7 +189,7 @@ export default function RightPanel() {
 
 function TrendItem({ tag, hits, color }: any) {
     return (
-        <div className="group cursor-pointer">
+        <Link href={`/feed`} className="group cursor-pointer block">
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                     <Hash size={10} className="text-v-violet opacity-40" />
@@ -200,6 +200,6 @@ function TrendItem({ tag, hits, color }: any) {
                 <Activity size={10} className="text-v-cyan opacity-0 group-hover:opacity-100 transition-all scale-0 group-hover:scale-100" />
             </div>
             <p className="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5">{hits} SHOCKWAVES</p>
-        </div>
+        </Link>
     )
 }

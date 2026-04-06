@@ -144,6 +144,17 @@ export default function PostCard({ post, currentUserId }: Props) {
     setTimeout(() => setRepostToast(false), 2000);
   };
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/feed#${post.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('LINK COPIED TO CLIPBOARD');
+    } catch(err) {
+      console.log('Failed to copy', err);
+    }
+    setMenuOpen(false);
+  };
+
   const handleDelete = async () => {
     setMenuOpen(false);
     if (!confirm('EXECUTE PERMANENT ERASURE?')) return;
@@ -217,7 +228,7 @@ export default function PostCard({ post, currentUserId }: Props) {
                       <button onClick={handleDelete} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 size={14} /> Execute Purge</button>
                     </>
                   )}
-                  <button className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"><Share2 size={14} /> Relayer Broadcast</button>
+                  <button onClick={handleShare} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"><Share2 size={14} /> Relayer Broadcast</button>
                 </motion.div>
               )}
             </AnimatePresence>

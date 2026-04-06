@@ -12,7 +12,6 @@ import Notifications from '@/components/features/settings/Notifications';
 import Appearance from '@/components/features/settings/Appearance';
 import LegalSupport from '@/components/features/settings/LegalSupport';
 import AccountControl from '@/components/features/settings/AccountControl';
-import AccountIntegrity from '@/components/features/settings/AccountIntegrity';
 
 const SECTIONS = [
   { id: 'personal', label: 'Identity', icon: User, desc: 'Personal Integrity' },
@@ -99,8 +98,8 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-1">
                     <p className="text-[10px] font-bold text-on-surface-variant opacity-40 uppercase tracking-widest">Priority Reach</p>
-                    <a href="mailto:shinichiro.in@proton.me" className="text-xs font-black text-white hover:text-v-cyan transition-colors underline-offset-4 hover:underline">
-                    shinichiro.in@proton.me
+                    <a href="mailto:support.verlyn@proton.me" className="text-xs font-black text-white hover:text-v-cyan transition-colors underline-offset-4 hover:underline">
+                    support.verlyn@proton.me
                     </a>
                 </div>
              </div>
@@ -110,7 +109,6 @@ export default function SettingsPage() {
 
       {/* Main Content Area */}
       <main className="flex-1 min-w-0 max-w-4xl">
-        <AccountIntegrity />
 
         <div className="mb-12 px-2 italic">
            <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.4em] text-on-surface-variant opacity-60 mb-4 italic">
