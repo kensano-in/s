@@ -77,7 +77,7 @@ export default function Sidebar() {
                 )}
              >
                 <KineticIcon icon={Plus} size={20} color="white" pulse={!sidebarCollapsed} />
-                {!sidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-[0.2em] relative z-10">Neural Broadcast</span>}
+                {!sidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-[0.2em] relative z-10">New Post</span>}
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
              </motion.button>
         </div>
