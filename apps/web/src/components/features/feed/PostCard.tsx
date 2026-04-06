@@ -38,10 +38,10 @@ function renderParsedContent(rawText: string) {
                   <span className="text-sm font-black text-white italic uppercase tracking-tighter">{label}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] text-v-cyan uppercase tracking-widest font-black opacity-60">
-                      {isImage ? 'STILL_ASSET_LOCKED' : 'MOTION_KERNEL_ACTIVE'}
+                      {isImage ? 'IMAGE_ASSET_READY' : 'VIDEO_ASSET_READY'}
                     </span>
                     <span className="text-[8px] text-white/20 uppercase tracking-tighter font-bold">
-                      ({isImage ? 'View Image' : 'Play Video'})
+                      ({isImage ? 'View' : 'Play'})
                     </span>
                   </div>
                 </div>
@@ -52,8 +52,7 @@ function renderParsedContent(rawText: string) {
             return (
               <div key={i} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-v-cyan bg-v-cyan/10 px-4 py-2 rounded-full w-fit mt-2 border border-v-cyan/20 italic shadow-[0_0_15px_rgba(6,182,212,0.1)] group/geo">
                 <KineticIcon icon={AlertCircle} size={10} color="var(--v-cyan)" pulse glow />
-                GEOLOCK: <span className="text-white">{label}</span>
-                <span className="text-[8px] text-white/30 lowercase italic tracking-tighter ml-1">(Location Protocol)</span>
+                LOCATION: <span className="text-white">{label}</span>
               </div>
             );
           }
@@ -203,7 +202,7 @@ export default function PostCard({ post, currentUserId }: Props) {
       {post.communityId && (
         <div className="px-8 pt-7 pb-0 flex items-center relative z-10">
           <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-surface-high/50 border border-white/5 shadow-xl hover:bg-white hover:text-black transition-all cursor-pointer group/comm">
-            <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan group-hover/comm:text-black italic">PROTOCOL: {post.communityName?.toUpperCase() || 'VOID'}</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan group-hover/comm:text-black italic">COMMUNITY: {post.communityName?.toUpperCase() || 'GENERAL'}</span>
             <KineticIcon icon={Zap} size={12} color="var(--v-cyan)" active pulse />
           </div>
         </div>
@@ -231,7 +230,7 @@ export default function PostCard({ post, currentUserId }: Props) {
                 </div>
                 <div className="flex items-center gap-2 opacity-50">
                    <span className="text-[10px] font-bold text-v-cyan italic tracking-widest uppercase">@{post.author?.username}</span>
-                   <span className="text-[9px] font-black text-on-surface-variant uppercase tracking-tighter mb-0.5">• {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false })} ago (Signal Broadcast)</span>
+                   <span className="text-[9px] font-black text-on-surface-variant uppercase tracking-tighter mb-0.5">• {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false })} ago</span>
                 </div>
             </div>
           </div>
@@ -245,11 +244,11 @@ export default function PostCard({ post, currentUserId }: Props) {
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute right-0 top-12 z-50 w-48 glass-card border-none bg-surface-lowest rounded-[28px] shadow-3xl py-2 overflow-hidden italic">
                   {isOwner && (
                     <>
-                      <button onClick={() => { setIsEditing(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface hover:bg-primary-gradient hover:text-white transition-all"><KineticIcon icon={Pencil} size={14} /> Edit Protocol</button>
-                      <button onClick={handleDelete} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><KineticIcon icon={Trash2} size={14} /> Execute Purge (Delete)</button>
+                      <button onClick={() => { setIsEditing(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface hover:bg-primary-gradient hover:text-white transition-all"><KineticIcon icon={Pencil} size={14} /> Edit Post</button>
+                      <button onClick={handleDelete} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><KineticIcon icon={Trash2} size={14} /> Delete Post</button>
                     </>
                   )}
-                  <button onClick={handleShare} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"><KineticIcon icon={Share2} size={14} /> Signal Relay (Share)</button>
+                  <button onClick={handleShare} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"><KineticIcon icon={Share2} size={14} /> Share Post</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -326,7 +325,7 @@ export default function PostCard({ post, currentUserId }: Props) {
                   </div>
                 )}
                 <form onSubmit={handleComment} className="flex gap-4 p-2 bg-surface-lowest rounded-full border border-white/5 shadow-inner">
-                   <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Inject reaction signal..." className="flex-1 bg-transparent border-none text-sm font-bold italic focus:outline-none pl-6 placeholder:text-on-surface-variant/30" />
+                   <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." className="flex-1 bg-transparent border-none text-sm font-bold italic focus:outline-none pl-6 placeholder:text-on-surface-variant/30" />
                    <button type="submit" disabled={!commentText.trim()} className="w-12 h-12 rounded-full bg-primary-gradient flex items-center justify-center text-white shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-30"><Plus size={20} /></button>
                 </form>
               </motion.div>

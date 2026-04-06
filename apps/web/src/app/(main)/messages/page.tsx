@@ -252,7 +252,7 @@ function MessagesContent() {
                ))}
             </div>
           ) : loadingConvs ? (
-            <div className="flex flex-col items-center justify-center py-20 opacity-30"><Loader2 size={24} className="animate-spin mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">Hydrating Sessions</p></div>
+            <div className="flex flex-col items-center justify-center py-20 opacity-30 italic"><Loader2 size={24} className="animate-spin mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">Connecting to Chats...</p></div>
           ) : filteredConvs.map(conv => {
             const active = activeConvId === conv.id;
             return (

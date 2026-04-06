@@ -151,10 +151,10 @@ export default function PublicProfilePage() {
                     </div>
                 </div>
                 <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">
-                    {profileUser.displayName} <br/><span className="text-v-cyan">@{profileUser.username}</span>
+                    {profileUser.displayName || 'Unnamed Node'} <br/><span className="text-v-cyan">@{profileUser.username}</span>
                 </h1>
                 <p className="text-sm font-bold text-on-surface-variant opacity-60 max-w-xl italic">
-                    {profileUser.bio || "This identity node is currently silent in the collective matrix."}
+                    {profileUser.bio || "Identity story pending inclusion in the collective."}
                 </p>
                 
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4">
@@ -165,13 +165,13 @@ export default function PublicProfilePage() {
                             amFollowing ? "bg-surface-high/60 text-white border border-white/10" : "bg-white text-black hover:bg-v-cyan shadow-2xl"
                         )}
                     >
-                        {amFollowing ? 'Joined_Node' : 'Join_Node'}
+                        {amFollowing ? 'Joined' : 'Join Node'}
                     </button>
                     <button 
                         onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
                         className="px-10 py-4 bg-surface-lowest/40 border border-white/5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] text-white hover:bg-white/5 transition-all italic"
                     >
-                        Send_Signal
+                        Message
                     </button>
                 </div>
             </div>

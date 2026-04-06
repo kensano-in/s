@@ -88,7 +88,7 @@ export default function CommunitiesPage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-40 opacity-40">
            <Loader2 size={32} className="animate-spin mb-6 text-v-cyan shadow-[0_0_20px_var(--v-cyan)]" />
-           <p className="text-[10px] font-black uppercase tracking-[0.5em]">Hydrating Community Matrix...</p>
+           <p className="text-[10px] font-black uppercase tracking-[0.5em] italic">Connecting to Communities...</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-40 gap-6 glass-card border-dashed border-white/5 bg-transparent rounded-[50px] italic">

@@ -12,12 +12,12 @@ import {
 import KineticIcon from '@/components/ui/KineticIcon';
 
 const NAV_ITEMS = [
-  { id: 'feed',          label: 'Home',              sub: 'Neural Feed',       icon: Radio,         href: '/feed'        },
-  { id: 'explore',       label: 'Discovery',         sub: 'Explore Expanse',   icon: Search,        href: '/explore'     },
-  { id: 'messages',      label: 'Messages',          sub: 'Signals Hub',       icon: MessageCircle, href: '/messages'    },
-  { id: 'communities',   label: 'Communities',       sub: 'Node Matrix',       icon: Users,         href: '/communities' },
-  { id: 'trending',      label: 'Trending',          sub: 'Neural Waves',      icon: Orbit,         href: '/trending'    },
-  { id: 'funzone',       label: 'Arcade',            sub: 'Neural Simulations',icon: Zap,           href: '/funzone'     }
+  { id: 'feed',          label: 'Home',              sub: 'Activity',          icon: Radio,         href: '/feed'        },
+  { id: 'explore',       label: 'Discovery',         sub: 'Explore',           icon: Search,        href: '/explore'     },
+  { id: 'messages',      label: 'Messages',          sub: 'Chats',             icon: MessageCircle, href: '/messages'    },
+  { id: 'communities',   label: 'Communities',       sub: 'Groups',            icon: Users,         href: '/communities' },
+  { id: 'trending',      label: 'Trending',          sub: 'Topics',            icon: Orbit,         href: '/trending'    },
+  { id: 'funzone',       label: 'Arcade',            sub: 'Play',              icon: Zap,           href: '/funzone'     }
 ];
 
 const SPRING = { type: 'spring' as const, stiffness: 400, damping: 28, mass: 0.8 };
@@ -112,7 +112,7 @@ export default function Sidebar() {
                                     <span className={clsx('text-[13px] font-black uppercase tracking-widest relative z-10 transition-all duration-500', active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100')}>
                                         {item.label}
                                     </span>
-                                    <span className={clsx('text-[8px] font-black uppercase tracking-[0.3em] opacity-40 group-hover:opacity-60 transition-opacity', active ? 'text-v-cyan' : 'text-on-surface-variant')}>
+                                    <span className={clsx('text-[8px] font-black uppercase tracking-[0.4em] opacity-0 group-hover:opacity-40 transition-all transform translate-x-[-10px] group-hover:translate-x-0', active ? 'text-v-cyan opacity-40' : 'text-on-surface-variant')}>
                                         {item.sub}
                                     </span>
                                 </div>
