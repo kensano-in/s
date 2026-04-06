@@ -56,7 +56,7 @@ export default function ProfilePage() {
     if (!currentUser?.id) return;
     async function loadPosts() {
       setLoadingPosts(true);
-      const { data } = await supabase.from('posts').select('*, author:users(*)').eq('author_id', currentUser!.id).order('created_at', { ascending: false });
+      const { data } = await supabase.from('posts').select('*, author:users!posts_author_id_fkey(*)').eq('author_id', currentUser!.id).order('created_at', { ascending: false });
       if (data) {
         setUserPosts(data.map((m: any) => ({
           ...m,
