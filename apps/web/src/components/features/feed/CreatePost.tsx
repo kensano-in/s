@@ -155,7 +155,7 @@ export default function CreatePost() {
                                         <X size={18} />
                                     </button>
                                     <div className="absolute bottom-2 left-4 px-2 py-1 rounded-md bg-black/60 text-[8px] font-black uppercase text-v-cyan tracking-widest border border-v-cyan/20">
-                                        RAW_UPLINK_OK
+                                        UPLOAD COMPLETE
                                     </div>
                                 </div>
                             ))}

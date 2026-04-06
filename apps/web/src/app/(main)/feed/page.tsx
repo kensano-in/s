@@ -12,9 +12,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import KineticIcon from '@/components/ui/KineticIcon';
 
 const TABS = [
-    { id: 'all', label: 'Expanse', icon: Globe, desc: 'Global Neural Stream (Public)' },
-    { id: 'following', label: 'Nodes', icon: Activity, desc: 'Followed Identity Signals (Circle)' },
-    { id: 'communities', label: 'Matrix', icon: Users, desc: 'Joined Sovereign Protocols (Groups)' }
+    { id: 'all', label: 'Global', icon: Globe, desc: 'General Signal Stream' },
+    { id: 'following', label: 'Following', icon: Activity, desc: 'Followed Profile Activity' },
+    { id: 'communities', label: 'Communities', icon: Users, desc: 'Joined Group Protocols' }
 ];
 
 export default function FeedPage() {
@@ -71,7 +71,7 @@ export default function FeedPage() {
 
     let query = supabase
       .from('posts')
-      .select('*, author:users(*), community:communities(display_name), post_likes!left(user_id)')
+      .select('*, author:users!posts_author_id_fkey(*), community:communities(display_name), post_likes!left(user_id)')
       .order('created_at', { ascending: false });
 
     // Apply Tab Filtering
@@ -157,19 +157,19 @@ export default function FeedPage() {
                      <KineticIcon icon={Zap} size={32} color="var(--v-cyan)" active pulse glow />
                   </div>
                   <div className="space-y-2">
-                     <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Neural Link Established</h3>
+                     <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Interface Established</h3>
                      <p className="text-[11px] font-medium text-on-surface-variant leading-relaxed italic">
-                        Welcome to **Verlyn v0.1.0-alpha**. You are currently synced with the **Expanse** (Global Feed). 
-                        Every post is an E2EE signal broadcast. Use the **Matrix** tab to access your secure Communities.
+                        Welcome to **Verlyn v1.0**. You are currently synced with the **Global Feed**. 
+                        Every post is a secure social signal. Use the **Communities** tab to access your groups.
                      </p>
                      <div className="flex gap-4 pt-2">
                         <div className="flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity cursor-help">
                            <Globe size={10} className="text-v-cyan" />
-                           <span className="text-[9px] font-black uppercase tracking-tighter">Public Protocol</span>
+                           <span className="text-[9px] font-black uppercase tracking-tighter">Public Feed</span>
                         </div>
                         <div className="flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity cursor-help">
                            <ShieldCheck size={10} className="text-v-violet" />
-                           <span className="text-[9px] font-black uppercase tracking-tighter">E2EE Active</span>
+                           <span className="text-[9px] font-black uppercase tracking-tighter">Secure OS</span>
                         </div>
                      </div>
                   </div>
@@ -234,16 +234,16 @@ export default function FeedPage() {
                       <KineticIcon icon={Activity} size={40} color="var(--v-emerald)" pulse active glow />
                       <div className="absolute inset-0 bg-v-emerald/20 blur-2xl rounded-full animate-pulse" />
                    </div>
-                   <p className="text-[10px] font-black uppercase tracking-[0.6em] text-v-emerald">Synchronizing Neural Stream...</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.6em] text-v-emerald">Connecting to Feed...</p>
                 </div>
            ) : livePosts.length === 0 ? (
                 <div className="glass-card p-24 text-center border-none bg-surface-lowest/40 rounded-[60px] shadow-3xl italic">
                     <div className="w-28 h-28 rounded-[40px] bg-surface-high flex items-center justify-center mx-auto mb-10 shadow-inner border border-white/5 opacity-20 group-hover:opacity-100 transition-all">
                        <KineticIcon icon={Database} size={48} color="var(--on-surface-variant)" active />
                     </div>
-                   <h3 className="text-3xl font-black italic tracking-tighter text-white uppercase mb-4 leading-none truncate">Spectral Void Detected</h3>
-                   <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 mb-10">No signals broadcasted to this sector. Be the prime initiator.</p>
-                   <button onClick={() => setActiveTab('all')} className="px-10 py-4 bg-primary-gradient rounded-full font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:scale-105 active:scale-95 transition-all text-white italic">SCAN GLOBAL EXPANSE</button>
+                   <h3 className="text-3xl font-black italic tracking-tighter text-white uppercase mb-4 leading-none truncate">Feed is Empty</h3>
+                   <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 mb-10">No signals found in this sector. Share your story first.</p>
+                   <button onClick={() => setActiveTab('all')} className="px-10 py-4 bg-primary-gradient rounded-full font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:scale-105 active:scale-95 transition-all text-white italic">REFRESH GLOBAL FEED</button>
                </div>
            ) : (
                <>
