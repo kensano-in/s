@@ -133,8 +133,8 @@ export default function ProfilePage() {
                           <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">{dbUser?.display_name || currentUser.displayName}</h1>
                           {dbUser?.role === 'PRIME' && (
                             <div className="flex flex-col">
-                                <span className="px-4 py-1 bg-v-violet/10 text-v-violet border border-v-violet/20 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl">PRIME_IDENTITY</span>
-                                <span className="text-[7px] text-v-violet/60 font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity mt-1">Neural Verified Identity</span>
+                                <span className="px-4 py-1 bg-v-violet/10 text-v-violet border border-v-violet/20 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl">Verified Identity</span>
+                                <span className="text-[7px] text-v-violet/60 font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity mt-1">Sovereign Profile</span>
                             </div>
                           )}
                     </div>
@@ -148,9 +148,9 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                    <NodeStat label="Signals" human="Posts" val={userPosts.length} color="text-white" icon={Zap} />
-                    <NodeStat label="Enlisted" human="Followers" val={kFmt(dbUser?.follower_count || currentUser.followerCount || 0)} color="text-on-surface" icon={Users} />
-                    <NodeStat label="Linking" human="Following" val={kFmt(dbUser?.following_count || currentUser.followingCount || 0)} color="text-on-surface" icon={Activity} />
+                    <NodeStat label="Posts" human="Shared Content" val={userPosts.length} color="text-white" icon={Zap} />
+                    <NodeStat label="Followers" human="Community Size" val={kFmt(dbUser?.follower_count || currentUser.followerCount || 0)} color="text-on-surface" icon={Users} />
+                    <NodeStat label="Following" human="Connections" val={kFmt(dbUser?.following_count || currentUser.followingCount || 0)} color="text-on-surface" icon={Activity} />
                     <NodeStat label="Karma" human="Reputation" val={kFmt(dbUser?.karma_score || 0)} color="text-v-violet" icon={Award} />
                 </div>
 
@@ -158,13 +158,13 @@ export default function ProfilePage() {
                 <div className="p-8 rounded-[40px] bg-surface-lowest/40 border border-white/5 shadow-2xl relative overflow-hidden group">
                    <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-10 transition-opacity" />
                    <p className="text-base sm:text-lg font-bold text-on-surface-variant leading-relaxed italic tracking-tight relative z-10">
-                       {dbUser?.bio || "Kernel identity transmission pending content injection..."}
+                       {dbUser?.bio || "Your collective identity story is waiting to be told..."}
                    </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
                     <button onClick={() => setIsEditing(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-5 bg-primary-gradient text-white rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-3xl hover:scale-105 active:scale-95 transition-all">
-                        <KineticIcon icon={Edit3} size={18} color="white" /> EDIT KERNEL (Profile)
+                        <KineticIcon icon={Edit3} size={18} color="white" /> EDIT PROFILE
                     </button>
                     <button onClick={() => setShowColorPicker(!showColorPicker)} className="w-16 h-16 rounded-3xl bg-surface-high/50 flex items-center justify-center text-on-surface-variant border border-white/10 hover:bg-white hover:text-black transition-all">
                         <KineticIcon icon={Palette} size={20} active={showColorPicker} />
@@ -179,20 +179,20 @@ export default function ProfilePage() {
         {/* Node Integrity Matrix (Quick Info) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
             <IntegrityCard 
-                label="Identity Integrity" 
-                human="Profile Completion"
+                label="Profile Quality" 
+                human="Identity Strength"
                 percent={integrity} 
                 icon={Fingerprint} 
                 color="from-v-cyan to-v-cyan/20"
-                desc="Signal strength based on node completeness."
+                desc="Signal strength based on your profile completeness."
             />
             <IntegrityCard 
-                label="Sovereign Security" 
-                human="System Trust Score"
+                label="Trust Score" 
+                human="Verified Reliability"
                 percent={score} 
                 icon={ShieldCheck} 
                 color="from-v-violet to-v-violet/20"
-                desc="Real-time verification & identity verification score."
+                desc="Real-time verification and identity security status."
             />
             <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between group overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-opacity">
@@ -226,12 +226,12 @@ export default function ProfilePage() {
                 loadingPosts ? (
                     <div className="flex flex-col items-center justify-center py-40 opacity-40">
                         <Loader2 size={32} className="animate-spin text-v-cyan mb-4" />
-                        <p className="text-[10px] font-black uppercase tracking-widest">Hydrating Node History...</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest italic">Loading Your History...</p>
                     </div>
                 ) : userPosts.length === 0 ? (
                     <div className="py-40 text-center flex flex-col items-center glass-card border-none bg-surface-lowest/20 rounded-[60px]">
                         <Ghost size={60} className="text-on-surface-variant/20 mb-8" />
-                        <p className="text-[11px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-40 leading-none">Inert Frequency</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-40 leading-none italic">No Posts Shared Yet</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-6 sm:gap-10">
@@ -256,7 +256,7 @@ export default function ProfilePage() {
                                         <div className="flex items-center gap-1.5"><Zap size={20} fill="white" /> <span className="text-lg font-black">{kFmt(p.likeCount)}</span></div>
                                         <div className="flex items-center gap-1.5"><MessageCircle size={20} fill="white" /> <span className="text-lg font-black">{kFmt(p.commentCount)}</span></div>
                                     </div>
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-v-cyan">RETRIVE_SIGNAL</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-v-cyan italic">View Post</span>
                                 </div>
                             </motion.div>
                         ))}

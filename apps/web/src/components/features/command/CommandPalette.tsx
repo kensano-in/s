@@ -9,14 +9,14 @@ import clsx from 'clsx';
 import KineticIcon from '@/components/ui/KineticIcon';
 
 const COMMANDS = [
-  { id: 'feed', label: 'Home', sub: 'Neural Feed', icon: Home, route: '/feed', shortcut: 'G F' },
-  { id: 'explore', label: 'Discovery', sub: 'Explore Expanse', icon: Radio, route: '/explore', shortcut: 'G E' },
-  { id: 'profile', label: 'Profile', sub: 'Identity Node', icon: User, route: '/profile', shortcut: 'G P' },
-  { id: 'settings', label: 'Settings', sub: 'Kernel Settings', icon: Settings, route: '/settings', shortcut: 'G S' },
-  { id: 'messages', label: 'Messages', sub: 'Signal Hub', icon: MessageSquare, route: '/messages', shortcut: 'G M' },
-  { id: 'theme', label: 'Appearance', sub: 'Theme Interface', icon: Layout, action: 'theme', shortcut: 'T' },
-  { id: 'export', label: 'Export Data', sub: 'Neural Archive', icon: Cpu, action: 'export', shortcut: 'E' },
-  { id: 'security', label: 'Security', sub: 'Privacy Protocols', icon: Shield, route: '/settings?tab=sovereignty', shortcut: 'S' },
+  { id: 'feed', label: 'Home', sub: 'Your activity', icon: Home, route: '/feed', shortcut: 'G F' },
+  { id: 'explore', label: 'Discovery', sub: 'Find friends', icon: Radio, route: '/explore', shortcut: 'G E' },
+  { id: 'profile', label: 'Profile', sub: 'Your identity', icon: User, route: '/profile', shortcut: 'G P' },
+  { id: 'settings', label: 'Settings', sub: 'Customize OS', icon: Settings, route: '/settings', shortcut: 'G S' },
+  { id: 'messages', label: 'Messages', sub: 'Private chats', icon: MessageSquare, route: '/messages', shortcut: 'G M' },
+  { id: 'theme', label: 'Appearance', sub: 'Visual style', icon: Layout, action: 'theme', shortcut: 'T' },
+  { id: 'export', label: 'Export Data', sub: 'Download archives', icon: Cpu, action: 'export', shortcut: 'E' },
+  { id: 'security', label: 'Security', sub: 'Identity safety', icon: Shield, route: '/settings?tab=sovereignty', shortcut: 'S' },
 ];
 
 export default function CommandPalette() {
@@ -91,7 +91,7 @@ export default function CommandPalette() {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="SCANN_MATRIX_FOR_COMMANDS..."
+                    placeholder="Search commands..."
                     className="flex-1 bg-transparent border-none focus:ring-0 text-xl font-black uppercase tracking-tighter text-white placeholder:text-white/10 outline-none"
                 />
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10">
@@ -143,7 +143,7 @@ export default function CommandPalette() {
                                                {cmd.sub}
                                             </span>
                                           </div>
-                                          <p className="text-[9px] font-black uppercase tracking-widest opacity-30">{cmd.route || 'SYSTEM_CORE_DIRECTIVE'}</p>
+                                          <p className="text-[9px] font-black uppercase tracking-widest opacity-30">{cmd.route || 'SYSTEM CORE'}</p>
                                       </div>
                                  </div>
                                  
@@ -169,9 +169,9 @@ export default function CommandPalette() {
 
             {/* Platform Footer */}
             <div className="p-4 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-2 opacity-30">
+                <div className="flex items-center gap-2 opacity-30 italic">
                     <Cpu size={12} />
-                    <span className="text-[8px] font-black uppercase tracking-widest text-on-surface-variant">SIG_CMD_KERNEL_v1.0.4</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest text-on-surface-variant">Sovereign OS v1.0</span>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5 grayscale opacity-30">

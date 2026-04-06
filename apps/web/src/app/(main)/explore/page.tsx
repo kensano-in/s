@@ -162,7 +162,7 @@ export default function ExplorePage() {
                 {loading ? (
                     <div className="py-20 flex flex-col items-center opacity-30">
                         <Loader2 size={24} className="animate-spin mb-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Hydrating Waves...</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest italic">Finding Trends...</span>
                     </div>
                 ) : (
                     <div className="space-y-6">
