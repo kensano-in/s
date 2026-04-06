@@ -84,14 +84,20 @@ export default function Topbar() {
             />
 
             {/* HUD Metadata */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3 opacity-30 group-hover:opacity-100 transition-opacity">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-4 opacity-30 group-hover:opacity-100 transition-opacity">
                 <AnimatePresence>
                     {searchVal ? (
                         <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} onClick={() => setSearchVal('')} className="text-white/40 hover:text-rose-500"><X size={14} /></motion.button>
                     ) : (
-                        <div className="flex items-center gap-2">
-                             <div className="w-1.5 h-1.5 rounded-full bg-v-emerald animate-pulse shadow-[0_0_8px_var(--v-emerald)]" />
-                             <span className="text-[8px] font-mono tracking-widest text-v-emerald hidden lg:block">SYS_ONLINE</span>
+                        <div className="flex items-center gap-4">
+                             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-white/5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                 <span className="text-[9px] font-mono tracking-tighter text-white">CMD</span>
+                                 <span className="text-[9px] font-mono tracking-tighter text-white">K</span>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-v-emerald animate-pulse shadow-[0_0_8px_var(--v-emerald)]" />
+                                  <span className="text-[8px] font-mono tracking-widest text-v-emerald hidden lg:block uppercase italic">SYS_ONLINE</span>
+                             </div>
                         </div>
                     )}
                 </AnimatePresence>

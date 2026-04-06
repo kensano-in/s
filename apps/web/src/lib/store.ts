@@ -94,6 +94,10 @@ interface AppState {
   setSettingPushNotifs: (v: boolean) => void;
   setSettingEmailDigest: (v: boolean) => void;
   setSettingPrivateAccount: (v: boolean) => void;
+
+  // Command Palette (CMD+K)
+  isCommandPaletteOpen: boolean;
+  setCommandPaletteOpen: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(

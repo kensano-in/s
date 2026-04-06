@@ -334,12 +334,34 @@ function MessagesContent() {
           {/* Footer & Signal Input */}
           <div className="px-10 pb-8 pt-2 z-20">
              {permError ? (
-                <div className="p-8 rounded-[32px] bg-rose-500/10 border border-rose-500/20 flex flex-col items-center text-center gap-3">
-                   <ShieldAlert size={32} className="text-rose-500 animate-pulse" />
-                   <div>
-                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-1">Signal Blocked by Kernel</p>
-                       <p className="text-xs font-bold text-on-surface-variant opacity-60">{permError}</p>
+                <div className={clsx(
+                    "p-8 rounded-[38px] border backdrop-blur-2xl flex flex-col items-center text-center gap-4 transition-all duration-700",
+                    permError.includes('purged') ? "bg-white/[0.02] border-white/10" : "bg-rose-500/10 border-rose-500/20"
+                )}>
+                   {permError.includes('purged') ? (
+                       <Ghost size={40} className="text-white/20 animate-pulse" />
+                   ) : (
+                       <ShieldAlert size={32} className="text-rose-500 animate-pulse" />
+                   )}
+                   <div className="max-w-md">
+                       <p className={clsx(
+                           "text-[10px] font-black uppercase tracking-[0.4em] mb-2",
+                           permError.includes('purged') ? "text-white/40" : "text-rose-500"
+                       )}>
+                           {permError.includes('purged') ? 'Session_Archive_Active' : 'Signal_Blocked_by_Kernel'}
+                       </p>
+                       <p className="text-xs font-bold text-on-surface-variant opacity-80 leading-relaxed italic">
+                           {permError.includes('purged') 
+                             ? 'THIS_NODE_HAS_BEEN_PURGED_FROM_THE_MATRIX. COMMUNICATION_IS_NOW_ARCHIVED_IN_READ_ONLY_MODE.'
+                             : permError}
+                       </p>
                    </div>
+                   {permError.includes('purged') && (
+                       <div className="mt-2 px-6 py-2 rounded-full bg-white/5 border border-white/5 flex items-center gap-3">
+                           <Lock size={12} className="text-white/20" />
+                           <span className="text-[9px] font-black uppercase tracking-widest text-white/30">LOCKED_BY_SOVEREIGN_OS</span>
+                       </div>
+                   )}
                 </div>
              ) : (
                 <div className="relative">

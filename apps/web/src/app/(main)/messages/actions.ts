@@ -19,7 +19,7 @@ export async function validateMessagingPermission(senderId: string, recipientId:
             .eq('id', recipientId)
             .single();
 
-        if (userErr || !recipient) return { allowed: false, error: 'Recipient node not found' };
+        if (userErr || !recipient) return { allowed: false, error: 'Target node has been purged or deactivated from the Matrix' };
 
         const permission = recipient.messaging_permission;
         
