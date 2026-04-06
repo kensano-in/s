@@ -151,10 +151,10 @@ export default function PublicProfilePage() {
                     </div>
                 </div>
                 <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">
-                    {profileUser.displayName || 'Unnamed Node'} <br/><span className="text-v-cyan">@{profileUser.username}</span>
+                    {profileUser?.displayName || 'Unnamed Profile'} <br/><span className="text-v-cyan">@{profileUser?.username || username}</span>
                 </h1>
                 <p className="text-sm font-bold text-on-surface-variant opacity-60 max-w-xl italic">
-                    {profileUser.bio || "Identity story pending inclusion in the collective."}
+                    {profileUser?.bio || "Identity story pending inclusion in the collective."}
                 </p>
                 
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4">
