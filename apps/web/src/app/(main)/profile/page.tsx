@@ -10,6 +10,8 @@ import { getDatabaseProfile } from './actionsCore';
 import { uploadMedia } from '@/app/(main)/feed/upload';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+import KineticIcon from '@/components/ui/KineticIcon';
+import SpectralOrb from '@/components/ui/SpectralOrb';
 
 function kFmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -114,8 +116,8 @@ export default function ProfilePage() {
                         className="w-full h-full object-cover rounded-[55px] group-hover/avatar:scale-110 transition-transform duration-1000" 
                         alt="avatar" 
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center" onClick={() => avatarInputRef.current?.click()}>
-                        <Camera size={40} className="text-white drop-shadow-2xl translate-y-4 group-hover/avatar:translate-y-0 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <KineticIcon icon={Camera} size={40} color="white" pulse glow />
                     </div>
                 </div>
                 {/* Visual Status Rings */}
@@ -127,10 +129,15 @@ export default function ProfilePage() {
             {/* Signal Profile Data */}
             <div className="flex-1 space-y-8">
                 <div>
-                   <div className="flex items-center gap-6 mb-3">
-                         <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">{dbUser?.display_name || currentUser.displayName}</h1>
-                         {dbUser?.role === 'PRIME' && <span className="px-4 py-1.5 bg-v-violet/10 text-v-violet border border-v-violet/20 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl">PRIME_IDENTITY</span>}
-                   </div>
+                    <div className="flex items-center gap-6 mb-3">
+                          <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">{dbUser?.display_name || currentUser.displayName}</h1>
+                          {dbUser?.role === 'PRIME' && (
+                            <div className="flex flex-col">
+                                <span className="px-4 py-1 bg-v-violet/10 text-v-violet border border-v-violet/20 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl">PRIME_IDENTITY</span>
+                                <span className="text-[7px] text-v-violet/60 font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity mt-1">Neural Verified Identity</span>
+                            </div>
+                          )}
+                    </div>
                    <div className="flex items-center gap-4">
                         <span className="text-v-cyan text-sm font-black uppercase tracking-widest italic flex items-center gap-2">
                            <Hash size={14} /> {dbUser?.username || currentUser.username}
@@ -141,10 +148,10 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                    <NodeStat label="Signals" val={userPosts.length} color="text-white" />
-                    <NodeStat label="Enlisted" val={kFmt(dbUser?.follower_count || currentUser.followerCount || 0)} color="text-on-surface" />
-                    <NodeStat label="Linking" val={kFmt(dbUser?.following_count || currentUser.followingCount || 0)} color="text-on-surface" />
-                    <NodeStat label="Karma" val={kFmt(dbUser?.karma_score || 0)} color="text-v-violet" />
+                    <NodeStat label="Signals" human="Posts" val={userPosts.length} color="text-white" icon={Zap} />
+                    <NodeStat label="Enlisted" human="Followers" val={kFmt(dbUser?.follower_count || currentUser.followerCount || 0)} color="text-on-surface" icon={Users} />
+                    <NodeStat label="Linking" human="Following" val={kFmt(dbUser?.following_count || currentUser.followingCount || 0)} color="text-on-surface" icon={Activity} />
+                    <NodeStat label="Karma" human="Reputation" val={kFmt(dbUser?.karma_score || 0)} color="text-v-violet" icon={Award} />
                 </div>
 
                 {/* Bio / Broadcast */}
@@ -157,13 +164,13 @@ export default function ProfilePage() {
 
                 <div className="flex flex-wrap items-center gap-4">
                     <button onClick={() => setIsEditing(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-5 bg-primary-gradient text-white rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-3xl hover:scale-105 active:scale-95 transition-all">
-                        <Edit3 size={18} /> EDIT KERNEL
+                        <KineticIcon icon={Edit3} size={18} color="white" /> EDIT KERNEL (Profile)
                     </button>
                     <button onClick={() => setShowColorPicker(!showColorPicker)} className="w-16 h-16 rounded-3xl bg-surface-high/50 flex items-center justify-center text-on-surface-variant border border-white/10 hover:bg-white hover:text-black transition-all">
-                        <Palette size={20} />
+                        <KineticIcon icon={Palette} size={20} active={showColorPicker} />
                     </button>
                     <button className="w-16 h-16 rounded-3xl bg-surface-high/50 flex items-center justify-center text-on-surface-variant border border-white/10 hover:bg-white hover:text-black transition-all">
-                        <Share2 size={20} />
+                        <KineticIcon icon={Share2} size={20} />
                     </button>
                 </div>
             </div>
@@ -173,30 +180,35 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
             <IntegrityCard 
                 label="Identity Integrity" 
+                human="Profile Completion"
                 percent={integrity} 
                 icon={Fingerprint} 
                 color="from-v-cyan to-v-cyan/20"
-                desc="Completion of identity metadata nodes."
+                desc="Signal strength based on node completeness."
             />
             <IntegrityCard 
                 label="Sovereign Security" 
+                human="System Trust Score"
                 percent={score} 
                 icon={ShieldCheck} 
                 color="from-v-violet to-v-violet/20"
-                desc="Network trust and kernel protection score."
+                desc="Real-time verification & identity verification score."
             />
-            <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between">
-                <div>
-                   <div className="flex justify-between items-center mb-4">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Visual Signature</span>
-                      <ChevronRight size={14} className="opacity-20" />
-                   </div>
-                   <h4 className="text-xl font-black italic tracking-tighter uppercase text-white leading-none">{activeTheme.name}</h4>
+            <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between group overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-20 transition-opacity">
+                    <Palette size={120} />
                 </div>
-                <div className="flex gap-2 mt-6">
-                    {THEME_PRESETS.map(t => (
-                        <div key={t.id} onClick={() => setBannerColor(t.id)} className={clsx('w-8 h-8 rounded-xl cursor-pointer border-2 transition-all', bannerColor === t.id ? 'border-white scale-110 shadow-lg' : 'border-white/5 opacity-50 hover:opacity-100')} style={{ backgroundColor: t.color }} />
-                    ))}
+                <div className="relative z-10">
+                   <div className="flex justify-between items-center mb-6">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 italic mb-1">Visual Signature</span>
+                        <span className="text-[8px] font-black tracking-widest text-v-cyan uppercase">Theme Matrix</span>
+                      </div>
+                      <KineticIcon icon={Sparkles} size={14} color="var(--v-cyan)" pulse />
+                   </div>
+                   <div className="mb-8">
+                     <SpectralOrb activeId={bannerColor} onSelect={setBannerColor} />
+                   </div>
                 </div>
             </div>
         </div>
@@ -264,11 +276,17 @@ export default function ProfilePage() {
   );
 }
 
-function NodeStat({ label, val, color }: any) {
+function NodeStat({ label, human, val, color, icon: Icon }: any) {
     return (
-        <div className="flex flex-col">
-            <span className={clsx('text-3xl font-black italic tracking-tighter leading-none mb-1', color)}>{val}</span>
-            <span className="text-[9px] font-black uppercase tracking-widest opacity-30 italic">{label}</span>
+        <div className="flex flex-col group/node relative p-4 rounded-3xl hover:bg-white/[0.03] transition-all">
+            <div className="flex items-center gap-3 mb-1">
+                <KineticIcon icon={Icon} size={14} pulse color={color.includes('white') ? 'white' : `var(--${color.split('-')[1]}-${color.split('-')[2]})`} />
+                <span className={clsx('text-3xl font-black italic tracking-tighter leading-none', color)}>{val}</span>
+            </div>
+            <div className="flex flex-col mt-2">
+                <span className="text-[9px] font-black uppercase tracking-widest opacity-30 italic">{label}</span>
+                <span className="text-[7px] font-black uppercase tracking-[0.2em] text-on-surface-variant opacity-0 group-hover/node:opacity-60 transition-opacity">{human}</span>
+            </div>
         </div>
     )
 }
@@ -277,20 +295,24 @@ function integrityIcon(color: string) {
     return <div className={clsx('w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg border border-white/10', color)} />
 }
 
-function IntegrityCard({ label, percent, icon: Icon, color, desc }: any) {
+function IntegrityCard({ label, human, percent, icon: Icon, color, desc }: any) {
     return (
-        <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between group hover:bg-surface-lowest/60 transition-all">
-            <div className="flex justify-between items-start mb-6">
+        <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between group hover:bg-surface-lowest/60 transition-all overflow-hidden relative">
+            <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-5 transition-opacity" />
+            <div className="flex justify-between items-start mb-6 relative z-10">
                 <div className={clsx('w-14 h-14 rounded-3xl flex items-center justify-center bg-gradient-to-br text-white shadow-2xl group-hover:scale-110 transition-transform duration-500', color)}>
-                    <Icon size={24} />
+                    <KineticIcon icon={Icon} size={24} color="white" pulse active />
                 </div>
                 <div className="text-right">
                     <span className="text-4xl font-black italic tracking-tighter text-white leading-none mb-1">{percent}%</span>
-                    <p className="text-[8px] font-black uppercase tracking-widest opacity-40">OPTIMIZED</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest opacity-40">OPTIMIZED_FREQ</p>
                 </div>
             </div>
-            <div>
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-white mb-2 italic">{label}</h4>
+            <div className="relative z-10">
+                <div className="flex flex-col mb-3">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white italic">{label}</h4>
+                    <span className="text-[7px] font-black uppercase tracking-[0.2em] text-v-cyan opacity-60">{human}</span>
+                </div>
                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                     <motion.div initial={{ width: 0 }} animate={{ width: `${percent}%` }} transition={{ duration: 1.5, ease: 'easeOut' }} className={clsx('h-full bg-gradient-to-r', color)} />
                 </div>
@@ -303,7 +325,13 @@ function IntegrityCard({ label, percent, icon: Icon, color, desc }: any) {
 function TabBtn({ active, onClick, icon: Icon, label }: any) {
     return (
         <button onClick={onClick} className={clsx('flex items-center gap-4 py-8 relative group transition-all', active ? 'text-white' : 'text-on-surface-variant opacity-40 hover:opacity-100')}>
-            <Icon size={18} className={clsx('transition-all duration-500', active ? 'text-v-cyan scale-125' : 'group-hover:scale-110')} />
+            <KineticIcon 
+                icon={Icon} 
+                size={18} 
+                active={active} 
+                pulse={active} 
+                color={active ? 'var(--v-cyan)' : 'currentColor'} 
+            />
             <span className="text-xs font-black uppercase tracking-widest italic">{label}</span>
             {active && <motion.div layoutId="profile-tab" className="absolute bottom-[-1px] left-0 right-0 h-1 bg-v-cyan shadow-[0_0_15px_var(--v-cyan)] rounded-t-full" />}
         </button>

@@ -6,16 +6,17 @@ import { Search, Command, Zap, User, Settings, Home, Radio, MessageSquare, Layou
 import { useAppStore } from '@/lib/store';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 const COMMANDS = [
-  { id: 'feed', label: 'Neural Feed', icon: Home, route: '/feed', shortcut: 'G F' },
-  { id: 'explore', label: 'Explore Expanse', icon: Radio, route: '/explore', shortcut: 'G E' },
-  { id: 'profile', label: 'Identity Node', icon: User, route: '/profile', shortcut: 'G P' },
-  { id: 'settings', label: 'Kernel Settings', icon: Settings, route: '/settings', shortcut: 'G S' },
-  { id: 'messages', label: 'Signal Hub', icon: MessageSquare, route: '/messages', shortcut: 'G M' },
-  { id: 'theme', label: 'Appearance Interface', icon: Layout, action: 'theme', shortcut: 'T' },
-  { id: 'export', label: 'Neural Archive Export', icon: Cpu, action: 'export', shortcut: 'E' },
-  { id: 'security', label: 'Security Protocols', icon: Shield, route: '/settings?tab=sovereignty', shortcut: 'S' },
+  { id: 'feed', label: 'Home', sub: 'Neural Feed', icon: Home, route: '/feed', shortcut: 'G F' },
+  { id: 'explore', label: 'Discovery', sub: 'Explore Expanse', icon: Radio, route: '/explore', shortcut: 'G E' },
+  { id: 'profile', label: 'Profile', sub: 'Identity Node', icon: User, route: '/profile', shortcut: 'G P' },
+  { id: 'settings', label: 'Settings', sub: 'Kernel Settings', icon: Settings, route: '/settings', shortcut: 'G S' },
+  { id: 'messages', label: 'Messages', sub: 'Signal Hub', icon: MessageSquare, route: '/messages', shortcut: 'G M' },
+  { id: 'theme', label: 'Appearance', sub: 'Theme Interface', icon: Layout, action: 'theme', shortcut: 'T' },
+  { id: 'export', label: 'Export Data', sub: 'Neural Archive', icon: Cpu, action: 'export', shortcut: 'E' },
+  { id: 'security', label: 'Security', sub: 'Privacy Protocols', icon: Shield, route: '/settings?tab=sovereignty', shortcut: 'S' },
 ];
 
 export default function CommandPalette() {
@@ -123,18 +124,37 @@ export default function CommandPalette() {
                                 {selectedIndex === idx && (
                                     <motion.div layoutId="active-bg" className="absolute left-0 top-0 bottom-0 w-1 bg-v-cyan" />
                                 )}
-                                <div className="flex items-center gap-4">
-                                     <div className={clsx(
-                                         'w-10 h-10 rounded-xl flex items-center justify-center transition-colors',
-                                         selectedIndex === idx ? 'bg-v-cyan text-black' : 'bg-white/5 text-on-surface-variant group-hover:text-white'
-                                     )}>
-                                         <cmd.icon size={18} />
-                                     </div>
-                                     <div className="text-left">
-                                         <h4 className={clsx('text-sm font-black uppercase tracking-tighter transition-colors', selectedIndex === idx ? 'text-white' : 'text-on-surface-variant')}>{cmd.label}</h4>
-                                         <p className="text-[9px] font-black uppercase tracking-widest opacity-30">{cmd.route || 'System Command'}</p>
-                                     </div>
-                                </div>
+                                 <div className="flex items-center gap-4 relative z-10">
+                                      <div className={clsx(
+                                          'w-10 h-10 rounded-xl flex items-center justify-center transition-colors',
+                                          selectedIndex === idx ? 'bg-v-cyan shadow-[0_0_15px_var(--v-cyan)] text-black' : 'bg-white/5 text-on-surface-variant group-hover:text-white'
+                                      )}>
+                                          <KineticIcon 
+                                            icon={cmd.icon} 
+                                            size={18} 
+                                            active={selectedIndex === idx} 
+                                            color={selectedIndex === idx ? 'black' : 'currentColor'} 
+                                          />
+                                      </div>
+                                      <div className="text-left">
+                                          <div className="flex items-center gap-2">
+                                            <h4 className={clsx('text-sm font-black uppercase tracking-tighter transition-colors', selectedIndex === idx ? 'text-white' : 'text-on-surface-variant')}>{cmd.label}</h4>
+                                            <span className={clsx('text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-white/5', selectedIndex === idx ? 'bg-v-cyan/20 text-v-cyan' : 'bg-white/5 text-on-surface-variant opacity-40')}>
+                                               {cmd.sub}
+                                            </span>
+                                          </div>
+                                          <p className="text-[9px] font-black uppercase tracking-widest opacity-30">{cmd.route || 'SYSTEM_CORE_DIRECTIVE'}</p>
+                                      </div>
+                                 </div>
+                                 
+                                 {/* Dynamic Scanning Line */}
+                                 {selectedIndex === idx && (
+                                   <motion.div 
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-v-cyan/5 to-transparent pointer-events-none"
+                                    animate={{ left: ['-100%', '100%'] }}
+                                    transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+                                   />
+                                 )}
                                 <div className="flex items-center gap-3">
                                     {cmd.shortcut && (
                                         <span className="text-[10px] font-mono opacity-20 group-hover:opacity-60 transition-opacity">{cmd.shortcut}</span>

@@ -2,9 +2,10 @@
 
 import { useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
-import { X, Camera, Save, TerminalSquare, Lock, Loader2 } from 'lucide-react';
+import { X, Camera, Save, TerminalSquare, Lock, Loader2, Sparkles, ShieldCheck, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { uploadMedia } from '@/app/(main)/feed/upload';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 interface Props {
   onClose: () => void;
@@ -75,6 +76,10 @@ export default function EditProfileModal({ onClose }: Props) {
       isPrivate
     });
 
+    // 4. Force a small delay to ensure Sync Engine initiates the request
+    // This prevents the ProfilePage's refresh-fetch from hitting stale data
+    await new Promise(r => setTimeout(r, 800));
+
     if (manifestText.trim()) {
       try {
         const manifest = JSON.parse(manifestText);
@@ -100,9 +105,12 @@ export default function EditProfileModal({ onClose }: Props) {
       <div className="relative w-full max-w-md bg-surface-high border border-outline-variant/20 rounded-3xl shadow-ambient overflow-hidden animate-fade-in z-10 flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
-          <h2 className="text-lg font-display font-bold text-on-surface">Edit Profile</h2>
-          <button onClick={onClose} className="icon-btn text-on-surface-variant hover:text-on-surface">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02]">
+          <div className="flex flex-col">
+            <h2 className="text-lg font-black italic tracking-tighter text-white uppercase leading-none">Edit Kernel</h2>
+            <span className="text-[8px] font-black tracking-widest text-v-cyan uppercase mt-1">Identity Protocol Update</span>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-white transition-all">
             <X size={20} />
           </button>
         </div>
@@ -122,14 +130,15 @@ export default function EditProfileModal({ onClose }: Props) {
               className="relative group cursor-pointer"
               onClick={handleAvatarClick}
             >
+              <div className="absolute -inset-2 border border-v-cyan/20 rounded-full animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
-                src={avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'} 
+                src={avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=user'} 
                 alt="Avatar Preview" 
-                className="w-24 h-24 rounded-full object-cover border-4 border-surface-lowest shadow-ambient group-hover:opacity-50 transition-all duration-300"
+                className="w-24 h-24 rounded-full object-cover border-4 border-surface-lowest shadow-ambient group-hover:opacity-50 transition-all duration-300 relative z-10"
               />
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <Camera size={24} className="text-white drop-shadow-lg" />
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                <KineticIcon icon={Camera} size={28} color="white" pulse glow />
               </div>
             </div>
             <div className="w-full mt-4 text-center">
@@ -139,33 +148,35 @@ export default function EditProfileModal({ onClose }: Props) {
             </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Display Name</label>
-            <input 
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-surface-low text-on-surface rounded-xl px-4 py-2 border border-outline-variant/10 focus:ring-1 focus:ring-primary-light"
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">
-              Username {isPrime && <span className="text-secondary-light font-bold text-[9px] px-1 ml-2 bg-secondary-dark/30 rounded border border-secondary-DEFAULT/30">ELITE GATEWAY BYPASS</span>}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-medium">@</span>
+          <div className="space-y-4">
+            <div className="flex flex-col">
+              <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-1 block italic">Display Name (Visible Identity)</label>
               <input 
-                value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  setErrorMsg('');
-                }}
-                className="w-full bg-surface-low text-on-surface rounded-xl py-2 pl-9 pr-4 border border-outline-variant/10 focus:ring-1 focus:ring-primary-light"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full bg-white/[0.03] text-white rounded-2xl px-6 py-3 border border-white/5 focus:ring-1 focus:ring-v-cyan font-bold italic transition-all"
               />
             </div>
-            {errorMsg && (
-              <p className="mt-2 text-xs text-error font-medium animate-fade-in">{errorMsg}</p>
-            )}
+  
+            <div className="flex flex-col">
+              <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-1 block italic">
+                Username (Neural Hub Address) {isPrime && <span className="text-v-violet font-black text-[9px] px-2 py-0.5 ml-2 bg-v-violet/10 rounded-full border border-v-violet/20">ELITE_OVERRIDE</span>}
+              </label>
+              <div className="relative">
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-v-cyan font-black italic">@</span>
+                <input 
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setErrorMsg('');
+                  }}
+                  className="w-full bg-white/[0.03] text-white rounded-2xl py-3 pl-12 pr-6 border border-white/5 focus:ring-1 focus:ring-v-cyan font-bold italic transition-all"
+                />
+              </div>
+              {errorMsg && (
+                <p className="mt-2 text-[9px] text-rose-500 font-black uppercase tracking-widest animate-fade-in"><AlertTriangle size={10} className="inline mr-1" /> {errorMsg}</p>
+              )}
+            </div>
           </div>
 
           <div>
@@ -179,26 +190,24 @@ export default function EditProfileModal({ onClose }: Props) {
           </div>
 
           {/* Privacy Toggle */}
-          <div className="flex items-center justify-between p-4 bg-surface-low rounded-xl border border-outline-variant/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-surface-lowest flex items-center justify-center text-primary-light border border-outline-variant/10 shadow-ambient">
-                <Lock size={18} />
+          <div className="flex items-center justify-between p-6 bg-white/[0.03] rounded-3xl border border-white/5 hover:bg-white/[0.05] transition-all group">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center text-v-cyan shadow-xl transition-all group-hover:scale-110">
+                <KineticIcon icon={Lock} size={20} color="var(--v-cyan)" pulse={isPrivate} />
               </div>
               <div>
-                <div className="text-[13px] font-bold text-on-surface">Private Account</div>
-                <div className="text-[11px] text-on-surface-variant max-w-[200px] leading-tight mt-0.5">When your account is private, only people you approve can see your photos and videos.</div>
+                <div className="text-[13px] font-black text-white uppercase italic tracking-tighter">Sovereign Privacy</div>
+                <div className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40 mt-1">GHOST_MODE (Private Account)</div>
               </div>
             </div>
             <button 
               onClick={() => setIsPrivate(!isPrivate)}
               className={clsx(
-                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out custom-focus-ring flex-shrink-0 focus-visible:ring-primary-light",
-                isPrivate ? "bg-primary" : "bg-surface-highest border border-outline-variant/30"
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300",
+                isPrivate ? "bg-v-cyan shadow-[0_0_15px_var(--v-cyan)]" : "bg-white/10"
               )}
-              role="switch"
-              aria-checked={isPrivate}
             >
-              <span className={clsx("inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out shadow-sm", isPrivate ? "translate-x-6" : "translate-x-1")} />
+              <span className={clsx("inline-block h-4 w-4 transform rounded-full bg-white transition duration-300 shadow-sm", isPrivate ? "translate-x-6" : "translate-x-1")} />
             </button>
           </div>
 
@@ -223,24 +232,27 @@ export default function EditProfileModal({ onClose }: Props) {
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-outline-variant/10 bg-surface-highest flex justify-end gap-3">
+        <div className="p-6 border-t border-white/5 bg-black/40 flex justify-end gap-4 items-center">
+          <div className="flex-1">
+            {isSaving && <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-cyan animate-pulse">Neural_Sync_Active...</span>}
+          </div>
           <button 
             onClick={onClose}
-            className="px-5 py-2 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-low transition-colors"
+            className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"
           >
-            Cancel
+            Abort (Cancel)
           </button>
           <button 
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-primary-gradient shadow-[0_0_20px_rgba(208,188,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
+            className="flex items-center gap-3 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white bg-primary-gradient shadow-[0_15px_30px_rgba(108,99,255,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
           >
             {isSaving ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
-              <Save size={16} />
+              <KineticIcon icon={Save} size={16} color="white" />
             )}
-            {isSaving ? 'Saving...' : 'Save Changes'}
+            {isSaving ? 'SYNCING...' : 'Commit Updates'}
           </button>
         </div>
       </div>

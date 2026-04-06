@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
 import { deletePost, editPost, submitCommentDB, toggleLikeDB, toggleSaveDB } from '@/app/(main)/feed/actions';
 import { motion, AnimatePresence } from 'framer-motion';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -35,18 +36,24 @@ function renderParsedContent(rawText: string) {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-black text-white italic uppercase tracking-tighter">{label}</span>
-                  <span className="text-[9px] text-v-cyan uppercase tracking-widest font-black opacity-60">
-                    {isImage ? 'STILL_ASSET_LOCKED' : 'MOTION_KERNEL_ACTIVE'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-v-cyan uppercase tracking-widest font-black opacity-60">
+                      {isImage ? 'STILL_ASSET_LOCKED' : 'MOTION_KERNEL_ACTIVE'}
+                    </span>
+                    <span className="text-[8px] text-white/20 uppercase tracking-tighter font-bold">
+                      ({isImage ? 'View Image' : 'Play Video'})
+                    </span>
+                  </div>
                 </div>
               </div>
             );
           }
           if (isLocation) {
             return (
-              <div key={i} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-v-cyan bg-v-cyan/10 px-4 py-2 rounded-full w-fit mt-2 border border-v-cyan/20 italic shadow-[0_0_15px_rgba(6,182,212,0.1)]">
-                <div className="w-1.5 h-1.5 rounded-full bg-v-cyan animate-pulse mr-1" />
+              <div key={i} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-v-cyan bg-v-cyan/10 px-4 py-2 rounded-full w-fit mt-2 border border-v-cyan/20 italic shadow-[0_0_15px_rgba(6,182,212,0.1)] group/geo">
+                <KineticIcon icon={AlertCircle} size={10} color="var(--v-cyan)" pulse glow />
                 GEOLOCK: <span className="text-white">{label}</span>
+                <span className="text-[8px] text-white/30 lowercase italic tracking-tighter ml-1">(Location Protocol)</span>
               </div>
             );
           }
@@ -185,12 +192,19 @@ export default function PostCard({ post, currentUserId }: Props) {
     >
       {/* Magnetic Signal Shimmer */}
       <div className="pointer-events-none absolute inset-0 z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: `radial-gradient(500px circle at ${mousePos.x}px ${mousePos.y}px, rgba(108, 99, 255, 0.05), transparent 40%)` }} />
+      
+      {/* 2026 Neural Sweep (Advanced Glint) */}
+      <motion.div 
+        animate={{ x: ['-100%', '300%'] }}
+        transition={{ repeat: Infinity, duration: 6, ease: 'linear', delay: 2 }}
+        className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent skew-x-12 pointer-events-none z-10"
+      />
 
       {post.communityId && (
         <div className="px-8 pt-7 pb-0 flex items-center relative z-10">
           <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-surface-high/50 border border-white/5 shadow-xl hover:bg-white hover:text-black transition-all cursor-pointer group/comm">
             <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan group-hover/comm:text-black italic">PROTOCOL: {post.communityName?.toUpperCase() || 'VOID'}</span>
-            <Zap size={12} className="text-v-cyan animate-pulse group-hover/comm:text-black" />
+            <KineticIcon icon={Zap} size={12} color="var(--v-cyan)" active pulse />
           </div>
         </div>
       )}
@@ -201,34 +215,41 @@ export default function PostCard({ post, currentUserId }: Props) {
           <div className="flex items-center gap-4">
             <div className="relative group/avatar cursor-pointer">
               <div className={clsx('w-14 h-14 rounded-[24px] p-0.5 border-2 transition-all duration-500 overflow-hidden shadow-2xl', isPrimeUser ? 'border-v-violet shadow-[0_0_20px_rgba(108,99,255,0.3)]' : 'border-white/5 group-hover/avatar:border-v-cyan')}>
-                 <img src={post.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=user`} className="w-full h-full object-cover rounded-[20px] group-hover/avatar:scale-110 transition-transform duration-700" alt="avatar" />
+                  <img src={post.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=user`} className="w-full h-full object-cover rounded-[20px] group-hover/avatar:scale-110 transition-transform duration-700" alt="avatar" />
               </div>
-              {isPrimeUser && <div className="absolute -top-1 -right-1 bg-v-violet p-1 rounded-lg shadow-xl"><ShieldCheck size={12} className="text-white" /></div>}
+              {isPrimeUser && <div className="absolute -top-1 -right-1 bg-v-violet p-1 rounded-lg shadow-xl"><KineticIcon icon={ShieldCheck} size={12} color="white" active /></div>}
             </div>
             <div>
-               <div className="flex items-center gap-2 mb-0.5">
-                  <h4 className="text-base font-black italic text-white uppercase tracking-tighter leading-none">{post.author?.displayName}</h4>
-                  {isPrimeUser && <span className="text-[8px] font-black bg-v-violet/10 text-v-violet border border-v-violet/20 px-2 py-0.5 rounded-full tracking-widest">PRIME_IDENTITY</span>}
-               </div>
-               <div className="flex items-center gap-2 opacity-50">
-                  <span className="text-[10px] font-bold text-v-cyan italic tracking-widest uppercase">@{post.author?.username}</span>
-                  <span className="text-[9px] font-black text-on-surface-variant uppercase tracking-tighter mb-0.5">• {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false })} ago</span>
-               </div>
+                <div className="flex items-center gap-2 mb-0.5">
+                   <h4 className="text-base font-black italic text-white uppercase tracking-tighter leading-none">{post.author?.displayName}</h4>
+                   {isPrimeUser && (
+                     <div className="flex flex-col">
+                        <span className="text-[8px] font-black bg-v-violet/10 text-v-violet border border-v-violet/20 px-2 py-0.5 rounded-full tracking-widest uppercase mb-1">PRIME_IDENTITY</span>
+                        <span className="text-[7px] text-v-violet/60 font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Neural Verified Node</span>
+                     </div>
+                   )}
+                </div>
+                <div className="flex items-center gap-2 opacity-50">
+                   <span className="text-[10px] font-bold text-v-cyan italic tracking-widest uppercase">@{post.author?.username}</span>
+                   <span className="text-[9px] font-black text-on-surface-variant uppercase tracking-tighter mb-0.5">• {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false })} ago (Signal Broadcast)</span>
+                </div>
             </div>
           </div>
 
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setMenuOpen(v => !v)} className="w-10 h-10 rounded-2xl flex items-center justify-center text-on-surface-variant hover:bg-surface-high hover:text-white transition-all"><MoreHorizontal size={20} /></button>
+            <button onClick={() => setMenuOpen(v => !v)} className="w-10 h-10 rounded-2xl flex items-center justify-center text-on-surface-variant hover:bg-surface-high hover:text-white transition-all">
+                <KineticIcon icon={MoreHorizontal} size={20} color="currentColor" active={menuOpen} />
+            </button>
             <AnimatePresence>
               {menuOpen && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute right-0 top-12 z-50 w-48 glass-card border-none bg-surface-lowest rounded-[28px] shadow-3xl py-2 overflow-hidden italic">
                   {isOwner && (
                     <>
-                      <button onClick={() => { setIsEditing(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface hover:bg-primary-gradient hover:text-white transition-all"><Pencil size={14} /> Edit Identity</button>
-                      <button onClick={handleDelete} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 size={14} /> Execute Purge</button>
+                      <button onClick={() => { setIsEditing(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface hover:bg-primary-gradient hover:text-white transition-all"><KineticIcon icon={Pencil} size={14} /> Edit Protocol</button>
+                      <button onClick={handleDelete} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><KineticIcon icon={Trash2} size={14} /> Execute Purge (Delete)</button>
                     </>
                   )}
-                  <button onClick={handleShare} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"><Share2 size={14} /> Relayer Broadcast</button>
+                  <button onClick={handleShare} className="w-full flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"><KineticIcon icon={Share2} size={14} /> Signal Relay (Share)</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -278,7 +299,9 @@ export default function PostCard({ post, currentUserId }: Props) {
               </AnimatePresence>
             </div>
           </div>
-          <button onClick={handleSave} className={clsx('w-10 h-10 rounded-2xl flex items-center justify-center transition-all', saved ? 'bg-v-violet text-white shadow-xl' : 'text-on-surface-variant hover:text-white')}><Bookmark size={18} fill={saved ? 'currentColor' : 'none'} /></button>
+          <button onClick={handleSave} className={clsx('w-12 h-12 rounded-[20px] flex items-center justify-center transition-all group/save', saved ? 'bg-v-violet text-white shadow-xl scale-110' : 'text-on-surface-variant hover:text-white hover:bg-white/5')}>
+              <KineticIcon icon={Bookmark} size={20} color="currentColor" active={saved} pulse={saved} glow={saved} />
+          </button>
         </div>
 
         {/* Inline Comment Feed */}
@@ -316,8 +339,14 @@ export default function PostCard({ post, currentUserId }: Props) {
 
 function ActionBtn({ active, icon: Icon, label, activeColor, onClick }: any) {
   return (
-    <button onClick={onClick} className={clsx('flex items-center gap-2.5 px-5 py-2.5 rounded-full transition-all duration-300 font-bold italic text-xs uppercase tracking-widest', active ? `${activeColor} bg-white/5 shadow-xl` : 'text-on-surface-variant/60 hover:text-white hover:bg-white/[0.03]')}>
-       <Icon size={16} fill={active ? 'currentColor' : 'none'} className="transition-transform group-active:scale-125" />
+    <button onClick={onClick} className={clsx('flex items-center gap-2.5 px-5 py-2.5 rounded-full transition-all duration-300 font-bold italic text-xs uppercase tracking-widest group/act', active ? `${activeColor} bg-white/5 shadow-xl` : 'text-on-surface-variant/60 hover:text-white hover:bg-white/[0.03]')}>
+       <KineticIcon 
+        icon={Icon} 
+        size={16} 
+        color={active ? activeColor.replace('text-', 'var(--') + ')' : 'currentColor'} 
+        active={active} 
+        pulse={active}
+       />
        <span className="mt-0.5">{label}</span>
     </button>
   );

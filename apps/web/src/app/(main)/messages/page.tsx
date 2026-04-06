@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from 'react';
-import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft, Check, CheckCheck, AlertCircle, Trash2, ShieldAlert, Sparkles, UserX, Ghost } from 'lucide-react';
+import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft, Check, CheckCheck, AlertCircle, Trash2, ShieldAlert, Sparkles, UserX, Ghost, Activity, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { useAppStore } from '@/lib/store';
@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { deleteMessageDB, validateMessagingPermission } from './actions';
 import clsx from 'clsx';
+import KineticIcon from '@/components/ui/KineticIcon';
 
 interface DBConversation {
   id: string;
@@ -223,18 +224,20 @@ function MessagesContent() {
       <div className="w-[340px] flex-shrink-0 flex flex-col bg-[#0a0a0f] border-r border-white/5 relative z-10 shadow-[4px_0_24px_rgba(0,0,0,0.6)]">
         <div className="px-8 py-10 flex items-center justify-between border-b border-white/5">
           <div>
-            <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Signals</h2>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">Intelligence Hub</p>
+            <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Messages</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">Private Neural Network</p>
           </div>
           <button className="w-10 h-10 rounded-2xl bg-surface-high/50 flex items-center justify-center hover:bg-v-cyan hover:text-black transition-all border border-white/5 shadow-xl group">
-            <Edit size={18} className="group-hover:scale-110 transition-transform" />
+            <KineticIcon icon={Edit} size={18} active />
           </button>
         </div>
 
         <div className="px-6 py-6 border-b border-white/5">
            <div className="relative group">
-              <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-v-cyan transition-colors" />
-              <input value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} placeholder="SCAN NETWORK FOR NODES..." className="w-full bg-surface-lowest/50 border border-white/5 text-xs font-black uppercase tracking-widest rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/40 italic" />
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                 <KineticIcon icon={Search} size={16} color="var(--v-cyan)" active pulse />
+              </div>
+              <input value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} placeholder="Search people or messages..." className="w-full bg-surface-lowest/50 border border-white/5 text-xs font-black uppercase tracking-widest rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/40 italic" />
            </div>
         </div>
 
@@ -254,7 +257,13 @@ function MessagesContent() {
             const active = activeConvId === conv.id;
             return (
               <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={clsx('group mx-4 px-6 py-5 cursor-pointer transition-all duration-300 rounded-[28px] relative border border-transparent', active ? 'bg-surface-high/60 shadow-[0_15px_30px_rgba(0,0,0,0.4)] border-white/5' : 'hover:bg-white/[0.03]')}>
-                {active && <motion.div layoutId="active-signal" className="absolute left-0 top-6 bottom-6 w-1 bg-v-cyan shadow-[0_0_15px_var(--v-cyan)] rounded-full" />}
+                {active && (
+                    <motion.div 
+                        layoutId="active-signal-pill" 
+                        className="absolute inset-0 bg-primary-gradient/10 rounded-[28px] -z-10" 
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                )}
                 <div className="flex items-center gap-5">
                    <div className="relative flex-shrink-0">
                       <img src={conv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participant_username}`} className="w-12 h-12 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform duration-500" alt="avatar" />
@@ -291,18 +300,28 @@ function MessagesContent() {
                     </div>
                 </div>
              </div>
-             <div className="flex items-center gap-3">
-                 <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl"><Phone size={18} /></button>
-                 <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl"><Video size={18} /></button>
-                 <button className="w-11 h-11 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-white transition-all"><MoreHorizontal size={20} /></button>
-             </div>
+              <div className="flex items-center gap-3">
+                  <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl group">
+                      <KineticIcon icon={Phone} size={18} active />
+                  </button>
+                  <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl group">
+                      <KineticIcon icon={Video} size={18} active />
+                  </button>
+                  <button className="w-11 h-11 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-white transition-all">
+                      <KineticIcon icon={MoreHorizontal} size={20} />
+                  </button>
+              </div>
           </div>
 
           {/* Message Stream */}
           <div className="flex-1 overflow-y-auto px-10 py-10 space-y-8 z-10 custom-scrollbar-hidden select-text">
              <div className="flex justify-center mb-10">
-                <div className="px-6 py-2.5 rounded-full bg-v-violet/10 border border-v-violet/20 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-v-violet shadow-2xl backdrop-blur-md">
-                   <Lock size={12} className="shadow-[0_0_8px_currentColor]" /> Protocol E2EE: SECURED TRANSMISSION
+                <div className="px-6 py-2.5 rounded-full bg-white/[0.03] border border-white/5 flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-v-cyan shadow-3xl backdrop-blur-md group cursor-pointer hover:bg-v-cyan/5 transition-all">
+                   <KineticIcon icon={ShieldCheck} size={14} color="var(--v-cyan)" pulse glow />
+                   <div className="flex flex-col">
+                      <span className="leading-none mb-0.5">Encrypted Connection</span>
+                      <span className="text-[7px] text-on-surface-variant opacity-40 leading-none">Military-Grade (Signal Proof)</span>
+                   </div>
                 </div>
              </div>
 
@@ -314,12 +333,12 @@ function MessagesContent() {
                               {m.content}
                               {m.is_mine && (
                                  <div className="absolute bottom-2 right-4 flex items-center gap-1 opacity-40 scale-75">
-                                    {m.status === 'sending' ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={12} />}
+                                    {m.status === 'sending' ? <Loader2 size={12} className="animate-spin" /> : <KineticIcon icon={CheckCheck} size={12} color="white" active />}
                                  </div>
                               )}
                               {m.is_mine && (
                                  <button onClick={() => deleteMsg(m.id)} className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 items-center justify-center opacity-0 group-hover:opacity-100 transition-all flex hover:bg-rose-500 hover:text-white">
-                                    <Trash2 size={14} />
+                                    <KineticIcon icon={Trash2} size={14} />
                                  </button>
                               )}
                            </div>
@@ -365,23 +384,31 @@ function MessagesContent() {
                 </div>
              ) : (
                 <div className="relative">
-                   <div className="flex items-center gap-4 p-4 bg-surface-lowest/60 backdrop-blur-3xl border border-white/5 rounded-full shadow-3xl group focus-within:ring-2 focus-within:ring-v-cyan/20 transition-all">
-                      <button className="w-12 h-12 rounded-full flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all"><Paperclip size={20} /></button>
-                      <input value={msg} onChange={(e) => handleTyping(e.target.value)} onKeyDown={(e) => { if(e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Inject signal data..." className="flex-1 bg-transparent border-none text-on-surface text-sm font-bold italic focus:outline-none placeholder:text-on-surface-variant/30" />
-                      <button className="w-12 h-12 rounded-full flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all"><Smile size={20} /></button>
-                      <button onClick={() => sendMessage()} className={clsx('w-14 h-14 rounded-full flex items-center justify-center text-white transition-all shadow-[0_10px_20px_rgba(108,99,255,0.4)]', msg.trim() ? 'bg-primary-gradient hover:scale-105 active:scale-95' : 'bg-surface-high opacity-40')}><Send size={18} className={msg.trim() ? '-ml-1' : ''} /></button>
-                   </div>
-                </div>
+                    <div className="flex items-center gap-4 p-4 bg-surface-lowest/60 backdrop-blur-3xl border border-white/5 rounded-[32px] shadow-3xl group focus-within:ring-2 focus-within:ring-v-cyan/20 transition-all">
+                       <button className="w-12 h-12 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all group">
+                          <KineticIcon icon={Paperclip} size={20} />
+                       </button>
+                       <input value={msg} onChange={(e) => handleTyping(e.target.value)} onKeyDown={(e) => { if(e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Type a message..." className="flex-1 bg-transparent border-none text-on-surface text-sm font-black italic focus:outline-none placeholder:text-on-surface-variant/30" />
+                       <button className="w-12 h-12 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all group">
+                          <KineticIcon icon={Smile} size={20} />
+                       </button>
+                       <button onClick={() => sendMessage()} className={clsx('w-14 h-14 rounded-2xl flex items-center justify-center text-white transition-all shadow-[0_15px_30px_rgba(108,99,255,0.4)]', msg.trim() ? 'bg-primary-gradient hover:scale-105 active:scale-95' : 'bg-surface-high opacity-40')}>
+                          <KineticIcon icon={Send} size={18} color="white" active={!!msg.trim()} pulse={!!msg.trim()} />
+                       </button>
+                    </div>
+                 </div>
              )}
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[#080810] border-l border-white/5">
-             <div className="w-40 h-40 bg-surface-low rounded-[50px] flex items-center justify-center border border-white/5 shadow-2xl relative group overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#080810] border-l border-white/5 relative overflow-hidden">
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--v-cyan)/3%_0,transparent_100%)] animate-pulse" />
+             <div className="w-48 h-48 bg-surface-low rounded-[60px] flex items-center justify-center border border-white/5 shadow-2xl relative group overflow-hidden">
                 <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-20 transition-opacity" />
-                <Ghost size={60} className="text-on-surface-variant/10 group-hover:text-v-cyan group-hover:scale-110 transition-all duration-700" />
+                <KineticIcon icon={Ghost} size={60} color="var(--on-surface-variant)" active pulse glow />
              </div>
-             <p className="mt-8 text-[10px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-30 italic">Initialize Session</p>
+             <p className="mt-8 text-[11px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-40 italic">Initialize Secure Session</p>
+             <span className="text-[7px] font-black tracking-[0.2em] text-on-surface-variant/40 uppercase mt-2">Waiting for neural link...</span>
         </div>
       )}
     </div>
