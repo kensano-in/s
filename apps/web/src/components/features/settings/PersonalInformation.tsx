@@ -132,7 +132,7 @@ export default function PersonalInformation() {
             <InputRow 
                 icon={Mail} 
                 label="Primary Intelligence Channel" 
-                value={currentUser?.username ? `@verlyn.in` : 'authenticated@verlyn.in'} 
+                value={currentUser?.email || (currentUser?.username ? (currentUser.username + '@verlyn.in') : 'authenticated@verlyn.in')} 
                 disabled 
                 desc="CRITICAL IDENTITY SIGNAL (MODIFICATION RESTRICTED BY CORE PROTOCOL)"
             />
