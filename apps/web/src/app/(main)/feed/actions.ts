@@ -118,3 +118,18 @@ export async function toggleLikeDB(postId: string, userId: string, isLiking: boo
     return { success: false, error: err.message };
   }
 }
+
+export async function toggleSaveDB(postId: string, userId: string, isSaving: boolean) {
+  try {
+    const supabase = await createClient();
+    if (isSaving) {
+      await supabase.from('saved_posts').upsert({ post_id: postId, user_id: userId }, { onConflict: 'post_id,user_id' });
+    } else {
+      await supabase.from('saved_posts').delete().match({ post_id: postId, user_id: userId });
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to sync save to DB:', err.message);
+    return { success: false, error: err.message };
+  }
+}
