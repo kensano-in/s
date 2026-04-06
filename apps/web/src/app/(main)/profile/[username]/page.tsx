@@ -63,7 +63,7 @@ export default function PublicProfilePage() {
         // but we'll fetch them anyway and hide them in the UI if not following.
         const { data: posts } = await supabase
           .from('posts')
-          .select('*, author:users!posts_author_id_fkey(*), community:communities!posts_community_id_fkey(display_name)')
+          .select('*, author:users!posts_author_id_fkey(*), community:communities(display_name)')
           .eq('author_id', user.id)
           .order('created_at', { ascending: false });
 
