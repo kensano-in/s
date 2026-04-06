@@ -53,8 +53,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar />
-        <main className={clsx("flex-1", !isMessages && "overflow-y-auto")}>
-          <div className={clsx(isMessages ? "h-full" : "max-w-[680px] mx-auto px-4 py-6")}>
+        <main className={clsx("flex-1 min-h-0", !isMessages && "overflow-y-auto")}>
+          <div className={clsx(isMessages ? "h-full flex flex-col" : "max-w-[680px] mx-auto px-4 py-6")}>
             {children}
           </div>
         </main>

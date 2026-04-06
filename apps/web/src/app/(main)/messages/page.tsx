@@ -90,11 +90,11 @@ function MessagesContent() {
   useEffect(() => {
     if (!currentUser?.id) { setLoadingConvs(false); return; }
     async function loadConversations() {
-      const { data } = await supabase.from('messages').select('*').or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`).order('sent_at', { ascending: false }).limit(60);
+      const { data } = await supabase.from('messages').select('*').or(`sender_id.eq.${currentUser!.id},recipient_id.eq.${currentUser!.id}`).order('sent_at', { ascending: false }).limit(60);
       const convMap = new Map<string, DBConversation>();
       if (data) {
         for (const m of data) {
-          const otherId = m.sender_id === currentUser.id ? m.recipient_id : m.sender_id;
+          const otherId = m.sender_id === currentUser!.id ? m.recipient_id : m.sender_id;
           if (convMap.has(otherId)) continue;
           const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', otherId).single();
           convMap.set(otherId, { id: otherId, participant_id: otherId, participant_name: other?.display_name || other?.username || 'Unknown Node', participant_username: other?.username || '?', participant_avatar: other?.avatar_url || null, last_message: m.content, updated_at: m.sent_at, unread: 0 });
@@ -116,7 +116,7 @@ function MessagesContent() {
     if (!activeConvId || !currentUser?.id) return;
     setPermError(null);
     async function checkPerms() {
-        const res = await validateMessagingPermission(currentUser.id, activeConvId!);
+        const res = await validateMessagingPermission(currentUser!.id, activeConvId!);
         if (!res.allowed) setPermError(res.error);
     }
     checkPerms();
@@ -220,7 +220,7 @@ function MessagesContent() {
 
   return (
     <div className="flex h-full w-full animate-fade-in bg-[#050505] text-on-surface font-sans italic selection:bg-v-cyan/30">
-      <div className="w-[380px] flex-shrink-0 flex flex-col bg-surface-low/30 backdrop-blur-3xl border-r border-white/5 relative z-10 shadow-[20px_0_40px_rgba(0,0,0,0.5)]">
+      <div className="w-[340px] flex-shrink-0 flex flex-col bg-[#0a0a0f] border-r border-white/5 relative z-10 shadow-[4px_0_24px_rgba(0,0,0,0.6)]">
         <div className="px-8 py-10 flex items-center justify-between border-b border-white/5">
           <div>
             <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Signals</h2>
@@ -275,7 +275,7 @@ function MessagesContent() {
       </div>
 
       {activeConv ? (
-        <div className="flex-1 flex flex-col min-w-0 relative bg-[#010101] overflow-hidden -ml-8 rounded-l-[50px] shadow-[-20px_0_60px_rgba(0,0,0,0.8)] border-l border-white/5">
+        <div className="flex-1 flex flex-col min-w-0 relative bg-[#080810] overflow-hidden border-l border-white/5">
           {/* Header */}
           <div className="px-10 py-6 flex items-center justify-between border-b border-white/5 bg-black/60 backdrop-blur-2xl z-20">
              <div className="flex items-center gap-5">
@@ -369,14 +369,14 @@ function MessagesContent() {
                       <button className="w-12 h-12 rounded-full flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all"><Paperclip size={20} /></button>
                       <input value={msg} onChange={(e) => handleTyping(e.target.value)} onKeyDown={(e) => { if(e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Inject signal data..." className="flex-1 bg-transparent border-none text-on-surface text-sm font-bold italic focus:outline-none placeholder:text-on-surface-variant/30" />
                       <button className="w-12 h-12 rounded-full flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all"><Smile size={20} /></button>
-                      <button onClick={sendMessage} className={clsx('w-14 h-14 rounded-full flex items-center justify-center text-white transition-all shadow-[0_10px_20px_rgba(108,99,255,0.4)]', msg.trim() ? 'bg-primary-gradient hover:scale-105 active:scale-95' : 'bg-surface-high opacity-40')}><Send size={18} className={msg.trim() ? '-ml-1' : ''} /></button>
+                      <button onClick={() => sendMessage()} className={clsx('w-14 h-14 rounded-full flex items-center justify-center text-white transition-all shadow-[0_10px_20px_rgba(108,99,255,0.4)]', msg.trim() ? 'bg-primary-gradient hover:scale-105 active:scale-95' : 'bg-surface-high opacity-40')}><Send size={18} className={msg.trim() ? '-ml-1' : ''} /></button>
                    </div>
                 </div>
              )}
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[#010101] -ml-8 rounded-l-[50px] shadow-[-20px_0_60px_rgba(0,0,0,0.8)] border-l border-white/5">
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#080810] border-l border-white/5">
              <div className="w-40 h-40 bg-surface-low rounded-[50px] flex items-center justify-center border border-white/5 shadow-2xl relative group overflow-hidden">
                 <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-20 transition-opacity" />
                 <Ghost size={60} className="text-on-surface-variant/10 group-hover:text-v-cyan group-hover:scale-110 transition-all duration-700" />
