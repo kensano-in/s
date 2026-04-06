@@ -1,327 +1,224 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import type { Community } from '@/lib/types';
-import { Users, Lock, Zap, Search, Plus, TrendingUp, Star, Loader2, Hash, X } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useState, useEffect, useCallback } from 'react';
+import { Users, Shield, Plus, Zap, Star, Search, Loader2, X, AlertCircle, CheckCircle2, ChevronRight, Hash, Database, Globe, Lock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getCommunities, createCommunity, toggleCommunityJoin } from './actions';
 import { useAppStore } from '@/lib/store';
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
-const BOOST_COLORS = ['', 'var(--v-cyan)', 'var(--v-violet)', 'var(--v-pink)'];
-const BOOST_LABELS = ['', 'Boosted', 'Boosted II', '🔥 Boosted III'];
-
-// Gradient per community based on index
-const BANNER_GRADIENTS = [
-  'linear-gradient(135deg, #4c1d95 0%, #2e1065 100%)',
-  'linear-gradient(135deg, #134e4a 0%, #064e3b 100%)',
-  'linear-gradient(135deg, #881337 0%, #4c0519 100%)',
-  'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
-  'linear-gradient(135deg, #78350f 0%, #451a03 100%)',
-  'linear-gradient(135deg, #1e293b 0%, #020617 100%)',
-];
-
-function CommunityCard({ c, idx, userId }: { c: Community; idx: number; userId?: string }) {
-  const [joined, setJoined] = useState<boolean>(c.isJoined ?? false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const gradient = BANNER_GRADIENTS[idx % BANNER_GRADIENTS.length];
-
-  const handleJoin = async () => {
-    if (!userId) return;
-    setIsProcessing(true);
-    const newStatus = !joined;
-    setJoined(newStatus);
-    const { toggleCommunityJoin } = await import('./actions');
-    const res = await toggleCommunityJoin(c.id, userId, newStatus);
-    if (!res.success) {
-      setJoined(!newStatus); // revert on failure
-    }
-    setIsProcessing(false);
-  };
-
-  return (
-    <div className="glass-card p-4 hover:border-opacity-40 transition-all duration-200">
-      {/* Banner */}
-      <div className="h-20 rounded-xl mb-4 relative overflow-hidden" style={{ background: gradient }}>
-        <div className="absolute inset-0 opacity-20" style={{ background: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.3) 0%, transparent 70%)' }} />
-        {(c.boostLevel ?? 0) > 0 && (
-          <span
-            className="absolute top-2 right-2 text-[10px] font-bold px-2 py-1 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.5)', color: BOOST_COLORS[c.boostLevel ?? 0], border: `1px solid ${BOOST_COLORS[c.boostLevel ?? 0]}` }}
-          >
-            {BOOST_LABELS[c.boostLevel ?? 0]}
-          </span>
-        )}
-      </div>
-
-      <div className="flex items-start gap-3">
-        <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 -mt-8 relative border-2"
-          style={{ background: 'var(--surface)', borderColor: 'var(--border-strong)' }}
-        >
-          {c.iconUrl || <Hash size={20} className="text-primary-light" />}
-        </div>
-        <div className="flex-1 min-w-0 pt-0.5">
-          <div className="flex items-center gap-1.5">
-            <h3 className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{c.displayName}</h3>
-            {c.isPrivate && <Lock size={12} style={{ color: 'var(--text-tertiary)' }} />}
-          </div>
-          <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-            {fmt(c.memberCount)} members
-          </div>
-        </div>
-      </div>
-
-      <p className="text-xs mt-3 line-clamp-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-        {c.description || 'A community on Verlyn.'}
-      </p>
-
-      {c.tags && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {c.tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="text-[10px] px-2 py-0.5 rounded-md font-medium" style={{ background: 'rgba(108,99,255,0.1)', color: 'var(--v-violet-light)' }}>
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={handleJoin}
-          disabled={!userId || isProcessing}
-          className={joined ? 'btn-glass flex-1 text-xs' : 'btn-primary flex-1 text-xs shine'}
-          id={`join-btn-${c.id}`}
-        >
-          {isProcessing ? <Loader2 size={12} className="animate-spin text-center mx-auto" /> : (joined ? 'Joined ✓' : <><Plus size={12} /> Join</>)}
-        </button>
-        {(c.boostLevel ?? 0) < 3 && (
-          <button className="btn-glass text-xs px-3 flex-shrink-0" style={{ color: 'var(--v-pink)' }}>
-            <Zap size={12} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+import clsx from 'clsx';
 
 export default function CommunitiesPage() {
-  const [filter, setFilter] = useState<'all' | 'joined' | 'trending'>('all');
-  const [query, setQuery] = useState('');
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const { currentUser } = useAppStore();
-  const supabase = useMemo(() => createClient(), []);
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [modalErr, setModalErr] = useState<string | null>(null);
+
+  // Creation State
+  const [newComm, setNewComm] = useState({ name: '', displayName: '', description: '', isPrivate: false });
+
+  const fetchCommunities = useCallback(async () => {
+    setLoading(true);
+    const res = await getCommunities(currentUser?.id);
+    if (res.success) setCommunities(res.communities);
+    setLoading(false);
+  }, [currentUser?.id]);
 
   useEffect(() => {
-    async function loadCommunities() {
-      const [commsRes, joinedRes] = await Promise.all([
-        supabase.from('communities').select('*').order('member_count', { ascending: false }).limit(50),
-        currentUser ? supabase.from('community_members').select('community_id').eq('user_id', currentUser.id) : Promise.resolve({ data: [] })
-      ]);
+    fetchCommunities();
+  }, [fetchCommunities]);
 
-      if (!commsRes.data || commsRes.data.length === 0) {
-        setLoading(false);
-        setCommunities([]);
-        return;
-      }
-
-      const joinedIds = new Set((joinedRes.data || []).map((r: any) => r.community_id));
-
-      // Map DB columns to Community type
-      const mapped: Community[] = commsRes.data.map((c: any) => ({
-        id: c.id,
-        name: c.name || c.id,
-        displayName: c.display_name || c.name || 'Community',
-        description: c.description || '',
-        iconUrl: c.icon_url || '',
-        memberCount: c.member_count || 0,
-        isPrivate: c.is_private || false,
-        isJoined: joinedIds.has(c.id),
-        boostLevel: c.boost_level || 0,
-        tags: c.tags || [],
-        createdAt: c.created_at || new Date().toISOString(),
-      }));
-
-      setCommunities(mapped);
-      setLoading(false);
+  const handleJoinLeave = async (cId: string, isJoining: boolean) => {
+    if (!currentUser?.id) return;
+    const res = await toggleCommunityJoin(cId, currentUser.id, isJoining);
+    if (res.success) {
+        setCommunities(prev => prev.map(c => c.id === cId ? { ...c, isJoined: isJoining, member_count: isJoining ? c.member_count + 1 : c.member_count - 1 } : c));
     }
-    loadCommunities();
-  }, [supabase, currentUser]);
+  }
 
-  const filtered = communities.filter((c) => {
-    const matchesFilter =
-      filter === 'joined' ? c.isJoined :
-      filter === 'trending' ? c.memberCount > 1_000 :
-      true;
-    const matchesQuery = !query || c.displayName.toLowerCase().includes(query.toLowerCase());
-    return matchesFilter && matchesQuery;
-  });
+  const handleCreate = async () => {
+      if (!currentUser?.id) return;
+      setIsCreating(true);
+      setModalErr(null);
+      const res = await createCommunity({ ...newComm, userId: currentUser.id });
+      if (res.success) {
+          setShowModal(false);
+          setNewComm({ name: '', displayName: '', description: '', isPrivate: false });
+          fetchCommunities();
+      } else {
+          setModalErr(res.error);
+      }
+      setIsCreating(false);
+  };
+
+  const filtered = communities.filter(c => 
+    c.display_name.toLowerCase().includes(search.toLowerCase()) || 
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black gradient-text">Communities</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Discover spaces built around what you love
-          </p>
-        </div>
-        <button className="btn-primary text-sm shine" id="create-community-btn" onClick={() => setIsCreateModalOpen(true)}>
-          <Plus size={15} /> Create
-        </button>
-      </div>
-
-      {/* Create Community Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="glass-card w-full max-w-md p-6 relative border border-outline-variant/30 shadow-2xl">
-            <button onClick={() => setIsCreateModalOpen(false)} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
-              <X size={20} />
-            </button>
-            <h2 className="text-xl font-bold mb-4 text-on-surface">Create a Community</h2>
-            <form action={async (formData) => {
-              setIsCreating(true);
-              if (currentUser) formData.append('userId', currentUser.id);
-              const { createCommunity } = await import('./actions');
-              const res = await createCommunity(formData);
-              setIsCreating(false);
-              if (res.success) {
-                setIsCreateModalOpen(false);
-                // Prepend to list optimistically or refetch
-                if (res.community) {
-                  const newComm: Community = {
-                    id: res.community.id,
-                    name: res.community.name,
-                    displayName: res.community.display_name,
-                    description: res.community.description,
-                    iconUrl: res.community.icon_url,
-                    memberCount: res.community.member_count || 1,
-                    isPrivate: res.community.is_private || false,
-                    isJoined: true,
-                    boostLevel: res.community.boost_level || 0,
-                    createdAt: res.community.created_at || new Date().toISOString(),
-                    tags: [],
-                  };
-                  setCommunities(prev => [newComm, ...prev]);
-                }
-              } else {
-                alert(`Error: ${res.error}`);
-              }
-            }} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Community ID (lowercase, no spaces)</label>
-                <input required name="name" type="text" className="w-full bg-surface-lowest border border-outline-variant/30 rounded-xl px-4 py-2 text-sm focus:border-primary-light outline-none" placeholder="e.g. designsystems" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Display Name</label>
-                <input required name="displayName" type="text" className="w-full bg-surface-lowest border border-outline-variant/30 rounded-xl px-4 py-2 text-sm focus:border-primary-light outline-none" placeholder="e.g. Design Systems Global" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Description</label>
-                <textarea required name="description" rows={3} className="w-full bg-surface-lowest border border-outline-variant/30 rounded-xl px-4 py-2 text-sm focus:border-primary-light outline-none resize-none" placeholder="What is this community about?" />
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-surface-lowest border border-outline-variant/20">
-                <div className="flex items-center gap-2">
-                  <Lock size={16} className="text-primary-light" />
-                  <div>
-                    <div className="text-sm font-semibold">Private Community</div>
-                    <div className="text-[10px] text-on-surface-variant">Only members can see posts.</div>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" name="isPrivate" value="true" className="sr-only peer" />
-                  <div className="w-9 h-5 bg-surface-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-light"></div>
-                </label>
-              </div>
-              <button disabled={isCreating} type="submit" className="w-full btn-primary py-2.5 flex justify-center items-center gap-2 mt-2">
-                {isCreating ? <Loader2 size={16} className="animate-spin" /> : 'Create Community'}
-              </button>
-            </form>
+    <div className="space-y-12 max-w-7xl mx-auto pb-32 animate-fade-in text-on-surface p-6 italic">
+      {/* Header & Search */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10">
+        <div className="space-y-2">
+          <h1 className="text-6xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Nodes</h1>
+          <div className="flex items-center gap-3">
+             <div className="w-2 h-2 rounded-full bg-v-cyan animate-pulse shadow-[0_0_10px_var(--v-cyan)]" />
+             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-on-surface-variant opacity-60">SOVEREIGN COMMUNITY ENGINE V1.0</p>
           </div>
         </div>
-      )}
 
-      {/* Search */}
-      <div className="relative group">
-        <div
-          className="absolute inset-0 rounded-2xl transition-opacity duration-300 pointer-events-none opacity-0 group-focus-within:opacity-100"
-          style={{
-            background: 'linear-gradient(135deg, rgba(147,51,234,0.5), rgba(79,209,197,0.5))',
-            padding: '1px', borderRadius: '16px',
-            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            WebkitMaskComposite: 'xor', maskComposite: 'exclude',
-          }}
-        />
-        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search communities…"
-          className="w-full py-3 pl-11 pr-4 rounded-2xl text-[14px] focus:outline-none transition-all"
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.9)',
-          }}
-          onFocus={(e) => { e.target.style.background = 'rgba(147,51,234,0.06)'; e.target.style.border = '1px solid rgba(147,51,234,0.4)'; }}
-          onBlur={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.border = '1px solid rgba(255,255,255,0.08)'; }}
-          id="community-search"
-        />
+        <div className="flex w-full lg:w-auto gap-4">
+           <div className="relative flex-1 lg:w-96 group">
+             <Search size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-v-cyan transition-colors" />
+             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SCAN PROTOCOLS..." className="w-full bg-surface-lowest/40 border border-white/5 text-xs font-black uppercase tracking-widest rounded-3xl py-5 pl-14 pr-8 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/30 italic shadow-2xl" />
+           </div>
+           <button onClick={() => setShowModal(true)} className="flex items-center justify-center gap-3 px-10 py-5 bg-primary-gradient rounded-3xl font-black uppercase tracking-widest text-[10px] hover:scale-105 transition-all shadow-[0_20px_40px_rgba(108,99,255,0.25)] active:scale-95 group text-white">
+            <Plus size={18} className="group-hover:rotate-90 transition-transform" />
+            INITIALIZE NODE
+           </button>
+        </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2">
-        {([
-          { key: 'all', label: 'All', icon: Users },
-          { key: 'joined', label: 'Joined', icon: Star },
-          { key: 'trending', label: 'Trending', icon: TrendingUp },
-        ] as const).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
-            style={{
-              background: filter === key ? 'linear-gradient(135deg, var(--v-violet), var(--v-cyan))' : 'var(--surface)',
-              color: filter === key ? '#fff' : 'var(--text-secondary)',
-              border: `1px solid ${filter === key ? 'transparent' : 'var(--border)'}`,
-            }}
-          >
-            <Icon size={14} /> {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={28} className="animate-spin text-primary-light" />
+        <div className="flex flex-col items-center justify-center py-40 opacity-40">
+           <Loader2 size={32} className="animate-spin mb-6 text-v-cyan shadow-[0_0_20px_var(--v-cyan)]" />
+           <p className="text-[10px] font-black uppercase tracking-[0.5em]">Hydrating Community Matrix...</p>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="glass-card p-12 text-center flex flex-col items-center gap-3">
-          <Hash size={40} className="text-primary-light opacity-40" />
-          <h3 className="text-lg font-bold text-on-surface">No communities yet</h3>
-          <p className="text-sm text-on-surface-variant max-w-xs">Be the first to create a community and bring people together.</p>
-          <button className="btn-primary text-sm mt-2 shine" id="create-community-cta">
-            <Plus size={14} /> Create a Community
-          </button>
+        <div className="flex flex-col items-center justify-center py-40 gap-6 glass-card border-dashed border-white/5 bg-transparent rounded-[50px] italic">
+            <Database size={50} className="text-on-surface-variant/10" />
+            <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-40">No Nodes Broadcasted</p>
+                <p className="text-sm font-bold text-on-surface-variant opacity-20">Initialize a new protocol to begin.</p>
+            </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filtered.map((c, i) => (
-            <div key={c.id} className="animate-slide-up" style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}>
-              <CommunityCard c={c} idx={i} />
-            </div>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+           {filtered.map((c) => (
+             <div key={c.id} className="glass-card group p-10 border-none bg-surface-lowest/30 hover:bg-surface-lowest/50 rounded-[50px] shadow-[0_30px_60px_rgba(0,0,0,0.5)] transition-all relative overflow-hidden flex flex-col justify-between">
+                <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all duration-700 pointer-events-none">
+                    <Users size={120} />
+                </div>
+                <div className="absolute top-6 right-6">
+                    <div className={clsx('w-3 h-3 rounded-full animate-pulse shadow-[0_0_12px_currentColor]', c.is_private ? 'text-rose-500' : 'text-v-emerald')} />
+                </div>
+                
+                <div className="relative space-y-6">
+                    <div className="flex items-center gap-6">
+                        <img src={c.icon_url} className="w-16 h-16 rounded-[24px] border-2 border-white/5 group-hover:border-v-cyan group-hover:rotate-6 transition-all duration-500" alt="icon" />
+                        <div>
+                            <h3 className="text-xl font-black italic tracking-tighter text-white uppercase group-hover:text-v-cyan transition-colors">{c.display_name}</h3>
+                            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 italic">
+                                <Hash size={10} className="text-v-cyan" /> {c.name.toUpperCase()}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p className="text-[12px] font-medium text-on-surface-variant opacity-60 leading-relaxed italic min-h-[48px] line-clamp-2">
+                        {c.description}
+                    </p>
+
+                    <div className="flex items-center gap-6 pt-4">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan mb-1">{c.member_count}</span>
+                            <span className="text-[8px] font-black opacity-30 uppercase tracking-tight">ACTIVE_NODES</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/5" />
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-v-violet mb-1">LVL {c.boost_level}</span>
+                            <span className="text-[8px] font-black opacity-30 uppercase tracking-tight">SIGNAL_POWER</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-10 pt-8 border-t border-white/5 relative z-10">
+                    <div className="flex items-center gap-3">
+                        {c.is_private ? <Lock size={14} className="text-rose-400" /> : <Globe size={14} className="text-v-emerald" />}
+                        <span className={clsx('text-[9px] font-black uppercase tracking-tighter italic', c.is_private ? 'text-rose-400' : 'text-v-emerald')}>
+                            {c.is_private ? 'Sovereign Private' : 'Public Domain'}
+                        </span>
+                    </div>
+
+                    <button 
+                        onClick={() => handleJoinLeave(c.id, !c.isJoined)}
+                        className={clsx('px-6 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border italic', c.isJoined ? 'bg-surface-high text-on-surface-variant border-white/5 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/20' : 'bg-white text-black border-transparent hover:bg-v-cyan')}
+                    >
+                        {c.isJoined ? 'PURGE_NODE' : 'JOIN_PROTOCOL'}
+                    </button>
+                </div>
+             </div>
+           ))}
         </div>
       )}
+
+      {/* Creation Modal */}
+      <AnimatePresence>
+          {showModal && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl italic">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }} 
+                    animate={{ opacity: 1, scale: 1 }} 
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="glass-card w-full max-w-2xl p-12 border-none bg-[#050505] shadow-[0_0_120px_rgba(108,99,255,0.1)] rounded-[60px]"
+                  >
+                      <div className="flex justify-between items-center mb-10">
+                         <div className="flex items-center gap-4">
+                             <div className="w-14 h-14 rounded-3xl bg-primary-gradient flex items-center justify-center text-white"><Zap size={24} /></div>
+                             <div>
+                                <h3 className="text-3xl font-black italic tracking-tighter uppercase leading-none mb-1 text-white">Initialize Protocol</h3>
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">DEPLOYING NEW SOVEREIGN NODE</p>
+                             </div>
+                         </div>
+                         <button onClick={() => setShowModal(false)}><X size={24} className="hover:text-rose-500 transition-colors" /></button>
+                      </div>
+
+                      <div className="space-y-8">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <ModalInput label="Protocol Signal Name" value={newComm.displayName} onChange={(v: string) => setNewComm({...newComm, displayName: v, name: v.toLowerCase().replace(/ /g, '_').replace(/[^a-z0-9_]/g, '')})} placeholder="Cyber Intelligence" />
+                            <ModalInput label="Network Identifier" value={newComm.name} disabled labelIcon={<Hash size={10} />} desc="IMMUTABLE KERNEL ID" />
+                         </div>
+                         <div className="space-y-2">
+                             <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant px-1 mb-2 block italic">Intelligence Description</label>
+                             <textarea value={newComm.description} onChange={(e) => setNewComm({...newComm, description: e.target.value})} className="w-full bg-surface-lowest border border-white/5 rounded-3xl py-6 px-8 text-sm focus:outline-none focus:ring-2 focus:ring-v-cyan/20 transition-all font-medium min-h-[120px] resize-none italic shadow-inner" placeholder="Briefly define the protocol scope..." />
+                         </div>
+
+                         <div className="flex items-center justify-between p-6 bg-surface-lowest border border-white/5 rounded-3xl italic">
+                             <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-black text-white uppercase tracking-widest">Sovereign Encryption</span>
+                                <span className="text-[9px] font-black text-on-surface-variant opacity-40 uppercase tracking-tighter">Private by default. Enlistment requires verification.</span>
+                             </div>
+                             <div onClick={() => setNewComm({...newComm, isPrivate: !newComm.isPrivate})} className={clsx('w-12 h-6 px-1 rounded-full flex items-center cursor-pointer transition-all', newComm.isPrivate ? 'bg-rose-500' : 'bg-surface-high')}>
+                                 <motion.div animate={{ x: newComm.isPrivate ? 24 : 0 }} className="w-4 h-4 bg-white rounded-full shadow-xl" />
+                             </div>
+                         </div>
+
+                         {modalErr && <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest">ERROR: {modalErr}</div>}
+
+                         <button 
+                            onClick={handleCreate}
+                            disabled={isCreating}
+                            className="w-full py-6 bg-primary-gradient rounded-3xl font-black uppercase tracking-[0.3em] text-[12px] shadow-3xl hover:scale-[1.02] active:scale-95 transition-all text-white disabled:opacity-50"
+                         >
+                             {isCreating ? 'MODULATING PROTOCOL...' : 'INITIALIZE NODE'}
+                         </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
     </div>
   );
+}
+
+function ModalInput({ label, value, onChange, placeholder, disabled, labelIcon, desc }: any) {
+    return (
+        <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant px-1 mb-2 flex items-center gap-1 italic">{labelIcon} {label}</label>
+            <input disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-surface-lowest border border-white/5 rounded-2xl py-5 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-v-cyan/20 transition-all font-black uppercase tracking-widest italic disabled:opacity-30" placeholder={placeholder} />
+            {desc && <p className="text-[8px] font-black opacity-30 px-1 uppercase">{desc}</p>}
+        </div>
+    )
 }

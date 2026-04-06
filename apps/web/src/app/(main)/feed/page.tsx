@@ -3,239 +3,193 @@
 import StoryReel from '@/components/features/feed/StoryReel';
 import CreatePost from '@/components/features/feed/CreatePost';
 import PostCard from '@/components/features/feed/PostCard';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import clsx from 'clsx';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Loader2, Database, ShieldCheck, Zap, ChevronDown, Activity, Globe, Users } from 'lucide-react';
 import type { Post } from '@/lib/types';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const TABS = ['For You', 'Following', 'Communities'];
-
-// Skeleton card shown while feed is loading
-function FeedSkeleton() {
-  return (
-    <div className="space-y-6">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="glass-card p-6 animate-pulse">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-11 h-11 rounded-full bg-surface-high" />
-            <div className="space-y-2 flex-1">
-              <div className="h-3 bg-surface-high rounded-full w-32" />
-              <div className="h-2 bg-surface-high rounded-full w-20" />
-            </div>
-          </div>
-          <div className="pl-[56px] space-y-2">
-            <div className="h-3 bg-surface-high rounded-full w-full" />
-            <div className="h-3 bg-surface-high rounded-full w-4/5" />
-            <div className="h-3 bg-surface-high rounded-full w-3/5" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+const TABS = [
+    { id: 'all', label: 'Expanse', icon: Globe, desc: 'Global Neural Stream' },
+    { id: 'following', label: 'Nodes', icon: Activity, desc: 'Followed Identity Signals' },
+    { id: 'communities', label: 'Matrix', icon: Users, desc: 'Joined Sovereign Protocols' }
+];
 
 export default function FeedPage() {
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState('all');
   const [livePosts, setLivePosts] = useState<Post[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
-  // FIX 10: Loading state to prevent empty-state flash while fetching
-  const [isLoadingFeed, setIsLoadingFeed] = useState(true);
-  // FIX 9: Memoize preloaded URLs to prevent memory churn on re-render
-  const preloadedUrls = useRef(new Set<string>());
-  // Memoize client — not recreated per render
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
+  
+  const observerRef = useRef<HTMLDivElement>(null);
   const supabase = useMemo(() => createClient(), []);
 
-  function formatPost(dbPost: Record<string, unknown>): Post {
-    const author = dbPost.author as Record<string, unknown> | null;
+  const formatPost = useCallback((dbPost: any): Post => {
+    const author = dbPost.author;
     return {
-      id: dbPost.id as string,
-      content: dbPost.content as string,
-      mediaUrls: (dbPost.media_urls as string[]) || [],
-      likeCount: (dbPost.like_count as number) || 0,
-      commentCount: (dbPost.comment_count as number) || 0,
-      shareCount: (dbPost.share_count as number) || 0,
-      createdAt: dbPost.created_at as string,
+      id: dbPost.id,
+      content: dbPost.content,
+      mediaUrls: dbPost.media_urls || [],
+      likeCount: dbPost.like_count || 0,
+      commentCount: dbPost.comment_count || 0,
+      shareCount: dbPost.share_count || 0,
+      createdAt: dbPost.created_at,
       postType: 'text',
       author: {
-        id: (author?.id as string) || (dbPost.author_id as string) || '',
-        username: (author?.username as string) || 'unknown',
-        displayName: (author?.display_name as string) || 'Classified User',
-        avatar: (author?.avatar_url as string) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author?.username ?? 'user'}`,
-        role: ((author?.role as 'PRIME' | 'PUBLIC') || 'PUBLIC'),
-        isVerified: (author?.is_verified as boolean) || false,
-        karmaScore: (author?.karma_score as number) || 0,
-        followerCount: (author?.follower_count as number) || 0,
-        followingCount: (author?.following_count as number) || 0,
-        createdAt: (author?.created_at as string) || new Date().toISOString(),
+        id: author?.id || dbPost.author_id,
+        username: author?.username || 'unknown',
+        displayName: author?.display_name || 'Classified User',
+        avatar: author?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author?.username ?? 'user'}`,
+        role: author?.role || 'PUBLIC',
+        isVerified: author?.is_verified || false,
+        karmaScore: author?.karma_score || 0,
+        followerCount: author?.follower_count || 0,
+        followingCount: author?.following_count || 0,
+        createdAt: author?.created_at || dbPost.created_at,
       },
+      communityId: dbPost.community_id,
+      communityName: dbPost.community?.display_name,
     };
-  }
+  }, []);
 
-  useEffect(() => {
-    async function fetchDatabaseFeed() {
-      // FIX 10: Set loading = true at start of fetch
-      setIsLoadingFeed(true);
+  const fetchFeed = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+        setLoading(true);
+        setPage(1);
+    }
+    
+    // Get Current user session
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+    if (userId) setCurrentUserId(userId);
 
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user) setCurrentUserId(authData.user.id);
+    let query = supabase.from('posts').select('*, author:users(*), community:communities(display_name)').order('created_at', { ascending: false });
 
-      const { data, error } = await supabase
-        .from('posts')
-        .select('*, author:users(*)')
-        .order('created_at', { ascending: false });
-
-      if (data && !error) {
-        setLivePosts(data.map(formatPost));
-      }
-
-      // FIX 10: Only set loading = false after fetch completes
-      setIsLoadingFeed(false);
+    // Apply Tab Filtering
+    if (activeTab === 'following' && userId) {
+        // Subquery for following IDs (Complex logic using SQL 'in' or 'filter')
+        const { data: following } = await supabase.from('follows').select('following_id').eq('follower_id', userId);
+        const followingIds = following?.map(f => f.following_id) || [];
+        query = query.in('author_id', [userId, ...followingIds]); 
+    } else if (activeTab === 'communities' && userId) {
+        const { data: joined } = await supabase.from('community_members').select('community_id').eq('user_id', userId);
+        const joinedCommIds = joined?.map(j => j.community_id) || [];
+        query = query.in('community_id', joinedCommIds);
     }
 
-    fetchDatabaseFeed();
+    const { data, error } = await query.range((isInitial ? 0 : page * 10), (isInitial ? 9 : (page + 1) * 10 - 1));
 
-    // FIX 7: Incremental real-time update — do NOT re-fetch entire feed on INSERT
-    // This eliminates the fetch storm when multiple posts arrive rapidly
-    const channel = supabase.channel('realtime_feed')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
-        const raw = payload.new as Record<string, unknown>;
-        
-        // Fetch the full author data because realtime payload only contains the 'posts' row
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', raw.author_id as string)
-          .single();
+    if (data && !error) {
+       const posts = data.map(formatPost);
+       setLivePosts(prev => isInitial ? posts : [...prev, ...posts]);
+       setHasMore(data.length === 10);
+       if (!isInitial) setPage(p => p + 1);
+    }
+    setLoading(false);
+  }, [activeTab, formatPost, page, supabase]);
 
-        const newPost: Post = {
-          id: raw.id as string,
-          content: raw.content as string,
-          mediaUrls: (raw.media_urls as string[]) || [],
-          likeCount: (raw.like_count as number) || 0,
-          commentCount: (raw.comment_count as number) || 0,
-          shareCount: (raw.share_count as number) || 0,
-          createdAt: raw.created_at as string,
-          postType: 'text',
-          author: {
-            id: raw.author_id as string,
-            username: userData?.username || 'unknown',
-            displayName: userData?.display_name || 'Classified User',
-            avatar: userData?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData?.username ?? 'user'}`,
-            role: (userData?.role || 'PUBLIC'),
-            isVerified: userData?.is_verified || false,
-            karmaScore: userData?.karma_score || 0,
-            followerCount: userData?.follower_count || 0,
-            followingCount: userData?.following_count || 0,
-            createdAt: userData?.created_at || raw.created_at as string,
-          },
-        };
-        
-        setLivePosts(prev => {
-          // Prevent duplicates if already added by optimistic UI
-          if (prev.some(p => p.id === newPost.id)) return prev;
-          return [newPost, ...prev];
-        });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, () => {
-        // Full re-fetch only for UPDATE/DELETE (content or like count changed)
-        fetchDatabaseFeed();
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
-        setLivePosts(prev => prev.filter(p => p.id !== (payload.old as Record<string, unknown>).id));
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
-
-  // SimCluster AI Virality Sorting Algorithm Simulation
-  const sortedFeed = useMemo(() => {
-    return [...livePosts].sort((a, b) => {
-      if (activeTab === 0) { // 'For You' Algorithm
-        const scoreA = a.likeCount + (a.shareCount * 2) + a.commentCount;
-        const scoreB = b.likeCount + (b.shareCount * 2) + b.commentCount;
-        return scoreB - scoreA;
-      }
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [activeTab, livePosts]);
-
-  // FIX 9: Predictive asset caching with deduplication — no memory churn
   useEffect(() => {
-    sortedFeed.forEach((post) => {
-      post.mediaUrls?.forEach((url: string) => {
-        if (preloadedUrls.current.has(url)) return; // Skip already-preloaded
-        preloadedUrls.current.add(url);
-        const img = new Image();
-        img.src = url;
-      });
-    });
-  }, [sortedFeed]);
+    fetchFeed(true);
+  }, [activeTab]);
+
+  // Infinite Scroll Trigger
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) fetchFeed();
+    }, { threshold: 1.0 });
+    if (observerRef.current) observer.observe(observerRef.current);
+    return () => observer.disconnect();
+  }, [fetchFeed, hasMore, loading]);
+
+  // Real-time listener for NEW posts
+  useEffect(() => {
+    const channel = supabase.channel('feed_realtime')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+            const raw = payload.new as any;
+            const { data: u } = await supabase.from('users').select('*').eq('id', raw.author_id).single();
+            const { data: c } = raw.community_id ? await supabase.from('communities').select('display_name').eq('id', raw.community_id).single() : { data: null };
+            const p = formatPost({ ...raw, author: u, community: c });
+            
+            // Check if it belongs in current tab
+            if (activeTab === 'all') setLivePosts(prev => [p, ...prev]);
+            // (Other tab real-time filtering can be added but for 'Expanse' it's critical)
+        })
+        .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeTab, formatPost, supabase]);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12 w-full max-w-[700px] mx-auto text-on-surface">
-      <div className="fixed top-0 left-[30vw] w-[50vw] h-[50vh] bg-primary-dark/20 rounded-[100%] blur-[120px] pointer-events-none opacity-40 -z-10" />
+    <div className="flex flex-col gap-10 max-w-[700px] mx-auto pb-40 animate-fade-in italic px-4 relative">
+       {/* Background Depth */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[600px] bg-v-cyan/5 rounded-[100%] blur-[200px] pointer-events-none opacity-40 -z-10" />
 
-      <section className="mb-8">
+      <section>
         <StoryReel />
       </section>
 
-      <section className="relative z-10 w-full animate-slide-up" style={{ animationDelay: '100ms' }}>
+      <section className="relative z-10 glass-card p-2 rounded-[50px] bg-surface-lowest/40 border-none shadow-3xl">
         <CreatePost />
       </section>
 
-      <div className="flex gap-4 border-b border-outline-variant/15 mb-6 relative z-10">
-        {TABS.map((tab, i) => {
-          const active = i === activeTab;
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(i)}
-              className={clsx(
-                'px-4 py-3 text-[15px] font-semibold transition-all duration-300 relative group',
-                active ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'
-              )}
-            >
-              <span className="relative z-10">{tab}</span>
-              {active && (
-                <span className="absolute bottom-[-1px] left-0 right-0 h-[3px] rounded-t-full bg-primary-gradient shadow-[0_0_12px_rgba(208,188,255,0.8)] z-20" />
-              )}
-              <span className={clsx(
-                "absolute inset-0 rounded-t-xl bg-surface-highest transition-opacity duration-300 pointer-events-none z-0",
-                active ? "opacity-0" : "opacity-0 group-hover:opacity-30"
-              )} />
-            </button>
-          );
-        })}
+      {/* Sovereign Tab System */}
+      <div className="flex items-center justify-between gap-2 bg-surface-lowest/30 p-2.5 rounded-[32px] border border-white/5 shadow-2xl relative z-10 backdrop-blur-3xl overflow-x-auto hide-scrollbar">
+           {TABS.map((tab) => {
+               const active = activeTab === tab.id;
+               const Icon = tab.icon;
+               return (
+                   <button 
+                    key={tab.id} 
+                    onClick={() => setActiveTab(tab.id)}
+                    className={clsx('relative flex-1 min-w-[140px] flex items-center justify-center gap-3 py-4 rounded-[24px] transition-all duration-500 overflow-hidden group', active ? 'bg-surface shadow-[0_15px_30px_rgba(0,0,0,0.5)] border border-white/5' : 'hover:bg-white/[0.03]')}
+                   >
+                       {active && <motion.div layoutId="tab-glow" className="absolute left-0 top-3 bottom-3 w-1 bg-v-cyan shadow-[0_0_15px_var(--v-cyan)] rounded-full" />}
+                       <Icon size={18} className={clsx('transition-all duration-500', active ? 'text-v-cyan scale-110' : 'text-on-surface-variant opacity-40 group-hover:opacity-100')} />
+                       <div className="text-left">
+                           <span className={clsx('block text-[10px] font-black uppercase tracking-[0.15em] italic leading-none transition-all', active ? 'text-white' : 'text-on-surface-variant opacity-40 group-hover:opacity-100')}>{tab.label}</span>
+                       </div>
+                   </button>
+               )
+           })}
       </div>
 
-      {/* FIX 10: Loading → Skeleton → Empty → Posts (3 distinct states, never conflated) */}
-      <div className="space-y-6 relative z-10">
-        {isLoadingFeed ? (
-          <FeedSkeleton />
-        ) : sortedFeed.length === 0 ? (
-          <div className="glass-card p-12 text-center flex flex-col items-center justify-center animate-pulse-slow">
-            <div className="w-16 h-16 rounded-full bg-surface-highest flex items-center justify-center mb-4">
-              <Sparkles size={24} className="text-secondary-light" />
-            </div>
-            <h3 className="text-xl font-bold font-display text-on-surface mb-2">The Expanse is Quiet</h3>
-            <p className="text-on-surface-variant max-w-sm">
-              You have entered Sovereign Space before anyone else. Be the first to initiate contact.
-            </p>
-          </div>
-        ) : (
-          sortedFeed.map((post, index) => (
-            <div
-              key={`${post.id}-${activeTab}`}
-              className="animate-slide-up"
-              style={{ animationDelay: `${(index + 2) * 50}ms`, animationFillMode: 'both' }}
-            >
-              <PostCard post={post} currentUserId={currentUserId} />
-            </div>
-          ))
-        )}
+      <div className="space-y-12 relative z-10">
+           {loading ? (
+               <div className="flex flex-col items-center justify-center py-40 opacity-40 italic">
+                  <Activity size={32} className="animate-pulse text-v-emerald mb-4 shadow-[0_0_20px_var(--v-emerald)]" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.5em] text-v-emerald">Synchronizing Neural Stream...</p>
+               </div>
+           ) : livePosts.length === 0 ? (
+               <div className="glass-card p-24 text-center border-none bg-surface-lowest/40 rounded-[60px] shadow-3xl italic">
+                   <div className="w-24 h-24 rounded-[40px] bg-surface-high flex items-center justify-center mx-auto mb-10 shadow-inner border border-white/5 opacity-10 group-hover:opacity-100 transition-opacity">
+                      <Database size={40} className="text-on-surface-variant" />
+                   </div>
+                   <h3 className="text-3xl font-black italic tracking-tighter text-white uppercase mb-4 leading-none truncate">Spectral Void Detected</h3>
+                   <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 mb-10">No signals broadcasted to this sector. Be the prime initiator.</p>
+                   <button onClick={() => setActiveTab('all')} className="px-10 py-4 bg-primary-gradient rounded-full font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:scale-105 active:scale-95 transition-all text-white italic">SCAN GLOBAL EXPANSE</button>
+               </div>
+           ) : (
+               <>
+                  <div className="space-y-10">
+                    {livePosts.map((post, index) => (
+                        <motion.div 
+                            key={post.id} 
+                            initial={{ opacity: 0, y: 30 }} 
+                            animate={{ opacity: 1, y: 0 }} 
+                            transition={{ delay: index < 5 ? index * 0.1 : 0 }}
+                        >
+                            <PostCard post={post} currentUserId={currentUserId} />
+                        </motion.div>
+                    ))}
+                  </div>
+
+                  <div ref={observerRef} className="h-40 flex items-center justify-center italic">
+                      {hasMore && <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-30 mx-auto"><Loader2 size={16} className="animate-spin" /> Fetching Deep Stream</div>}
+                  </div>
+               </>
+           )}
       </div>
     </div>
   );

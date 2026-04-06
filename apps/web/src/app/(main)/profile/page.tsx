@@ -2,12 +2,13 @@
 
 import { useAppStore } from '@/lib/store';
 import PostCard from '@/components/features/feed/PostCard';
-import { Edit3, Share2, Camera, Calendar, Award, Grid, Bookmark, Save, Loader2, CheckCircle2, AlertCircle, Database, Settings, Grid3x3, FileText, Sparkles, Palette } from 'lucide-react';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { Edit3, Camera, Award, Grid3x3, Bookmark, Loader2, CheckCircle2, ShieldCheck, Database, Palette, Ghost, Zap, Sparkles, Hash, Activity, Globe, Share2, AlertTriangle, Fingerprint } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import EditProfileModal from '@/components/features/profile/EditProfileModal';
 import { createClient } from '@/lib/supabase/client';
 import { getDatabaseProfile } from './actionsCore';
 import { uploadMedia } from '@/app/(main)/feed/upload';
+import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 
 function kFmt(n: number) {
@@ -16,372 +17,303 @@ function kFmt(n: number) {
   return String(n);
 }
 
+const THEME_PRESETS = [
+  { id: 'cyan', name: 'Cyber Matrix', color: '#00FFFF', gradient: 'linear-gradient(135deg, rgba(0,255,255,0.2) 0%, rgba(0,0,0,0) 100%)' },
+  { id: 'violet', name: 'Nebula Core', color: '#8B5CF6', gradient: 'linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(0,0,0,0) 100%)' },
+  { id: 'emerald', name: 'Bio Digital', color: '#10B981', gradient: 'linear-gradient(135deg, rgba(16,185,129,0.2) 0%, rgba(0,0,0,0) 100%)' },
+  { id: 'rose', name: 'Sovereign Red', color: '#F43F5E', gradient: 'linear-gradient(135deg, rgba(244,63,94,0.2) 0%, rgba(0,0,0,0) 100%)' },
+  { id: 'amber', name: 'Solar Flare', color: '#F59E0B', gradient: 'linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(0,0,0,0) 100%)' }
+];
+
 export default function ProfilePage() {
-  const [tab, setTab] = useState<'posts' | 'saved' | 'awards'>('posts');
+  const [tab, setTab] = useState<'posts' | 'saved' | 'signals'>('posts');
   const [isEditing, setIsEditing] = useState(false);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
-  const [bannerColor, setBannerColor] = useState<string>('purple');
+  const [bannerColor, setBannerColor] = useState<string>('cyan');
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [dbUser, setDbUser] = useState<any>(null);
+  
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { currentUser, updateProfile, syncStatus, setSyncStatus } = useAppStore();
-  // FIX 8: Memoize Supabase client — prevents new client+WebSocket per render cycle
   const supabase = useMemo(() => createClient(), []);
 
-  const THEME_PRESETS = [
-    { id: 'purple', name: 'Nebula Core',  gradient: 'linear-gradient(135deg, #2D1B69 0%, #1a1040 40%, #0a2060 100%)', badge: 'DEFAULT' },
-    { id: 'fuchsia', name: 'Cyberpunk', gradient: 'linear-gradient(135deg, #701a75 0%, #4a044e 40%, #1c1917 100%)', badge: 'PREMIUM' },
-    { id: 'obsidian', name: 'Obsidian Void', gradient: 'linear-gradient(135deg, #09090b 0%, #000000 50%, #09090b 100%)', badge: 'ELITE' },
-    { id: 'teal', name: 'Quantum Matrix',  gradient: 'linear-gradient(135deg, #134e4a 0%, #042f2e 40%, #0f172a 100%)' },
-    { id: 'rose', name: 'Crimson Dawn',    gradient: 'linear-gradient(135deg, #881337 0%, #4c0519 40%, #1c1917 100%)' },
-    { id: 'orange', name: 'Solar Flare',   gradient: 'linear-gradient(135deg, #9a3412 0%, #7c2d12 40%, #1c1917 100%)' }
-  ];
-  const getCurrentGradient = () => THEME_PRESETS.find(t => t.id === bannerColor)?.gradient || THEME_PRESETS[0].gradient;
+  const activeTheme = useMemo(() => THEME_PRESETS.find(t => t.id === bannerColor) || THEME_PRESETS[0], [bannerColor]);
 
-  const handleVerifySync = async () => {
+  const fetchProfile = useCallback(async () => {
     if (!currentUser?.id) return;
-    setSyncStatus('syncing');
-    const result = await getDatabaseProfile(currentUser.id);
-    if (result.success && result.data) {
-      if (result.data.avatar_url === currentUser.avatar) {
-        setSyncStatus('idle'); // Actual confirmed success
-        alert('✅ Sync Verified: Your database state matches your local state. The world sees exactly what you see.');
-      } else {
-        setSyncStatus('error');
-        alert('⚠️ Sync Desync Detected: Database has OLD avatar. Attempting forced re-sync...');
-        updateProfile({ avatar: currentUser.avatar }); // Trigger re-sync
-      }
-    } else {
-      setSyncStatus('error');
-      alert(`❌ Sync Check Failed: ${result.error}`);
-    }
-  };
+    const res = await getDatabaseProfile(currentUser.id);
+    if (res.success) setDbUser(res.data);
+  }, [currentUser?.id]);
 
-  const handleAvatarUpload = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
-    
-    setSyncStatus('syncing');
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('folder', 'avatars');
-    
-    const result = await uploadMedia(fd);
-    if ('error' in result) {
-      console.error('Avatar upload error:', result.error);
-      return;
-    }
-    updateProfile({ avatar: result.url });
-  };
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
-  // Fetch only THIS user's posts from DB
   useEffect(() => {
     if (!currentUser?.id) return;
-    const user = currentUser!; // narrowed: we checked id above
     async function loadPosts() {
       setLoadingPosts(true);
-      const { data } = await supabase
-        .from('posts')
-        .select('*, author:users(*)')
-        .eq('author_id', user.id)
-        .order('created_at', { ascending: false });
-
+      const { data } = await supabase.from('posts').select('*, author:users(*)').eq('author_id', currentUser!.id).order('created_at', { ascending: false });
       if (data) {
-        const formatted = data.map((dbPost: any) => ({
-          id: dbPost.id,
-          content: dbPost.content,
-          mediaUrls: dbPost.media_urls || [],
-          likeCount: dbPost.like_count || 0,
-          commentCount: dbPost.comment_count || 0,
-          shareCount: dbPost.share_count || 0,
-          createdAt: dbPost.created_at,
+        setUserPosts(data.map((m: any) => ({
+          ...m,
+          mediaUrls: m.media_urls || [],
           author: {
-            id: dbPost.author?.id,
-            username: dbPost.author?.username || user.username,
-            displayName: dbPost.author?.display_name || user.displayName,
-            avatar: dbPost.author?.avatar_url || user.avatar,
-            role: dbPost.author?.role || 'PUBLIC',
-          },
-        }));
-        setUserPosts(formatted);
+             id: m.author?.id,
+             username: m.author?.username,
+             displayName: m.author?.display_name,
+             avatar: m.author?.avatar_url,
+             security_score: m.author?.security_score
+          }
+        })));
       }
       setLoadingPosts(false);
     }
     loadPosts();
   }, [currentUser?.id, supabase]);
 
+  const handleAvatarUpload = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setSyncStatus('syncing');
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('folder', 'avatars');
+    const result = await uploadMedia(fd);
+    if ('url' in result) {
+      updateProfile({ avatar: result.url });
+      await fetchProfile();
+      setSyncStatus('idle');
+    }
+  };
+
   if (!currentUser) return null;
 
+  const score = dbUser?.security_score || 0;
+  const integrity = dbUser?.profile_completeness || 0;
+
   return (
-    <div className="space-y-0 animate-fade-in relative pb-12">
-      {isEditing && (
-        <EditProfileModal onClose={() => setIsEditing(false)} />
-      )}
+    <div className="space-y-0 animate-fade-in relative pb-40 font-sans italic selection:bg-v-cyan/30 text-on-surface">
+      <EditProfileModal isOpen={isEditing} onClose={() => setIsEditing(false)} />
+      
+      <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleAvatarUpload(e.target.files)} />
 
-      {/* Hidden avatar file input */}
-      <input
-        ref={avatarInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => handleAvatarUpload(e.target.files)}
-        aria-label="Upload avatar"
-      />
-            {/* Global Sync Status Badge */}
-            {syncStatus !== 'idle' && (
-              <div className={clsx(
-                "absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border backdrop-blur-md shadow-lg transition-all animate-in fade-in slide-in-from-top-2",
-                syncStatus === 'syncing' && "bg-amber-500/10 border-amber-500/50 text-amber-300",
-                syncStatus === 'error' && "bg-red-500/10 border-red-500/50 text-red-300"
-              )}>
-                {syncStatus === 'syncing' ? (
-                  <>
-                    <Loader2 size={10} className="animate-spin" />
-                    Syncing to DB...
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle size={10} />
-                    Sync Failed
-                  </>
-                )}
-              </div>
-            )}
+      {/* Sovereign Signal Aura (Background Glow) */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] opacity-10 blur-[150px] -z-10 transition-all duration-1000" style={{ background: activeTheme.color }} />
 
-            {syncStatus === 'idle' && currentUser && (
-               <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border bg-emerald-500/10 border-emerald-500/50 text-emerald-300 backdrop-blur-md shadow-lg transition-all animate-in fade-in slide-in-from-top-2">
-                  <CheckCircle2 size={10} />
-                  Synced to DB
-               </div>
-            )}
-
-      {/* IG-style Profile Header */}
-      <div className="pt-8 pb-4 px-4 sm:px-8 max-w-[800px] mx-auto">
-        <div className="flex items-center gap-6 sm:gap-14 mb-6">
-          {/* Avatar (Left) */}
-          <div className="flex-shrink-0 relative group">
-            <div className="p-1.5 rounded-full transition-all duration-1000 shadow-[0_0_30px_rgba(0,0,0,0.5)]" style={{ background: getCurrentGradient() }}>
-              <div className="p-[4px] bg-background rounded-full relative overflow-hidden">
-                <img
-                  src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`}
-                  alt={`${currentUser.displayName}'s avatar`}
-                  className="w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full object-cover block transition-transform duration-700 group-hover:scale-105"
-                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`; }}
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
-                  <Camera size={32} className="text-white drop-shadow-lg scale-75 group-hover:scale-100 transition-transform duration-500" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats & Actions (Right) */}
-          <div className="flex-1 flex flex-col justify-center">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mb-4">
-              
-             <div className="flex flex-wrap items-center gap-4">
-              <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-white">
-                {currentUser?.displayName || currentUser?.username}
-              </h1>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-xl border border-white/10 bg-white/5 text-sm font-semibold text-white hover:bg-white/10 transition-all"
-                >
-                  <Edit3 size={16} /> Edit Profile
-                </button>
-                <button 
-                   onClick={handleVerifySync}
-                   title="Force Verify Sync"
-                   className="p-1.5 rounded-lg border border-white/10 bg-white/5 text-white/40 hover:text-white transition-all hover:bg-white/10"
-                >
-                  <Database size={16} />
-                </button>
-              </div>
-            </div>
-              
-              {/* Desktop Actions */}
-              <div className="hidden sm:flex items-center gap-2 relative z-20">
-                <button
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  className="px-4 py-2 bg-white/5 border border-white/10 text-white rounded-xl text-[14px] font-bold tracking-wide hover:bg-white/10 transition flex items-center gap-2 shadow-lg backdrop-blur-md"
-                >
-                  <Palette size={16} /> Theme Override
-                </button>
-              </div>
-            </div>
-
-            {/* Futuristic Theme Picker Panel (Desktop) */}
-            {showColorPicker && (
-              <div className="absolute top-[220px] right-8 grid grid-cols-2 gap-3 w-80 p-4 rounded-2xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
-                style={{ background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(20px)' }}>
-                <div className="col-span-2 flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Select Visual Signature</h4>
-                  <button onClick={() => setShowColorPicker(false)} className="opacity-50 hover:opacity-100 text-xs">✕</button>
-                </div>
-                {THEME_PRESETS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => { setBannerColor(t.id); setShowColorPicker(false); }}
-                    className="relative text-left p-3 rounded-xl border transition-all duration-300 group overflow-hidden"
-                    style={{
-                      borderColor: bannerColor === t.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                      background: 'rgba(0,0,0,0.2)'
-                    }}
-                  >
-                    <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity" style={{ background: t.gradient }} />
-                    <div className="relative z-10 flex flex-col gap-1">
-                      <span className="text-[11px] font-bold text-white uppercase tracking-wider">{t.name}</span>
-                      {t.badge && <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/10 text-white w-max">{t.badge}</span>}
+      <div className="max-w-[1000px] mx-auto px-6 pt-12 sm:pt-20">
+        
+        {/* Dynamic Profile Header */}
+        <div className="flex flex-col md:flex-row gap-12 items-start md:items-center relative mb-20">
+            {/* Identity Node (Avatar) */}
+            <div className="relative group/avatar cursor-pointer">
+                <div className="w-[180px] h-[180px] sm:w-[240px] sm:h-[240px] p-1.5 rounded-[60px] bg-white/5 border border-white/10 shadow-3xl overflow-hidden group-hover/avatar:border-white/30 transition-all duration-700 relative z-20">
+                    <img 
+                        src={dbUser?.avatar_url || currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`} 
+                        className="w-full h-full object-cover rounded-[55px] group-hover/avatar:scale-110 transition-transform duration-1000" 
+                        alt="avatar" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center" onClick={() => avatarInputRef.current?.click()}>
+                        <Camera size={40} className="text-white drop-shadow-2xl translate-y-4 group-hover/avatar:translate-y-0 transition-transform duration-500" />
                     </div>
-                  </button>
-                ))}
-              </div>
+                </div>
+                {/* Visual Status Rings */}
+                <div className="absolute -inset-4 border border-white/5 rounded-[80px] -z-10 animate-pulse-slow" />
+                <div className="absolute -inset-8 border border-white/[0.02] rounded-[100px] -z-20 animate-spin-slow" />
+                {dbUser?.is_verified && <div className="absolute -top-3 -right-3 w-12 h-12 bg-v-cyan text-black rounded-3xl flex items-center justify-center shadow-[0_0_30px_var(--v-cyan)] z-30 border-4 border-black"><ShieldCheck size={24} /></div>}
+            </div>
+
+            {/* Signal Profile Data */}
+            <div className="flex-1 space-y-8">
+                <div>
+                   <div className="flex items-center gap-6 mb-3">
+                         <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">{dbUser?.display_name || currentUser.displayName}</h1>
+                         {dbUser?.role === 'PRIME' && <span className="px-4 py-1.5 bg-v-violet/10 text-v-violet border border-v-violet/20 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl">PRIME_IDENTITY</span>}
+                   </div>
+                   <div className="flex items-center gap-4">
+                        <span className="text-v-cyan text-sm font-black uppercase tracking-widest italic flex items-center gap-2">
+                           <Hash size={14} /> {dbUser?.username || currentUser.username}
+                        </span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-v-cyan shadow-[0_0_10px_var(--v-cyan)] animate-pulse" />
+                        <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest opacity-40">NODE_BROADCAST_ACTIVE</span>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    <NodeStat label="Signals" val={userPosts.length} color="text-white" />
+                    <NodeStat label="Enlisted" val={kFmt(dbUser?.follower_count || currentUser.followerCount || 0)} color="text-on-surface" />
+                    <NodeStat label="Linking" val={kFmt(dbUser?.following_count || currentUser.followingCount || 0)} color="text-on-surface" />
+                    <NodeStat label="Karma" val={kFmt(dbUser?.karma_score || 0)} color="text-v-violet" />
+                </div>
+
+                {/* Bio / Broadcast */}
+                <div className="p-8 rounded-[40px] bg-surface-lowest/40 border border-white/5 shadow-2xl relative overflow-hidden group">
+                   <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-10 transition-opacity" />
+                   <p className="text-base sm:text-lg font-bold text-on-surface-variant leading-relaxed italic tracking-tight relative z-10">
+                       {dbUser?.bio || "Kernel identity transmission pending content injection..."}
+                   </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4">
+                    <button onClick={() => setIsEditing(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-5 bg-primary-gradient text-white rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-3xl hover:scale-105 active:scale-95 transition-all">
+                        <Edit3 size={18} /> EDIT KERNEL
+                    </button>
+                    <button onClick={() => setShowColorPicker(!showColorPicker)} className="w-16 h-16 rounded-3xl bg-surface-high/50 flex items-center justify-center text-on-surface-variant border border-white/10 hover:bg-white hover:text-black transition-all">
+                        <Palette size={20} />
+                    </button>
+                    <button className="w-16 h-16 rounded-3xl bg-surface-high/50 flex items-center justify-center text-on-surface-variant border border-white/10 hover:bg-white hover:text-black transition-all">
+                        <Share2 size={20} />
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {/* Node Integrity Matrix (Quick Info) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+            <IntegrityCard 
+                label="Identity Integrity" 
+                percent={integrity} 
+                icon={Fingerprint} 
+                color="from-v-cyan to-v-cyan/20"
+                desc="Completion of identity metadata nodes."
+            />
+            <IntegrityCard 
+                label="Sovereign Security" 
+                percent={score} 
+                icon={ShieldCheck} 
+                color="from-v-violet to-v-violet/20"
+                desc="Network trust and kernel protection score."
+            />
+            <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between">
+                <div>
+                   <div className="flex justify-between items-center mb-4">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Visual Signature</span>
+                      <ChevronRight size={14} className="opacity-20" />
+                   </div>
+                   <h4 className="text-xl font-black italic tracking-tighter uppercase text-white leading-none">{activeTheme.name}</h4>
+                </div>
+                <div className="flex gap-2 mt-6">
+                    {THEME_PRESETS.map(t => (
+                        <div key={t.id} onClick={() => setBannerColor(t.id)} className={clsx('w-8 h-8 rounded-xl cursor-pointer border-2 transition-all', bannerColor === t.id ? 'border-white scale-110 shadow-lg' : 'border-white/5 opacity-50 hover:opacity-100')} style={{ backgroundColor: t.color }} />
+                    ))}
+                </div>
+            </div>
+        </div>
+
+        {/* Content Navigation */}
+        <div className="flex border-b border-white/5 justify-start gap-12 mb-12">
+            <TabBtn active={tab === 'posts'} onClick={() => setTab('posts')} icon={Grid3x3} label="Broadcasts" />
+            <TabBtn active={tab === 'saved'} onClick={() => setTab('saved')} icon={Bookmark} label="Archives" />
+            <TabBtn active={tab === 'signals'} onClick={() => setTab('signals')} icon={Activity} label="Feed Log" />
+        </div>
+
+        {/* Node GRID CONTENT */}
+        <div className="min-h-[500px]">
+            {tab === 'posts' && (
+                loadingPosts ? (
+                    <div className="flex flex-col items-center justify-center py-40 opacity-40">
+                        <Loader2 size={32} className="animate-spin text-v-cyan mb-4" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Hydrating Node History...</p>
+                    </div>
+                ) : userPosts.length === 0 ? (
+                    <div className="py-40 text-center flex flex-col items-center glass-card border-none bg-surface-lowest/20 rounded-[60px]">
+                        <Ghost size={60} className="text-on-surface-variant/20 mb-8" />
+                        <p className="text-[11px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-40 leading-none">Inert Frequency</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6 sm:gap-10">
+                        {userPosts.map((p, index) => (
+                            <motion.div 
+                                key={p.id}
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: index * 0.05 }}
+                                onClick={() => window.location.href = `/feed/${p.id}`}
+                                className="aspect-[3/4] bg-surface-lowest/40 rounded-[45px] relative group overflow-hidden cursor-pointer shadow-2xl border border-white/5"
+                            >
+                                {p.mediaUrls?.[0] ? (
+                                    <img src={p.mediaUrls[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="post" />
+                                ) : (
+                                    <div className="w-full h-full flex p-10 items-center justify-center text-sm font-black italic uppercase tracking-tighter opacity-80 text-on-surface group-hover:text-v-cyan transition-colors">
+                                        {p.content.slice(0, 80)}{p.content.length > 80 ? '...' : ''}
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-40 transition-opacity flex flex-col items-center justify-center gap-2">
+                                    <div className="flex items-center gap-4 text-white">
+                                        <div className="flex items-center gap-1.5"><Zap size={20} fill="white" /> <span className="text-lg font-black">{kFmt(p.likeCount)}</span></div>
+                                        <div className="flex items-center gap-1.5"><MessageCircle size={20} fill="white" /> <span className="text-lg font-black">{kFmt(p.commentCount)}</span></div>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-v-cyan">RETRIVE_SIGNAL</span>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                )
             )}
-
-            {/* Desktop Stats */}
-            <div className="hidden sm:flex items-center gap-10 mb-4 text-[15px]">
-              <div><span className="font-semibold text-on-surface">{userPosts.length}</span> posts</div>
-              <div><span className="font-semibold text-on-surface">{kFmt(currentUser.followerCount ?? 0)}</span> followers</div>
-              <div><span className="font-semibold text-on-surface">{kFmt(currentUser.followingCount ?? 0)}</span> following</div>
-            </div>
-
-            {/* Desktop Bio */}
-            <div className="hidden sm:block">
-              <div className="font-bold text-[15px] mb-1 text-on-surface">{currentUser.displayName}</div>
-              <p className="text-[15px] whitespace-pre-wrap text-on-surface leading-snug">
-                {currentUser.bio || "You haven't written a bio yet."}
-              </p>
-            </div>
-          </div>
+            
+            {tab !== 'posts' && (
+                <div className="py-60 text-center flex flex-col items-center glass-card border-none bg-surface-lowest/10 rounded-[60px]">
+                    <Activity size={40} className="text-on-surface-variant/10 animate-pulse mb-8" />
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-20 italic">Archives synchronized but encrypted. Implementation pending.</p>
+                </div>
+            )}
         </div>
-
-        {/* Mobile Bio */}
-        <div className="sm:hidden px-2 mb-4">
-          <div className="font-bold text-[14px] mb-1 text-on-surface">{currentUser.displayName}</div>
-          <p className="text-[14px] whitespace-pre-wrap text-on-surface leading-snug">
-            {currentUser.bio || "You haven't written a bio yet."}
-          </p>
-        </div>
-
-        {/* Mobile Stats */}
-        <div className="sm:hidden flex items-center justify-around py-3 mb-2 border-t border-outline-variant/30 text-[14px]">
-          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{userPosts.length}</span> <span className="text-on-surface-variant text-[13px]">posts</span></div>
-          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(currentUser.followerCount ?? 0)}</span> <span className="text-on-surface-variant text-[13px]">followers</span></div>
-          <div className="text-center flex flex-col"><span className="font-bold text-on-surface">{kFmt(currentUser.followingCount ?? 0)}</span> <span className="text-on-surface-variant text-[13px]">following</span></div>
-        </div>
-
-        {/* Mobile Actions */}
-        <div className="sm:hidden flex items-center gap-2 mb-6">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="flex-1 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition"
-          >
-            Edit Profile
-          </button>
-          <button
-            onClick={() => setShowColorPicker(!showColorPicker)}
-            className="px-4 py-1.5 bg-surface-variant text-on-surface rounded-lg text-sm font-semibold transition"
-          >
-            <Palette size={16} />
-          </button>
-        </div>
-        {/* Mobile color picker dropdown */}
-        {showColorPicker && (
-          <div className="sm:hidden grid grid-cols-2 gap-3 p-4 mb-4 rounded-xl shadow-2xl animate-fade-in border border-outline-variant/30 z-[100]"
-            style={{ background: 'rgba(20,20,30,0.95)', backdropFilter: 'blur(12px)' }}>
-            <div className="col-span-2 flex justify-between items-center mb-1">
-              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Visual Theme</span>
-            </div>
-            {THEME_PRESETS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => { setBannerColor(t.id); setShowColorPicker(false); }}
-                className="relative text-left p-2 rounded-xl border transition-all duration-300 group overflow-hidden"
-                style={{
-                  borderColor: bannerColor === t.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                  background: 'rgba(0,0,0,0.2)'
-                }}
-              >
-                <div className="absolute inset-0 opacity-20" style={{ background: t.gradient }} />
-                <span className="relative z-10 text-[10px] font-bold text-white uppercase tracking-wider">{t.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-t border-outline-variant/30 justify-center max-w-[900px] mx-auto gap-4 sm:gap-12">
-        {([
-          { key: 'posts', label: 'POSTS', icon: Grid3x3 },
-          { key: 'saved', label: 'SAVED', icon: Bookmark },
-          { key: 'awards', label: 'AWARDS', icon: Award },
-        ] as const).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`flex items-center gap-2 px-2 sm:px-4 py-4 text-[12px] sm:text-[13px] font-bold uppercase tracking-wider relative transition-colors focus-visible:outline-none ${tab === key ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
-            style={tab === key ? { color: 'var(--text-primary)' } : {}}
-          >
-            <Icon size={14} />
-            {label}
-            {tab === key && <span className="absolute top-0 left-0 right-0 h-[2px] bg-primary transition-all" />}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="max-w-[900px] mx-auto min-h-[400px]">
-        {tab === 'posts' && (
-          loadingPosts ? (
-            <div className="p-12 text-center">
-              <div className="w-8 h-8 border-2 border-primary-light border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            </div>
-          ) : userPosts.length === 0 ? (
-            <div className="p-12 mt-12 text-center flex flex-col items-center">
-              <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
-                <Sparkles size={32} className="text-on-surface-variant opacity-40" />
-              </div>
-              <p className="font-bold text-[18px] text-on-surface mb-2">No Posts Yet</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-1 sm:gap-4 mt-1">
-              {userPosts.map((p) => {
-                const mainMedia = p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls[0] : null;
-                return (
-                  <div key={p.id} className="aspect-square bg-surface-variant relative group overflow-hidden cursor-pointer" onClick={() => window.location.href = `/feed/${p.id}`}>
-                    {mainMedia ? (
-                      <img src={mainMedia} alt="thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="w-full h-full flex p-3 items-center justify-center text-[10px] sm:text-[14px] break-words text-center font-medium opacity-80">
-                        {p.content.slice(0, 100)}{p.content.length > 100 ? '...' : ''}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )
-        )}
-        {tab === 'saved' && (
-          <div className="p-12 mt-12 text-center flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
-              <Bookmark size={32} className="text-on-surface-variant opacity-40" />
-            </div>
-            <p className="font-bold text-[18px] text-on-surface mb-2">Saved posts coming soon</p>
-          </div>
-        )}
-        {tab === 'awards' && (
-          <div className="p-12 mt-12 text-center flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
-              <div className="text-4xl">🏆</div>
-            </div>
-            <p className="font-bold text-[18px] text-on-surface mb-2">Awards & Achievements</p>
-            <p className="text-[14px] text-on-surface-variant">Community recognition coming soon.</p>
-          </div>
-        )}
       </div>
     </div>
   );
+}
+
+function NodeStat({ label, val, color }: any) {
+    return (
+        <div className="flex flex-col">
+            <span className={clsx('text-3xl font-black italic tracking-tighter leading-none mb-1', color)}>{val}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest opacity-30 italic">{label}</span>
+        </div>
+    )
+}
+
+function integrityIcon(color: string) {
+    return <div className={clsx('w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg border border-white/10', color)} />
+}
+
+function IntegrityCard({ label, percent, icon: Icon, color, desc }: any) {
+    return (
+        <div className="glass-card p-10 bg-surface-lowest/40 border-none rounded-[50px] shadow-2xl flex flex-col justify-between group hover:bg-surface-lowest/60 transition-all">
+            <div className="flex justify-between items-start mb-6">
+                <div className={clsx('w-14 h-14 rounded-3xl flex items-center justify-center bg-gradient-to-br text-white shadow-2xl group-hover:scale-110 transition-transform duration-500', color)}>
+                    <Icon size={24} />
+                </div>
+                <div className="text-right">
+                    <span className="text-4xl font-black italic tracking-tighter text-white leading-none mb-1">{percent}%</span>
+                    <p className="text-[8px] font-black uppercase tracking-widest opacity-40">OPTIMIZED</p>
+                </div>
+            </div>
+            <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-white mb-2 italic">{label}</h4>
+                <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${percent}%` }} transition={{ duration: 1.5, ease: 'easeOut' }} className={clsx('h-full bg-gradient-to-r', color)} />
+                </div>
+                <p className="text-[9px] font-bold text-on-surface-variant opacity-40 mt-4 leading-relaxed italic">{desc}</p>
+            </div>
+        </div>
+    )
+}
+
+function TabBtn({ active, onClick, icon: Icon, label }: any) {
+    return (
+        <button onClick={onClick} className={clsx('flex items-center gap-4 py-8 relative group transition-all', active ? 'text-white' : 'text-on-surface-variant opacity-40 hover:opacity-100')}>
+            <Icon size={18} className={clsx('transition-all duration-500', active ? 'text-v-cyan scale-125' : 'group-hover:scale-110')} />
+            <span className="text-xs font-black uppercase tracking-widest italic">{label}</span>
+            {active && <motion.div layoutId="profile-tab" className="absolute bottom-[-1px] left-0 right-0 h-1 bg-v-cyan shadow-[0_0_15px_var(--v-cyan)] rounded-t-full" />}
+        </button>
+    )
+}
+
+function MessageCircle({ size, fill, className }: any) {
+    return <Activity size={size} className={className} />
+}
+
+function ChevronRight({ size, className }: any) {
+    return <Zap size={size} className={className} />
 }

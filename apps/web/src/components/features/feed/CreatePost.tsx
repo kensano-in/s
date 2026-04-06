@@ -2,17 +2,19 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Image as ImageIcon, Video, Smile, MapPin, X, Upload, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, Video, Smile, MapPin, X, Upload, Loader2, Zap, Radio, Globe, Lock, Users, Activity, Sparkles, Fingerprint, Cpu } from 'lucide-react';
 import { submitPost } from '@/app/(main)/feed/actions';
 import { uploadMedia } from '@/app/(main)/feed/upload';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
 
-const EMOJIS = ['😀','😂','🥹','😍','🤩','🔥','💎','⚡','🌊','🎯','🚀','🎭','👏','💪','🤝','❤️','💜','🌸','✨','🎉','👀','🧠','💡','🔑','🎨','🎮','🏆','💫','🌈','🦋'];
+const EMOJIS = ['⚡','💎','🧠','🔥','🌊','🎯','🚀','🎭','💡','✨','🏆','💫','🌈','🧿','👁️','🦾','🛰️','🧬','📡','🧪'];
 const MAX_CHARS = 500;
 
 interface MediaPreview {
-  url: string;        // local blob for preview
-  publicUrl: string;  // supabase public URL after upload
+  url: string;
+  publicUrl: string;
   type: 'image' | 'video';
   name: string;
   uploading: boolean;
@@ -22,51 +24,29 @@ interface MediaPreview {
 export default function CreatePost() {
   const { currentUser } = useAppStore();
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  
   const [content, setContent] = useState('');
-  const [location, setLocation] = useState('');
-  const [showLocationInput, setShowLocationInput] = useState(false);
+  const [privacy, setPrivacy] = useState<'public' | 'nodes' | 'matrix'>('public');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [shake, setShake] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [mediaPreviews, setMediaPreviews] = useState<MediaPreview[]>([]);
-  const supabase = null; // uploads go through server action
+  const [isFocused, setIsFocused] = useState(false);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 300) + 'px';
     }
   }, [content]);
-
-  const charLeft = MAX_CHARS - content.length;
-  const charColor = charLeft < 0 ? '#EF4444' : charLeft < 50 ? '#F59E0B' : 'var(--text-muted)';
-
-  const uploadFile = async (file: File, folder: string = 'posts'): Promise<string | null> => {
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('folder', folder);
-    const result = await uploadMedia(fd);
-    if ('error' in result) {
-      console.error('Upload error:', result.error);
-      return null;
-    }
-    return result.url;
-  };
 
   const handleFileSelect = async (files: FileList | null, type: 'image' | 'video') => {
     if (!files || files.length === 0) return;
     const file = files[0];
-    if (file.size > 50 * 1024 * 1024) {
-      alert('File too large. Max 50MB.');
-      return;
-    }
-
     const blobUrl = URL.createObjectURL(file);
+    
     const preview: MediaPreview = {
       url: blobUrl,
       publicUrl: '',
@@ -77,10 +57,14 @@ export default function CreatePost() {
     };
     setMediaPreviews(prev => [...prev, preview]);
 
-    const publicUrl = await uploadFile(file);
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('folder', 'posts');
+    const result = await uploadMedia(fd);
+    
     setMediaPreviews(prev => prev.map(p =>
       p.url === blobUrl
-        ? { ...p, publicUrl: publicUrl || '', uploading: false, error: !publicUrl }
+        ? { ...p, publicUrl: 'url' in result ? result.url : '', uploading: false, error: 'error' in result }
         : p
     ));
   };
@@ -92,232 +76,146 @@ export default function CreatePost() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const stillUploading = mediaPreviews.some(p => p.uploading);
-    if (stillUploading) return;
-
-    if (!content.trim() && mediaPreviews.length === 0) {
-      setShake(true);
-      setTimeout(() => setShake(false), 600);
-      return;
-    }
-    if (content.length > MAX_CHARS) {
-      setShake(true);
-      setTimeout(() => setShake(false), 600);
-      return;
-    }
+    if (isPosting || (!content.trim() && mediaPreviews.length === 0)) return;
 
     setIsPosting(true);
     const fd = new FormData();
-    fd.append('content', location ? `${content}\n📍 ${location}` : content);
+    fd.append('content', content);
+    fd.append('privacy', privacy);
     mediaPreviews.forEach(p => { if (p.publicUrl) fd.append('mediaUrls', p.publicUrl); });
 
     await submitPost(fd);
 
-    // Clean up previews
     mediaPreviews.forEach(p => URL.revokeObjectURL(p.url));
     setMediaPreviews([]);
     setContent('');
-    setLocation('');
-    setShowLocationInput(false);
     setIsPosting(false);
     router.refresh();
   };
 
-  const addEmoji = (emoji: string) => {
-    setContent((c) => c + emoji);
-    setShowEmojiPicker(false);
-    textareaRef.current?.focus();
-  };
-
   if (!currentUser) return null;
 
-  const anyUploading = mediaPreviews.some(p => p.uploading);
-
   return (
-    <div className={`glass-card p-5 mb-6 relative z-20 transition-all duration-200 ${shake ? 'animate-shake' : ''}`}>
-      <form ref={formRef} onSubmit={handleSubmit}>
-        <div className="flex items-start gap-4 mb-3">
-          <div className="relative flex-shrink-0 mt-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={currentUser.avatar || '/fallback-avatar.svg'}
-              alt={`${currentUser.displayName}'s avatar`}
-              width={48} height={48}
-              className="w-12 h-12 rounded-full object-cover shadow-ambient border border-outline-variant/10"
-              onError={(e) => { (e.target as HTMLImageElement).src = '/fallback-avatar.svg'; }}
-            />
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-secondary-light border-2 border-surface-highest rounded-full" />
-          </div>
+    <div className={clsx(
+        'glass-card p-0 mb-10 border-none bg-surface-lowest/40 relative overflow-hidden transition-all duration-700 rounded-[40px] italic',
+        isFocused ? 'shadow-[0_0_80px_rgba(0,255,255,0.1)] ring-1 ring-v-cyan/20' : 'shadow-2xl'
+    )}>
+        {/* Technical Background scan lines */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ 
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)', 
+            backgroundSize: '100% 4px' 
+        }} />
 
-          <div className="flex-1 min-w-0">
-            <textarea
-              ref={textareaRef}
-              name="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value.slice(0, MAX_CHARS + 20))}
-              placeholder={`What is unfolding, ${currentUser.displayName?.split(' ')[0]}?`}
-              rows={1}
-              className="w-full bg-transparent border-0 resize-none text-[15px] font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none leading-relaxed pt-2"
-              id="create-post-input"
-            />
-
-            {/* Location input */}
-            {showLocationInput && (
-              <div className="flex items-center gap-2 mt-2 animate-slide-up">
-                <MapPin size={14} className="text-green-400 flex-shrink-0" />
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Add location..."
-                  className="flex-1 bg-surface-low text-sm text-on-surface rounded-lg px-3 py-1.5 border border-outline-variant/20 focus:outline-none focus:border-green-400/50 transition-colors"
-                  maxLength={100}
-                  autoFocus
-                />
-                <button type="button" onClick={() => { setShowLocationInput(false); setLocation(''); }}
-                  className="text-on-surface-variant hover:text-on-surface transition-colors">
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Media Previews — real images/videos */}
-        {mediaPreviews.length > 0 && (
-          <div className={`grid gap-2 mb-4 pl-16 ${mediaPreviews.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {mediaPreviews.map((m) => (
-              <div key={m.url} className="relative rounded-2xl overflow-hidden border border-outline-variant/20 bg-surface-high" style={{ aspectRatio: mediaPreviews.length === 1 ? '16/9' : '1/1' }}>
-                {m.type === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
-                ) : (
-                  <video src={m.url} className="w-full h-full object-cover" muted playsInline />
-                )}
-                {/* Uploading overlay */}
-                {m.uploading && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2">
-                    <Loader2 size={24} className="text-white animate-spin" />
-                    <span className="text-white text-xs font-semibold">Uploading…</span>
-                  </div>
-                )}
-                {m.error && (
-                  <div className="absolute inset-0 bg-red-900/60 flex items-center justify-center">
-                    <span className="text-white text-xs font-semibold">Upload failed</span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeMedia(m.url)}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center text-white hover:bg-black/90 transition-colors"
-                  aria-label="Remove media"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Char counter + Post button row */}
-        <div className="flex items-center justify-between pl-16 mb-3">
-          <span className="text-xs font-mono transition-colors" style={{ color: charColor }}>
-            {content.length > 0 ? `${content.length}/${MAX_CHARS}` : ''}
-          </span>
-          <button
-            type="submit"
-            disabled={isPosting || anyUploading || (content.length === 0 && mediaPreviews.length === 0)}
-            className="primary-btn h-9 px-6 shadow-ambient text-[14px] disabled:opacity-40 disabled:cursor-not-allowed transition-opacity flex items-center gap-2"
-          >
-            {isPosting ? (
-              <><Loader2 size={14} className="animate-spin" /> Posting…</>
-            ) : anyUploading ? (
-              <><Upload size={14} /> Uploading…</>
-            ) : 'Post'}
-          </button>
-        </div>
-
-        {/* Action bar */}
-        <div className="flex items-center gap-1 pt-3 border-t border-outline-variant/10 relative">
-          {/* Hidden file inputs */}
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            id="visuals-input"
-            onChange={(e) => handleFileSelect(e.target.files, 'image')}
-          />
-          <input
-            ref={videoInputRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            id="motion-input"
-            onChange={(e) => handleFileSelect(e.target.files, 'video')}
-          />
-
-          <button
-            type="button"
-            title="Add image"
-            onClick={() => imageInputRef.current?.click()}
-            className="flex items-center gap-1.5 py-2 px-3 rounded-full text-[13px] font-semibold text-on-surface-variant hover:text-cyan-400 hover:bg-surface-highest transition-colors group"
-          >
-            <ImageIcon size={17} className="text-cyan-400 group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">Visuals</span>
-          </button>
-
-          <button
-            type="button"
-            title="Add video"
-            onClick={() => videoInputRef.current?.click()}
-            className="flex items-center gap-1.5 py-2 px-3 rounded-full text-[13px] font-semibold text-on-surface-variant hover:text-pink-400 hover:bg-surface-highest transition-colors group"
-          >
-            <Video size={17} className="text-pink-400 group-hover:scale-110 transition-transform" />
-            <span className="hidden sm:inline">Motion</span>
-          </button>
-
-          {/* Emoji picker */}
-          <div className="relative">
-            <button
-              type="button"
-              title="Add emoji"
-              onClick={() => setShowEmojiPicker((v) => !v)}
-              className="flex items-center gap-1.5 py-2 px-3 rounded-full text-[13px] font-semibold text-on-surface-variant hover:text-yellow-400 hover:bg-surface-highest transition-colors group"
-            >
-              <Smile size={17} className="text-yellow-400 group-hover:scale-110 transition-transform" />
-              <span className="hidden sm:inline">Tone</span>
-            </button>
-            {showEmojiPicker && (
-              <div className="absolute bottom-12 left-0 z-50 bg-surface-highest border border-outline-variant/20 rounded-2xl p-3 shadow-2xl w-64 animate-fade-in">
-                <div className="grid grid-cols-6 gap-1">
-                  {EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => addEmoji(emoji)}
-                      className="text-xl hover:bg-surface-high rounded-lg p-1 transition-colors w-9 h-9 flex items-center justify-center"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+        <form onSubmit={handleSubmit} className="relative z-10">
+            {/* Input Hub */}
+            <div className="p-8">
+                <div className="flex gap-6 items-start mb-4">
+                    <div className="relative group/avatar">
+                        <img 
+                            src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`} 
+                            className="w-14 h-14 rounded-2xl object-cover border border-white/10 shadow-xl group-hover/avatar:rotate-3 transition-transform" 
+                            alt="avatar" 
+                        />
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-v-emerald rounded-full border-2 border-black" />
+                    </div>
+                    <div className="flex-1">
+                        <textarea
+                            ref={textareaRef}
+                            value={content}
+                            onFocus={() => setIsFocused(true)}
+                            onBlur={() => setIsFocused(false)}
+                            onChange={(e) => setContent(e.target.value)}
+                            placeholder={`Inject intelligence, ${currentUser.displayName.split(' ')[0]}...`}
+                            className="w-full bg-transparent border-none text-xl font-bold tracking-tight text-white placeholder:text-on-surface-variant/40 focus:ring-0 resize-none min-h-[80px] leading-relaxed pt-2 scrollbar-none"
+                        />
+                    </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          <button
-            type="button"
-            title="Add location"
-            onClick={() => setShowLocationInput((v) => !v)}
-            className="flex items-center gap-1.5 py-2 px-3 rounded-full text-[13px] font-semibold text-on-surface-variant hover:text-green-400 hover:bg-surface-highest transition-colors group"
-          >
-            <MapPin size={17} className={`group-hover:scale-110 transition-transform ${showLocationInput ? 'text-green-400' : 'text-green-400'}`} />
-            <span className="hidden md:inline">Space</span>
-          </button>
-        </div>
-      </form>
+                {/* Media Matrix */}
+                <AnimatePresence>
+                    {mediaPreviews.length > 0 && (
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="grid grid-cols-2 gap-4 mt-6">
+                            {mediaPreviews.map((m) => (
+                                <div key={m.url} className="relative aspect-video rounded-3xl overflow-hidden border border-white/5 bg-black/40 group/media">
+                                    {m.type === 'image' ? (
+                                        <img src={m.url} alt="p" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <video src={m.url} className="w-full h-full object-cover" muted playsInline />
+                                    )}
+                                    {m.uploading && <div className="absolute inset-0 bg-black/80 flex items-center justify-center"><Loader2 size={24} className="animate-spin text-v-cyan" /></div>}
+                                    <button type="button" onClick={() => removeMedia(m.url)} className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-black/80 text-white flex items-center justify-center opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-rose-500">
+                                        <X size={18} />
+                                    </button>
+                                    <div className="absolute bottom-2 left-4 px-2 py-1 rounded-md bg-black/60 text-[8px] font-black uppercase text-v-cyan tracking-widest border border-v-cyan/20">
+                                        RAW_UPLINK_OK
+                                    </div>
+                                </div>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Signal Control Bar */}
+            <div className="px-8 py-6 bg-white/[0.02] border-t border-white/5 flex flex-wrap items-center justify-between gap-6">
+                <div className="flex items-center gap-2">
+                    <CreatorAction icon={ImageIcon} color="text-v-cyan" onClick={() => imageInputRef.current?.click()} label="Vision" />
+                    <CreatorAction icon={Video} color="text-v-violet" onClick={() => videoInputRef.current?.click()} label="Motion" />
+                    <div className="relative">
+                        <CreatorAction icon={Smile} color="text-v-amber" onClick={() => setShowEmojiPicker(!showEmojiPicker)} label="Tone" />
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-full mb-4 left-0 p-4 bg-surface-highest border border-white/10 rounded-2xl shadow-3xl z-50 grid grid-cols-5 gap-2 w-52 animate-fade-in">
+                                {EMOJIS.map(e => <button key={e} type="button" onClick={() => { setContent(c => c + e); setShowEmojiPicker(false); }} className="text-xl hover:bg-white/10 p-2 rounded-lg">{e}</button>)}
+                            </div>
+                        )}
+                    </div>
+                    <div className="h-6 w-px bg-white/5 mx-2" />
+                    <div className="flex items-center gap-1">
+                        <PrivacyBtn active={privacy === 'public'} icon={Globe} onClick={() => setPrivacy('public')} />
+                        <PrivacyBtn active={privacy === 'nodes'} icon={Users} onClick={() => setPrivacy('nodes')} />
+                        <PrivacyBtn active={privacy === 'matrix'} icon={Lock} onClick={() => setPrivacy('matrix')} />
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                     <div className="flex flex-col items-end opacity-40">
+                         <span className={clsx('text-[10px] font-black tracking-widest uppercase', content.length > MAX_CHARS ? 'text-rose-500' : 'text-v-cyan')}>Signal_Length</span>
+                         <span className="text-[10px] font-mono">{content.length}/{MAX_CHARS}</span>
+                     </div>
+                     <button
+                        type="submit"
+                        disabled={isPosting || (content.length === 0 && mediaPreviews.length === 0)}
+                        className="group relative px-10 py-5 bg-primary-gradient text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[11px] shadow-3xl disabled:opacity-30 hover:scale-105 active:scale-95 transition-all overflow-hidden"
+                     >
+                        <span className="relative z-10 flex items-center gap-3">
+                            {isPosting ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} className="animate-pulse" />}
+                            {isPosting ? 'BROADCASTING...' : 'BROADCAST SIGNAL'}
+                        </span>
+                        <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+                     </button>
+                </div>
+            </div>
+
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e.target.files, 'image')} />
+            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => handleFileSelect(e.target.files, 'video')} />
+        </form>
     </div>
   );
+}
+
+function CreatorAction({ icon: Icon, color, onClick, label }: any) {
+    return (
+        <button type="button" onClick={onClick} className="group flex items-center gap-3 px-4 py-2.5 rounded-2xl hover:bg-white/5 transition-all">
+            <Icon size={18} className={clsx('transition-transform group-hover:scale-110', color)} />
+            <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 group-hover:opacity-100 transition-opacity">{label}</span>
+        </button>
+    )
+}
+
+function PrivacyBtn({ active, icon: Icon, onClick }: any) {
+    return (
+        <button type="button" onClick={onClick} className={clsx('w-10 h-10 rounded-xl flex items-center justify-center transition-all', active ? 'bg-v-cyan/10 text-v-cyan border border-v-cyan/30' : 'text-on-surface-variant opacity-40 hover:opacity-100')}>
+            <Icon size={16} />
+        </button>
+    )
 }

@@ -7,26 +7,24 @@ import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, MessageCircle, Users, Search, Zap, Bell,
-  Settings, ChevronLeft, TrendingUp, Plus,
+  Settings, ChevronLeft, TrendingUp, Plus, Radio, Activity, Cpu, ShieldCheck, Fingerprint, Ghost, Sparkles, Orbit
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { id: 'feed',          label: 'Feed',          icon: Home,          href: '/feed'        },
-  { id: 'explore',       label: 'Explore',       icon: Search,        href: '/explore'     },
-  { id: 'messages',      label: 'Messages',      icon: MessageCircle, href: '/messages'    },
-  { id: 'communities',   label: 'Communities',   icon: Users,         href: '/communities' },
-  { id: 'trending',      label: 'Trending',      icon: TrendingUp,    href: '/trending'    },
-  { id: 'funzone',       label: 'Fun Zone',      icon: Zap,           href: '/funzone'     },
+  { id: 'feed',          label: 'Neural Feed',       icon: Radio,         href: '/feed'        },
+  { id: 'explore',       label: 'Explore Expanse',   icon: Search,        href: '/explore'     },
+  { id: 'messages',      label: 'Signals Hub',       icon: MessageCircle, href: '/messages'    },
+  { id: 'communities',   label: 'Node Matrix',       icon: Users,         href: '/communities' },
+  { id: 'trending',      label: 'Trending Waves',    icon: Orbit,         href: '/trending'    },
+  { id: 'funzone',       label: 'Fun Zone',          icon: Zap,           href: '/funzone'     }
 ];
 
-// Damped spring config — matches the Harmonic Oscillator spec
-const SPRING = { type: 'spring' as const, stiffness: 380, damping: 26, mass: 0.8 };
-const SPRING_SOFT = { type: 'spring' as const, stiffness: 260, damping: 24 };
+const SPRING = { type: 'spring' as const, stiffness: 400, damping: 28, mass: 0.8 };
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { sidebarCollapsed, toggleSidebar, unreadNotifCount, setNotifPanelOpen, currentUser } = useAppStore();
+  const { sidebarCollapsed, toggleSidebar, unreadNotifCount, currentUser } = useAppStore();
 
   const isActive = (href: string) => {
     if (href === '/feed') return pathname === '/feed' || pathname === '/';
@@ -36,223 +34,155 @@ export default function Sidebar() {
   return (
     <motion.aside
       layout
-      transition={SPRING_SOFT}
+      transition={SPRING}
       className={clsx(
-        'flex flex-col h-full flex-shrink-0 relative z-30',
-        sidebarCollapsed ? 'w-[72px]' : 'w-[256px]'
+        'flex flex-col h-full flex-shrink-0 relative z-40 italic font-medium border-r border-white/5 selection:bg-v-cyan/30',
+        sidebarCollapsed ? 'w-[88px]' : 'w-[280px]'
       )}
+      style={{ background: 'rgba(5,5,10,0.4)', backdropFilter: 'blur(40px)' }}
     >
-      <div className="absolute inset-0 bg-surface-highest/60 backdrop-blur-2xl border-r border-outline-variant/15 shadow-ambient" />
-      
-      <div className="relative z-10 flex flex-col h-full py-4">
-        {/* Logo */}
-        <div className={clsx('flex items-center gap-3 px-4 mb-6', sidebarCollapsed && 'justify-center px-0')}>
-          <motion.div
-            whileHover={{ rotate: [0, -8, 8, 0] }}
-            transition={{ duration: 0.5 }}
-            className="relative flex-shrink-0 w-10 h-10 rounded-xl bg-primary-gradient flex items-center justify-center text-white font-display font-black text-xl shadow-ambient"
-          >
-            V
-          </motion.div>
-          <AnimatePresence>
-            {!sidebarCollapsed && (
-              <motion.div
-                key="logo-text"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={SPRING}
-                className="flex flex-col justify-center overflow-hidden"
-              >
-                <span className="text-xl font-display font-black tracking-tight text-on-surface">Verlyn</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Background HUD Grid */}
+      <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(var(--white) 0.5px, transparent 0.5px)', backgroundSize: '24px 24px' }} />
+
+      <div className="relative z-10 flex flex-col h-full py-8">
+        
+        {/* Identity Head */}
+        <div className={clsx('flex items-center gap-4 px-6 mb-10 transition-all duration-500', sidebarCollapsed && 'justify-center px-0')}>
+           <div className="relative group">
+                <div className="w-11 h-11 rounded-[16px] bg-black border border-white/10 flex items-center justify-center text-white font-black text-xl shadow-2xl relative overflow-hidden group-hover:border-v-cyan/50 transition-all duration-500">
+                    <span className="relative z-10">V</span>
+                    <div className="absolute inset-0 bg-primary-gradient opacity-20 group-hover:opacity-100 transition-opacity" />
+                </div>
+                {/* Orbital Status Ring */}
+                {!sidebarCollapsed && <div className="absolute -inset-1 border border-v-cyan/10 rounded-[18px] animate-spin-slow opacity-0 group-hover:opacity-100 transition-opacity" />}
+           </div>
+           {!sidebarCollapsed && (
+             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col">
+                <span className="text-xl font-black italic tracking-tighter text-white uppercase leading-none">Verlyn</span>
+                <span className="text-[7px] font-black tracking-[0.4em] text-v-cyan uppercase mt-1">Sovereign_OS</span>
+             </motion.div>
+           )}
         </div>
 
-        {/* Create Post */}
-        <div className={clsx('mb-6', sidebarCollapsed ? 'flex justify-center' : 'px-4')}>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.95 }}
-            transition={SPRING}
-            onClick={() => router.push('/feed')}
-            className={clsx(
-              'bg-primary-gradient text-white font-semibold text-sm shadow-ambient flex items-center justify-center gap-2',
-              sidebarCollapsed ? 'w-10 h-10 rounded-full' : 'w-full rounded-full py-3 px-4'
-            )}
-          >
-            <Plus size={18} />
-            {!sidebarCollapsed && 'Create Post'}
-          </motion.button>
+        {/* Global Broadcast Trigger */}
+        <div className={clsx('mb-10 px-4 transition-all duration-500', sidebarCollapsed && 'px-4 flex justify-center')}>
+             <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push('/feed')}
+                className={clsx(
+                    'bg-primary-gradient text-white flex items-center justify-center gap-3 shadow-3xl group relative overflow-hidden transition-all duration-500',
+                    sidebarCollapsed ? 'w-12 h-12 rounded-[18px]' : 'w-full py-4 px-6 rounded-[22px]'
+                )}
+             >
+                <Plus size={20} className="relative z-10 group-hover:rotate-90 transition-transform duration-500" />
+                {!sidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-[0.2em] relative z-10">Broadcast Pulse</span>}
+                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
+             </motion.button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto hide-scrollbar">
+        {/* Primary Neural Paths */}
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto hide-scrollbar">
+            {NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                    <Link key={item.id} href={item.href} className="block group">
+                        <motion.div 
+                            className={clsx(
+                                'flex items-center gap-5 px-4 py-3.5 rounded-[20px] transition-all duration-500 relative overflow-hidden',
+                                active ? 'bg-white/5 text-white' : 'text-on-surface-variant/40 hover:text-white',
+                                sidebarCollapsed && 'justify-center px-0'
+                            )}
+                        >
+                            <div className={clsx('relative z-10 p-0.5 transition-all duration-500', active && 'text-v-cyan scale-110')}>
+                                <Icon size={20} />
+                                {item.id === 'messages' && unreadNotifCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-v-cyan rounded-full border-2 border-black" />}
+                            </div>
+                            
+                            {!sidebarCollapsed && (
+                                <span className={clsx('text-[13px] font-black uppercase tracking-widest relative z-10 transition-all duration-500', active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100')}>
+                                    {item.label}
+                                </span>
+                            )}
 
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <motion.div
-                key={item.id}
-                whileHover={{ x: sidebarCollapsed ? 0 : 3, scale: 1.01 }}
-                whileTap={{ scale: 0.97 }}
-                transition={SPRING}
-              >
-                <Link
-                  href={item.href}
-                  className={clsx(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-[16px] transition-colors duration-200 group',
-                    active ? 'bg-surface-high text-primary-light shadow-[inset_0_0_20px_1px_rgba(255,255,255,0.02)]' : 'text-on-surface hover:bg-surface-low',
-                    sidebarCollapsed && 'justify-center px-0'
-                  )}
-                  title={sidebarCollapsed ? item.label : undefined}
-                >
-                  <motion.div
-                    whileHover={{ rotate: active ? 0 : 12 }}
-                    transition={SPRING}
-                    className={clsx(
-                      'p-1.5 rounded-xl transition-colors duration-200 flex-shrink-0 flex items-center justify-center',
-                      active
-                        ? 'bg-primary-dark/30 shadow-[0_0_12px_var(--primary-glow)]'
-                        : 'bg-surface-lowest group-hover:bg-surface-high group-hover:shadow-ambient'
-                    )}
-                  >
-                    <Icon size={18} />
-                  </motion.div>
-                  <AnimatePresence>
-                    {!sidebarCollapsed && (
-                      <motion.span
-                        key={`label-${item.id}`}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -8 }}
-                        transition={SPRING}
-                        className="font-medium text-sm"
-                      >
-                        {item.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {!sidebarCollapsed && item.id === 'messages' && unreadNotifCount > 0 && (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 600, damping: 15 }}
-                      className="ml-auto bg-secondary-DEFAULT text-surface-lowest text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    >
-                      {unreadNotifCount}
-                    </motion.span>
-                  )}
-                </Link>
-              </motion.div>
-            );
-          })}
+                            {active && <motion.div layoutId="sidebar-active" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-v-cyan rounded-full shadow-[0_0_15px_var(--v-cyan)]" />}
+                        </motion.div>
+                    </Link>
+                )
+            })}
         </nav>
 
-        {/* Bottom Actions */}
-        <div className="px-3 pt-4 border-t border-outline-variant/15 mt-2 space-y-1 text-on-surface">
-          <motion.button
-            whileHover={{ x: sidebarCollapsed ? 0 : 3 }}
-            whileTap={{ scale: 0.97 }}
-            transition={SPRING}
-            onClick={() => setNotifPanelOpen(true)}
-            className={clsx(
-              'flex items-center gap-3 px-3 py-2.5 rounded-[16px] hover:bg-surface-low transition-colors w-full',
-              sidebarCollapsed && 'justify-center px-0'
-            )}
-          >
-            <div className="relative">
-              <Bell size={20} />
-              {unreadNotifCount > 0 && (
-                <span className="absolute top-0 -right-1 w-2.5 h-2.5 bg-secondary-light rounded-full animate-pulse" />
-              )}
-            </div>
-            <AnimatePresence>
-              {!sidebarCollapsed && (
-                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="font-medium text-sm">
-                  Notifications
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.button>
-
-          <motion.div whileHover={{ x: sidebarCollapsed ? 0 : 3 }} whileTap={{ scale: 0.97 }} transition={SPRING}>
-            <Link
-              href="/settings"
-              className={clsx(
-                'flex items-center gap-3 px-3 py-2.5 rounded-[16px] hover:bg-surface-low transition-colors w-full',
-                isActive('/settings') && 'bg-surface-high text-primary-light',
-                sidebarCollapsed && 'justify-center px-0'
-              )}
-            >
-              <Settings size={20} />
-              <AnimatePresence>
-                {!sidebarCollapsed && (
-                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="font-medium text-sm">
-                    Settings
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </Link>
-          </motion.div>
+        {/* Operational Terminals */}
+        <div className="px-4 pt-6 border-t border-white/5 space-y-2">
+            <SidebarAction icon={Settings} label="Terminals & Meta" href="/settings" active={isActive('/settings')} collapsed={sidebarCollapsed} />
+            <SidebarAction 
+               icon={Bell} 
+               label="Signal Alerts" 
+               onClick={() => {}} 
+               badge={unreadNotifCount > 0} 
+               collapsed={sidebarCollapsed} 
+            />
         </div>
 
-        {/* User Card */}
-        <div className={clsx('px-4 mt-4', sidebarCollapsed && 'px-2')}>
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={SPRING}>
-            <Link
-              href="/profile"
-              className="flex items-center gap-3 p-2 rounded-2xl bg-surface-low hover:bg-surface-high transition-colors border border-outline-variant/10"
-            >
-              <div className="relative flex-shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=default`}
-                  alt={currentUser?.displayName || 'Profile'}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-secondary-light border-2 border-surface-low rounded-full" />
-              </div>
-              <AnimatePresence>
+        {/* Identity Token Card */}
+        <div className={clsx('px-4 mt-8', sidebarCollapsed && 'px-4 flex justify-center')}>
+             <Link href="/profile" className={clsx(
+                 'flex items-center gap-4 p-3 rounded-[24px] bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-all transition-all duration-500 group overflow-hidden relative',
+                 sidebarCollapsed ? 'w-12 h-12 justify-center' : 'w-full'
+             )}>
+                <div className="absolute inset-0 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                
+                <div className="relative flex-shrink-0">
+                    <img 
+                        src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=me`} 
+                        className="w-8 h-8 rounded-[12px] object-cover border border-white/10 group-hover:scale-110 transition-transform" 
+                        alt="me" 
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-v-emerald rounded-full border-2 border-black animate-pulse" />
+                </div>
+
                 {!sidebarCollapsed && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
-                    transition={SPRING}
-                    className="flex-1 min-w-0 flex flex-col justify-center"
-                  >
-                    <div className="text-[13px] font-bold leading-tight text-on-surface truncate pb-0.5">
-                      {currentUser?.displayName || 'Loading...'}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center relative z-10">
+                         <span className="text-[11px] font-black text-white uppercase tracking-tighter truncate leading-none mb-1 group-hover:text-v-cyan transition-colors">{currentUser?.displayName}</span>
+                         <div className="flex items-center gap-1.5 opacity-40">
+                             <Fingerprint size={8} />
+                             <span className="text-[8px] font-black uppercase tracking-widest truncate">@{currentUser?.username}</span>
+                         </div>
                     </div>
-                    <div className="text-[11px] leading-tight text-on-surface-variant truncate">
-                      @{currentUser?.username || '...'}
-                    </div>
-                  </motion.div>
                 )}
-              </AnimatePresence>
-            </Link>
-          </motion.div>
+             </Link>
         </div>
+
       </div>
 
-      {/* Collapse toggle */}
+      {/* Pulse Toggle */}
       <motion.button
-        whileHover={{ scale: 1.2 }}
-        whileTap={{ scale: 0.9 }}
         transition={SPRING}
         onClick={toggleSidebar}
-        className="absolute -right-3 top-[70px] w-6 h-6 rounded-full bg-surface-high border border-outline-variant/30 flex items-center justify-center hover:bg-surface-highest text-on-surface-variant hover:text-on-surface z-40"
+        className="absolute -right-3 top-24 w-6 h-6 rounded-lg bg-black border border-white/10 flex items-center justify-center hover:bg-v-cyan hover:text-black text-on-surface-variant transition-colors z-50 shadow-xl"
       >
-        <motion.div
-          animate={{ rotate: sidebarCollapsed ? 180 : 0 }}
-          transition={SPRING}
-        >
+        <motion.div animate={{ rotate: sidebarCollapsed ? 180 : 0 }} transition={SPRING}>
           <ChevronLeft size={14} />
         </motion.div>
       </motion.button>
     </motion.aside>
   );
+}
+
+function SidebarAction({ icon: Icon, label, href, active, onClick, badge, collapsed }: any) {
+    const Component = href ? Link : 'button';
+    return (
+        <Component href={href || '#'} onClick={onClick} className={clsx(
+            'flex items-center gap-5 px-4 py-3.5 rounded-[20px] transition-all duration-500 group',
+            active ? 'bg-white/5 text-v-cyan' : 'text-on-surface-variant/40 hover:text-white',
+            collapsed && 'justify-center px-0'
+        )}>
+            <div className="relative">
+                <Icon size={18} className="group-hover:scale-110 transition-transform" />
+                {badge && <span className="absolute -top-1 -right-1 w-2 h-2 bg-v-cyan rounded-full shadow-[0_0_8px_var(--v-cyan)]" />}
+            </div>
+            {!collapsed && <span className="text-[11px] font-black uppercase tracking-widest">{label}</span>}
+        </Component>
+    )
 }
