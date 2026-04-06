@@ -98,8 +98,16 @@ export default function FeedPage() {
     // FIX 7: Incremental real-time update — do NOT re-fetch entire feed on INSERT
     // This eliminates the fetch storm when multiple posts arrive rapidly
     const channel = supabase.channel('realtime_feed')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
         const raw = payload.new as Record<string, unknown>;
+        
+        // Fetch the full author data because realtime payload only contains the 'posts' row
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', raw.author_id as string)
+          .single();
+
         const newPost: Post = {
           id: raw.id as string,
           content: raw.content as string,
@@ -111,18 +119,23 @@ export default function FeedPage() {
           postType: 'text',
           author: {
             id: raw.author_id as string,
-            username: 'unknown',
-            displayName: 'New Post',
-            avatar: '',
-            role: 'PUBLIC',
-            isVerified: false,
-            karmaScore: 0,
-            followerCount: 0,
-            followingCount: 0,
-            createdAt: raw.created_at as string,
+            username: userData?.username || 'unknown',
+            displayName: userData?.display_name || 'Classified User',
+            avatar: userData?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData?.username ?? 'user'}`,
+            role: (userData?.role || 'PUBLIC'),
+            isVerified: userData?.is_verified || false,
+            karmaScore: userData?.karma_score || 0,
+            followerCount: userData?.follower_count || 0,
+            followingCount: userData?.following_count || 0,
+            createdAt: userData?.created_at || raw.created_at as string,
           },
         };
-        setLivePosts(prev => [newPost, ...prev]);
+        
+        setLivePosts(prev => {
+          // Prevent duplicates if already added by optimistic UI
+          if (prev.some(p => p.id === newPost.id)) return prev;
+          return [newPost, ...prev];
+        });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, () => {
         // Full re-fetch only for UPDATE/DELETE (content or like count changed)
