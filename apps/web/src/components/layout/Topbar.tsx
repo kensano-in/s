@@ -53,7 +53,7 @@ export default function Topbar() {
             </div>
             <div className="hidden lg:flex flex-col leading-none">
                 <span className="text-lg font-black tracking-tighter text-white uppercase group-hover:text-v-cyan transition-colors">Verlyn</span>
-                <span className="text-[8px] font-black tracking-[0.4em] text-on-surface-variant opacity-40 uppercase">Intelligence Matrix</span>
+                <span className="text-[8px] font-black tracking-[0.4em] text-on-surface-variant opacity-40 uppercase">Sovereign OS</span>
             </div>
         </Link>
 
@@ -73,7 +73,7 @@ export default function Topbar() {
             <input
               ref={inputRef}
               type="text"
-              placeholder={isFocused ? "SCANNING_NODES..." : "SCAN NETWORK FOR INTELLIGENCE..."}
+              placeholder={isFocused ? "Searching..." : "Search for something..."}
               value={searchVal}
               onChange={(e) => setSearchVal(e.target.value)}
               onKeyDown={handleSearch}
@@ -110,9 +110,9 @@ export default function Topbar() {
           
           {/* Signal Indicator (New feature: real-time activity) */}
           <div className="hidden xl:flex items-center gap-4 px-5 py-2.5 rounded-2xl bg-white/[0.02] border border-white/5 mr-4">
-               <div className="flex flex-col items-end">
-                    <span className="text-[8px] font-black text-v-cyan uppercase tracking-widest">Global_Sync</span>
-                    <span className="text-[10px] font-mono text-white/50 tracking-tighter">0.04ms</span>
+                <div className="flex flex-col items-end">
+                    <span className="text-[8px] font-black text-v-cyan uppercase tracking-widest">Network_Sync</span>
+                    <span className="text-[10px] font-mono text-white/50 tracking-tighter">Connected</span>
                </div>
                <Activity size={20} className="text-v-cyan animate-pulse opacity-50" />
           </div>
@@ -122,14 +122,14 @@ export default function Topbar() {
             onClick={() => setNotifPanelOpen(true)} 
             icon={Bell} 
             badge={unreadNotifCount > 0} 
-            label="Signals"
+            label="Notifications"
           />
 
           <Link href="/messages" className="hidden sm:block">
-            <NavAction icon={MessageCircle} label="Signals" />
+            <NavAction icon={MessageCircle} label="Messages" />
           </Link>
 
-          {/* User Identity Kernel */}
+          {/* User Identity */}
           <Link href="/profile" className="group relative ml-2">
             <div className="p-[2.5px] rounded-[15px] bg-white/10 group-hover:bg-primary-gradient transition-all duration-500">
                 <div className="rounded-[13px] overflow-hidden bg-black p-[1px]">

@@ -127,10 +127,10 @@ export default function Sidebar() {
 
         {/* Operational Terminals */}
         <div className="px-4 pt-6 border-t border-white/5 space-y-2">
-            <SidebarAction icon={Settings} label="Terminals & Meta" href="/settings" active={isActive('/settings')} collapsed={sidebarCollapsed} />
+            <SidebarAction icon={Settings} label="Settings" href="/settings" active={isActive('/settings')} collapsed={sidebarCollapsed} />
             <SidebarAction 
                icon={Bell} 
-               label="Signal Alerts" 
+               label="Notifications" 
                onClick={() => {}} 
                badge={unreadNotifCount > 0} 
                collapsed={sidebarCollapsed} 

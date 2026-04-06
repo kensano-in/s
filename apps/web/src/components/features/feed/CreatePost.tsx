@@ -133,7 +133,7 @@ export default function CreatePost() {
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
                             onChange={(e) => setContent(e.target.value)}
-                            placeholder={`Inject intelligence, ${currentUser.displayName.split(' ')[0]}...`}
+                            placeholder={`What's on your mind, ${currentUser.displayName.split(' ')[0]}?`}
                             className="w-full bg-transparent border-none text-xl font-bold tracking-tight text-white placeholder:text-on-surface-variant/40 focus:ring-0 resize-none min-h-[80px] leading-relaxed pt-2 scrollbar-none"
                         />
                     </div>
@@ -194,7 +194,7 @@ export default function CreatePost() {
 
                 <div className="flex items-center gap-6">
                      <div className="flex flex-col items-end opacity-40">
-                         <span className={clsx('text-[10px] font-black tracking-widest uppercase', content.length > MAX_CHARS ? 'text-rose-500' : 'text-v-cyan')}>Signal_Length</span>
+                         <span className={clsx('text-[10px] font-black tracking-widest uppercase', content.length > MAX_CHARS ? 'text-rose-500' : 'text-v-cyan')}>Character_Count</span>
                          <span className="text-[10px] font-mono">{content.length}/{MAX_CHARS}</span>
                      </div>
                      <button
@@ -204,7 +204,7 @@ export default function CreatePost() {
                      >
                         <span className="relative z-10 flex items-center gap-3">
                             {isPosting ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} className="animate-pulse" />}
-                            {isPosting ? 'BROADCASTING...' : 'BROADCAST SIGNAL'}
+                            {isPosting ? 'POSTING...' : 'POST'}
                         </span>
                         <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
                      </button>
