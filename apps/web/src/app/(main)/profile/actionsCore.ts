@@ -15,7 +15,19 @@ export async function submitProfileUpdateDB(userId: string, updates: ProfileSync
   try {
     const dbPayload: Record<string, unknown> = {};
     if (updates.displayName !== undefined) dbPayload.display_name = updates.displayName;
-    if (updates.username !== undefined) dbPayload.username = updates.username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (updates.username !== undefined) {
+      // 1. Force lowercase
+      let sanitized = updates.username.toLowerCase();
+      // 2. Allow letters, numbers, underscores, and periods only
+      sanitized = sanitized.replace(/[^a-z0-9_.]/g, '');
+      
+      // 3. Validation: Cannot end with a period
+      if (sanitized.endsWith('.')) {
+        return { success: false, error: "You can't end your username with a period." };
+      }
+      
+      dbPayload.username = sanitized;
+    }
     if (updates.bio !== undefined) dbPayload.bio = updates.bio;
     if (updates.avatarUrl !== undefined) dbPayload.avatar_url = updates.avatarUrl;
     if (updates.theme !== undefined) dbPayload.theme = updates.theme;

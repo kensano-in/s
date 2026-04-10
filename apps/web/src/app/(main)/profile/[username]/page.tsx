@@ -1,14 +1,23 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import PostCard from '@/components/features/feed/PostCard';
-import { Grid3x3, Bookmark, Award, Sparkles, Lock, Loader2, UserPlus, UserCheck, Activity, Globe, ShieldCheck, MessageCircle, MoreHorizontal } from 'lucide-react';
+import {
+  Grid3x3,
+  Bookmark,
+  Lock,
+  Loader2,
+  ShieldCheck,
+  UserPlus,
+  UserCheck,
+  MessageCircle,
+  Heart,
+  Globe,
+} from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import KineticIcon from '@/components/ui/KineticIcon';
 import { createClient } from '@/lib/supabase/client';
 import { useParams, useRouter } from 'next/navigation';
-import clsx from 'clsx';
 import type { User } from '@/lib/types';
+import { motion, AnimatePresence } from 'framer-motion';
 
 function kFmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -16,22 +25,27 @@ function kFmt(n: number) {
   return String(n);
 }
 
+type Tab = 'posts' | 'saved';
+
 export default function PublicProfilePage() {
   const { username } = useParams() as { username: string };
   const router = useRouter();
+
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>('posts');
   const [localFollowerCount, setLocalFollowerCount] = useState<number | null>(null);
-  const [dbFollowing, setDbFollowing] = useState<boolean | null>(null); // DB-verified follow state
-  
+  const [dbFollowing, setDbFollowing] = useState<boolean | null>(null);
+
   const { currentUser, isFollowing, toggleFollow } = useAppStore();
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     if (!username) return;
 
-    if (currentUser?.username === username) {
+    // Redirect to own profile if it's the current user
+    if (currentUser?.username && currentUser.username.toLowerCase() === username.toLowerCase()) {
       router.push('/profile');
       return;
     }
@@ -40,9 +54,9 @@ export default function PublicProfilePage() {
       const { data: user } = await supabase
         .from('users')
         .select('*')
-        .eq('username', username)
+        .ilike('username', username)
         .single();
-        
+
       if (user) {
         setProfileUser({
           id: user.id,
@@ -59,7 +73,7 @@ export default function PublicProfilePage() {
           createdAt: user.created_at,
         });
 
-        // DB-verified follow check — accurate across devices/sessions
+        // DB-verified follow check
         if (currentUser?.id) {
           const { data: followRow } = await supabase
             .from('follows')
@@ -72,7 +86,6 @@ export default function PublicProfilePage() {
           setDbFollowing(false);
         }
 
-        // Only fetch posts if public OR if DB confirms we're following
         const { data: posts } = await supabase
           .from('posts')
           .select('*, author:users!posts_author_id_fkey(*)')
@@ -80,191 +93,328 @@ export default function PublicProfilePage() {
           .order('created_at', { ascending: false });
 
         if (posts) {
-          const formatted = posts.map((dbPost: any) => ({
-            id: dbPost.id,
-            content: dbPost.content,
-            mediaUrls: dbPost.media_urls || [],
-            likeCount: dbPost.like_count || 0,
-            commentCount: dbPost.comment_count || 0,
-            shareCount: dbPost.share_count || 0,
-            createdAt: dbPost.created_at,
-            author: {
-              id: dbPost.author?.id,
-              username: dbPost.author?.username,
-              displayName: dbPost.author?.display_name,
-              avatar: dbPost.author?.avatar_url,
-              role: dbPost.author?.role || 'PUBLIC',
-            },
-          }));
-          setUserPosts(formatted);
+          setUserPosts(
+            posts.map((p: any) => ({
+              id: p.id,
+              content: p.content,
+              mediaUrls: p.media_urls || [],
+              likeCount: p.like_count || 0,
+              commentCount: p.comment_count || 0,
+              createdAt: p.created_at,
+            }))
+          );
         }
       }
+
       setLoading(false);
     }
+
     fetchProfile();
-  }, [username, currentUser?.username, supabase, router]);
+  }, [username, currentUser?.username, currentUser?.id, supabase, router]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 size={28} className="animate-spin text-primary-light" />
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-white/10" />
       </div>
     );
   }
 
   if (!profileUser) {
     return (
-      <div className="glass-card p-12 text-center flex flex-col items-center">
-        <h1 className="text-xl font-bold mb-2">User not found</h1>
-        <p className="text-sm text-on-surface-variant">This account doesn't exist or has been deleted.</p>
+      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center gap-6 px-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-white/[0.03] flex items-center justify-center border border-white/[0.05]">
+          <Globe size={28} className="text-white/10" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-[15px] font-bold text-white/40 uppercase tracking-widest">Null Reference</p>
+          <p className="text-sm text-white/20">This digital soul does not exist in our ledger.</p>
+        </div>
       </div>
     );
   }
 
-  // Use DB-verified state for gating. Fall back to local Zustand if DB check is still loading.
   const amFollowing = dbFollowing !== null ? dbFollowing : isFollowing(profileUser?.id || '');
   const canSeePosts = !profileUser?.isPrivate || amFollowing;
-  const displayFollowerCount = localFollowerCount ?? profileUser?.followerCount ?? 0;
+  const displayFollowerCount = localFollowerCount ?? profileUser.followerCount ?? 0;
+  const isVerified = profileUser.isVerified || profileUser.role === 'PRIME';
 
   const handleFollow = () => {
     if (!profileUser?.id) return;
     const willFollow = !amFollowing;
-    setLocalFollowerCount(c => (c ?? profileUser.followerCount) + (willFollow ? 1 : -1));
-    setDbFollowing(willFollow); // Optimistic UI update on the DB-verified state
+    setLocalFollowerCount((c) => (c ?? profileUser.followerCount) + (willFollow ? 1 : -1));
+    setDbFollowing(willFollow);
     toggleFollow(profileUser.id);
   };
 
   return (
-    <div className="space-y-12 animate-fade-in pb-32 max-w-7xl mx-auto p-6 italic">
-      
-      {/* Sovereign Profile HUD */}
-      <div className="glass-card p-12 bg-surface-lowest/40 border-none rounded-[60px] shadow-[0_0_100px_rgba(0,255,255,0.05)] relative overflow-hidden group">
-         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(var(--white) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-         <div className="absolute -inset-20 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity blur-[100px] -z-10" />
-         
-         <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
-            <div className="flex-shrink-0 relative group">
-                <div className="absolute -inset-4 bg-primary-gradient rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                <div className="w-[180px] h-[180px] rounded-full p-1 bg-white/10 relative z-10">
-                    <img
-                      src={profileUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
-                      alt="profile"
-                      className="w-full h-full rounded-full object-cover border-4 border-black group-hover:scale-105 transition-transform duration-700"
-                    />
-                </div>
-                <div className="absolute -bottom-2 -right-2 bg-v-emerald p-2 rounded-2xl shadow-[0_0_20px_var(--v-emerald)] z-20">
-                    <KineticIcon icon={ShieldCheck} size={20} color="white" active pulse />
-                </div>
-            </div>
+    <div className="min-h-screen bg-[#0A0A0A] text-white pb-32">
+      <div className="max-w-[640px] mx-auto px-6 pt-16 sm:pt-24">
 
-            <div className="flex-1 space-y-6 text-center md:text-left">
-                <div className="flex items-center justify-center md:justify-start gap-4">
-                    <div className="flex items-center gap-3 opacity-60">
-                        <Activity size={14} className="text-v-cyan animate-pulse" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Identity_Node_Active</span>
-                    </div>
-                </div>
-                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">
-                    {profileUser?.displayName || 'Unnamed Profile'} <br/><span className="text-v-cyan">@{profileUser?.username || username}</span>
-                </h1>
-                <p className="text-sm font-bold text-on-surface-variant opacity-60 max-w-xl italic">
-                    {profileUser?.bio || "Identity story pending inclusion in the collective."}
-                </p>
-                
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4">
-                    <button 
-                        onClick={handleFollow}
-                        className={clsx(
-                            "px-10 py-4 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] transition-all transform active:scale-95 italic",
-                            amFollowing ? "bg-surface-high/60 text-white border border-white/10" : "bg-white text-black hover:bg-v-cyan shadow-2xl"
-                        )}
-                    >
-                        {amFollowing ? 'Joined' : 'Join Node'}
-                    </button>
-                    <button 
-                        onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
-                        className="px-10 py-4 bg-surface-lowest/40 border border-white/5 rounded-[22px] font-black text-[11px] uppercase tracking-[0.2em] text-white hover:bg-white/5 transition-all italic"
-                    >
-                        Message
-                    </button>
-                </div>
+        {/* ── Identity Block ── */}
+        <div className="flex flex-col items-center mb-12">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative mb-6"
+          >
+            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden ring-4 ring-white/[0.05] lux-shadow bg-neutral-900">
+              <img
+                src={profileUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser.username}`}
+                alt={profileUser.displayName}
+                className="w-full h-full object-cover"
+              />
             </div>
+            {isVerified && (
+              <div className="absolute bottom-1 right-1 w-8 h-8 bg-white text-black rounded-full flex items-center justify-center border-4 border-[#0A0A0A]">
+                <ShieldCheck size={16} />
+              </div>
+            )}
+          </motion.div>
 
-            <div className="hidden lg:grid grid-cols-2 gap-4">
-                {[
-                    { label: 'Posts', val: userPosts.length, icon: Grid3x3 },
-                    { label: 'Followers', val: kFmt(displayFollowerCount), icon: UserPlus },
-                    { label: 'Following', val: kFmt(profileUser.followingCount), icon: Globe },
-                    { label: 'Karma', val: kFmt(profileUser.karmaScore), icon: Award }
-                ].map((stat) => (
-                    <div key={stat.label} className="glass-card p-6 bg-white/[0.02] border-none rounded-[32px] flex flex-col items-center gap-2 hover:bg-white/[0.05] transition-all group">
-                        <KineticIcon icon={stat.icon} size={18} color="var(--v-cyan)" active />
-                        <span className="text-xl font-black italic text-white leading-none">{stat.val}</span>
-                        <span className="text-[8px] font-black uppercase tracking-widest opacity-30">{stat.label}</span>
-                    </div>
-                ))}
-            </div>
-         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-t border-outline-variant/30 justify-center max-w-[900px] mx-auto gap-12">
-        <button
-          className="flex items-center gap-2 px-1 py-4 text-[13px] font-bold uppercase tracking-wider relative transition-colors focus-visible:outline-none"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          <Grid3x3 size={14} />
-          POSTS
-          <span className="absolute top-0 left-0 right-0 h-[2px] bg-primary transition-all" />
-        </button>
-        <button
-          className="flex items-center gap-2 px-1 py-4 text-[13px] font-bold uppercase tracking-wider relative transition-colors text-on-surface-variant hover:text-on-surface focus-visible:outline-none"
-        >
-          <Bookmark size={14} />
-          SAVED
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-[900px] mx-auto min-h-[400px]">
-        {!canSeePosts ? (
-          <div className="p-12 mt-12 text-center flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
-              <Lock size={32} className="text-on-surface-variant opacity-60" />
-            </div>
-            <p className="font-bold text-[18px] text-on-surface mb-2">This Account is Private</p>
-            <p className="text-[14px] text-on-surface-variant">Follow this account to see their photos and videos.</p>
+          <div className="text-center space-y-1.5 px-4">
+            <h1 className="text-3xl font-bold tracking-tight text-white">{profileUser.displayName}</h1>
+            <p className="text-[15px] text-white/40 font-medium">@{profileUser.username}</p>
+            {profileUser.bio && (
+              <p className="text-[15px] text-white/70 leading-relaxed mt-4 max-w-[380px] mx-auto">
+                {profileUser.bio}
+              </p>
+            )}
           </div>
-        ) : userPosts.length === 0 ? (
-          <div className="p-12 mt-12 text-center flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full border-2 border-outline-variant/50 flex items-center justify-center mb-6">
-              <Sparkles size={32} className="text-on-surface-variant opacity-40" />
-            </div>
-            <p className="font-bold text-[18px] text-on-surface mb-2">No Posts Yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-1 sm:gap-4 mt-1">
-            {userPosts.map((p) => {
-              const mainMedia = p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls[0] : null;
-              return (
-                <div key={p.id} className="aspect-square bg-surface-variant relative group overflow-hidden cursor-pointer" onClick={() => router.push(`/feed/${p.id}`)}>
-                  {mainMedia ? (
-                    <img src={mainMedia} alt="Post thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="w-full h-full flex p-3 items-center justify-center text-[11px] sm:text-[14px] break-words text-center font-medium opacity-80">
-                      {p.content.slice(0, 100)}{p.content.length > 100 ? '...' : ''}
-                    </div>
-                  )}
-                  {/* Hover overlay with likes/comments */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-4 sm:gap-6 text-white font-bold">
-                    <div className="flex items-center gap-1.5"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> {kFmt(p.likeCount)}</div>
-                    <div className="flex items-center gap-1.5"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg> {kFmt(p.commentCount)}</div>
+        </div>
+
+        {/* ── Interactive Stats ── */}
+        <div className="grid grid-cols-3 gap-8 mb-12 py-6 border-y border-white/[0.06]">
+          <StatItem label="Posts" value={userPosts.length} delay={0} />
+          <StatItem label="Followers" value={displayFollowerCount} delay={0.1} />
+          <StatItem label="Following" value={profileUser.followingCount} delay={0.2} />
+        </div>
+
+        {/* ── Action Bar ── */}
+        <div className="flex gap-4 mb-16">
+          <ActionButton
+            id="follow-btn"
+            onClick={handleFollow}
+            icon={amFollowing ? UserCheck : UserPlus}
+            label={amFollowing ? 'Following' : 'Follow'}
+            primary={!amFollowing}
+            active={amFollowing}
+          />
+
+          <ActionButton
+            id="message-btn"
+            onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
+            icon={MessageCircle}
+            label="Message"
+          />
+        </div>
+
+        {/* ── Content Tabs ── */}
+        <div className="flex items-center gap-8 mb-8 border-b border-white/[0.06]">
+          <TabButton active={activeTab === 'posts'} onClick={() => setActiveTab('posts')} icon={Grid3x3} label="Identity" />
+          <TabButton active={activeTab === 'saved'} onClick={() => setActiveTab('saved')} icon={Bookmark} label="Archived" />
+        </div>
+
+        {/* ── Content Feed ── */}
+        <div className="min-h-[400px]">
+          <AnimatePresence mode="wait">
+            {activeTab === 'posts' && (
+              <motion.div 
+                key="posts" 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                className="w-full"
+              >
+                {!canSeePosts ? (
+                  <PrivateState />
+                ) : userPosts.length === 0 ? (
+                  <EmptyState
+                    icon={Grid3x3}
+                    title="Null State"
+                    subtitle="This identity contains no shared fragments."
+                  />
+                ) : (
+                  <div className="grid grid-cols-3 gap-1">
+                    {userPosts.map((p, i) => (
+                      <PostGridItem
+                        key={p.id}
+                        post={p}
+                        index={i}
+                        onClick={() => router.push(`/feed/${p.id}`)}
+                      />
+                    ))}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'saved' && (
+              <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <EmptyState
+                  icon={Bookmark}
+                  title="Restricted"
+                  subtitle="Archived fragments are strictly private."
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Components ───────────────────────────────────────────────────────────
+
+function StatItem({ label, value, delay }: { label: string; value: number | string; delay: number }) {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4 }}
+      className="flex flex-col items-center gap-1 group cursor-pointer"
+    >
+      <span className="text-[20px] font-bold text-white tracking-tight">{kFmt(Number(value))}</span>
+      <span className="text-[11px] font-bold text-white/30 uppercase tracking-[0.15em]">{label}</span>
+    </motion.div>
+  );
+}
+
+function ActionButton({ 
+  id, 
+  onClick, 
+  icon: Icon, 
+  label, 
+  primary = false,
+  active = false
+}: { 
+  id: string; 
+  onClick: () => void; 
+  icon: any; 
+  label: string; 
+  primary?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <button
+      id={id}
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-2.5 py-4 rounded-2xl text-[15px] font-bold transition-all active:scale-[0.97] ${
+        primary 
+          ? 'bg-white text-black hover:bg-neutral-200' 
+          : active 
+            ? 'bg-white/[0.04] text-white border border-white/[0.08] hover:bg-white/[0.08]'
+            : 'bg-white/[0.04] text-white border border-white/[0.08] hover:bg-white/[0.08]'
+      }`}
+    >
+      <Icon size={18} />
+      {label}
+    </button>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: any; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex items-center gap-2.5 py-4 text-[13px] font-bold transition-all ${
+        active ? 'text-white' : 'text-white/30 hover:text-white/60'
+      }`}
+    >
+      <Icon size={16} />
+      <span className="uppercase tracking-widest">{label}</span>
+      {active && (
+        <motion.div
+          layoutId="public-tab-active"
+          className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-t-full"
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        />
+      )}
+    </button>
+  );
+}
+
+function PostGridItem({
+  post,
+  index,
+  onClick,
+}: {
+  post: any;
+  index: number;
+  onClick: () => void;
+}) {
+  const hasImage = post.mediaUrls?.[0];
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.02, duration: 0.4 }}
+      onClick={onClick}
+      className="aspect-square bg-white/[0.02] relative group cursor-pointer overflow-hidden rounded-[2px]"
+    >
+      {hasImage ? (
+        <img
+          src={post.mediaUrls[0]}
+          alt="post"
+          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center p-6 bg-white/[0.02] border border-white/[0.05]">
+          <p className="text-[12px] text-white/40 line-clamp-4 text-center leading-relaxed font-medium">
+            {post.content}
+          </p>
+        </div>
+      )}
+      
+      {/* Modern Interaction Overlay */}
+      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-6 backdrop-blur-[2px]">
+        <div className="flex flex-col items-center gap-1.5 text-white translate-y-2 group-hover:translate-y-0 transition-transform duration-300 delay-75">
+          <Heart size={20} className="fill-white" />
+          <span className="text-[11px] font-bold">{kFmt(post.likeCount || 0)}</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-white translate-y-2 group-hover:translate-y-0 transition-transform duration-300 delay-100">
+          <MessageCircle size={20} className="fill-white" />
+          <span className="text-[11px] font-bold">{kFmt(post.commentCount || 0)}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function PrivateState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+      <div className="w-16 h-16 rounded-3xl bg-white/[0.03] flex items-center justify-center mb-2 border border-white/[0.05]">
+        <Lock size={28} className="text-white/10" />
+      </div>
+      <div>
+        <p className="text-[15px] font-bold text-white/40 uppercase tracking-widest">Sovereign State</p>
+        <p className="text-sm text-white/20 mt-1 max-w-[240px] leading-relaxed">Follow to synchronize with their data stream.</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: any;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+      <div className="w-16 h-16 rounded-3xl bg-white/[0.03] flex items-center justify-center mb-2 border border-white/[0.05]">
+        <Icon size={28} className="text-white/10" />
+      </div>
+      <div>
+        <p className="text-[15px] font-bold text-white/40 uppercase tracking-widest">{title}</p>
+        <p className="text-sm text-white/20 mt-1 max-w-[240px] leading-relaxed">{subtitle}</p>
       </div>
     </div>
   );

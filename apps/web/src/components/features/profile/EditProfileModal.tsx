@@ -17,7 +17,7 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
   
   // Local React state before pushing global mutation
   const [displayName, setDisplayName] = useState(currentUser?.displayName || '');
-  const [username, setUsername] = useState(currentUser?.username || '');
+  const [username, setUsername] = useState(currentUser?.username?.toLowerCase() || '');
   const [bio, setBio] = useState(currentUser?.bio || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -44,9 +44,13 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
   };
 
   const handleSave = async () => {
-    // 1. Strict Namespace Deterministic Logic
+    if (username.endsWith('.')) {
+      setErrorMsg("You can't end your username with a period.");
+      return;
+    }
+
     if (!isPrime && username.length < 5) {
-      setErrorMsg('Namespace Access Denied: PUBLIC accounts require min_length: 5. Please contact Administrator for Elite access override.');
+      setErrorMsg('Username must be at least 5 characters long.');
       return;
     }
 
@@ -61,7 +65,7 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
       
       const result = await uploadMedia(fd);
       if ('error' in result) {
-        setErrorMsg(`Critical Upload Failure: ${result.error}`);
+        setErrorMsg(`Failed to upload avatar: ${result.error}`);
         setIsSaving(false);
         return;
       }
@@ -110,8 +114,8 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02]">
           <div className="flex flex-col">
-            <h2 className="text-lg font-black italic tracking-tighter text-white uppercase leading-none">Edit Kernel</h2>
-            <span className="text-[8px] font-black tracking-widest text-v-cyan uppercase mt-1">Identity Protocol Update</span>
+            <h2 className="text-lg font-black italic tracking-tighter text-white uppercase leading-none">Edit Profile</h2>
+            <span className="text-[8px] font-black tracking-widest text-v-cyan uppercase mt-1">Profile Information Update</span>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl text-on-surface-variant hover:bg-white/5 hover:text-white transition-all">
             <X size={20} />
@@ -153,7 +157,7 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
 
           <div className="space-y-4">
             <div className="flex flex-col">
-              <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-1 block italic">Display Name (Visible Identity)</label>
+              <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-1 block italic">Display Name</label>
               <input 
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
@@ -163,32 +167,42 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
   
             <div className="flex flex-col">
               <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-1 block italic">
-                Username (Neural Hub Address) {isPrime && <span className="text-v-violet font-black text-[9px] px-2 py-0.5 ml-2 bg-v-violet/10 rounded-full border border-v-violet/20">ELITE_OVERRIDE</span>}
+                Username {isPrime && <span className="text-v-violet font-black text-[9px] px-2 py-0.5 ml-2 bg-v-violet/10 rounded-full border border-v-violet/20">VERIFIED</span>}
               </label>
               <div className="relative">
                 <span className="absolute left-6 top-1/2 -translate-y-1/2 text-v-cyan font-black italic">@</span>
                 <input 
                   value={username}
                   onChange={(e) => {
-                    setUsername(e.target.value);
-                    setErrorMsg('');
+                    const raw = e.target.value.toLowerCase();
+                    // Instagram rule: Only letters, numbers, underscores and periods
+                    const filtered = raw.replace(/[^a-z0-9_.]/g, '');
+                    
+                    if (raw !== e.target.value || raw !== filtered) {
+                      setErrorMsg("Usernames can only use letters, numbers, underscores and periods.");
+                    } else {
+                      setErrorMsg('');
+                    }
+                    setUsername(filtered);
                   }}
                   className="w-full bg-white/[0.03] text-white rounded-2xl py-3 pl-12 pr-6 border border-white/5 focus:ring-1 focus:ring-v-cyan font-bold italic transition-all"
                 />
               </div>
               {errorMsg && (
-                <p className="mt-2 text-[9px] text-rose-500 font-black uppercase tracking-widest animate-fade-in"><AlertTriangle size={10} className="inline mr-1" /> {errorMsg}</p>
+                <p className="mt-2 text-[9px] text-rose-500 font-black uppercase tracking-widest animate-fade-in flex items-center gap-1">
+                  <AlertTriangle size={10} /> {errorMsg}
+                </p>
               )}
             </div>
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1 block">Bio / Status</label>
+            <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1 block italic">Bio</label>
             <textarea 
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               rows={3}
-              className="w-full bg-surface-low text-on-surface rounded-xl px-4 py-2 border border-outline-variant/10 focus:ring-1 focus:ring-primary-light resize-none"
+              className="w-full bg-white/[0.03] text-white rounded-2xl px-6 py-4 border border-white/5 focus:ring-1 focus:ring-v-cyan font-medium italic transition-all resize-none"
             />
           </div>
 
@@ -199,8 +213,8 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
                 <KineticIcon icon={Lock} size={20} color="var(--v-cyan)" pulse={isPrivate} />
               </div>
               <div>
-                <div className="text-[13px] font-black text-white uppercase italic tracking-tighter">Sovereign Privacy</div>
-                <div className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40 mt-1">GHOST_MODE (Private Account)</div>
+                <div className="text-[13px] font-black text-white uppercase italic tracking-tighter">Private Account</div>
+                <div className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest opacity-40 mt-1">Only followers can see your posts</div>
               </div>
             </div>
             <button 
@@ -215,14 +229,14 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
           </div>
 
           {/* Unhinged Visual Sovereignty Override */}
-          <div className="mt-4 p-4 border border-primary-dark/40 bg-primary-dark/10 rounded-xl relative overflow-hidden group">
+          <div className="mt-4 p-4 border border-primary-dark/40 bg-primary-dark/10 rounded-3xl relative overflow-hidden group italic">
             <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary-light/50 to-transparent opacity-50" />
             <div className="flex items-center gap-2 mb-2">
               <TerminalSquare className="w-4 h-4 text-primary-light" />
-              <label className="text-[11px] font-bold text-primary-light uppercase tracking-wider">Sovereign JSON CSS Override</label>
+              <label className="text-[11px] font-bold text-primary-light uppercase tracking-wider">Custom Style (JSON)</label>
             </div>
-            <p className="text-[10px] text-on-surface-variant mb-2">
-              WARNING: Unhinged Access. Inject raw CSS variables into the `:root` OM. (e.g., <code className="text-secondary-light bg-black px-1 rounded">{`{"primary": "#ff00ff"}`}</code>). Use <kbd className="font-mono bg-black rounded px-1">ESC x3</kbd> to execute Obsidian Fallback if the UI breaks.
+            <p className="text-[10px] text-on-surface-variant mb-2 opacity-60">
+              Advanced: Directly modify the interface styling using JSON design tokens. Use with caution.
             </p>
             <textarea 
               value={manifestText}
@@ -237,13 +251,13 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
         {/* Footer Actions */}
         <div className="p-6 border-t border-white/5 bg-black/40 flex justify-end gap-4 items-center">
           <div className="flex-1">
-            {isSaving && <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-cyan animate-pulse">Neural_Sync_Active...</span>}
+            {isSaving && <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-cyan animate-pulse">Saving changes...</span>}
           </div>
           <button 
             onClick={onClose}
             className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-white/5 transition-all"
           >
-            Abort (Cancel)
+            Cancel
           </button>
           <button 
             onClick={handleSave}
@@ -255,7 +269,7 @@ export default function EditProfileModal({ onClose, isOpen = true }: Props) {
             ) : (
               <KineticIcon icon={Save} size={16} color="white" />
             )}
-            {isSaving ? 'SYNCING...' : 'Commit Updates'}
+            {isSaving ? 'SAVING...' : 'Save Changes'}
           </button>
         </div>
       </div>

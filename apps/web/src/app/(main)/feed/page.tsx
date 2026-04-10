@@ -12,9 +12,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import KineticIcon from '@/components/ui/KineticIcon';
 
 const TABS = [
-    { id: 'all', label: 'Global', icon: Globe, desc: 'General Signal Stream' },
-    { id: 'following', label: 'Following', icon: Activity, desc: 'Followed Profile Activity' },
-    { id: 'communities', label: 'Communities', icon: Users, desc: 'Joined Group Protocols' }
+    { id: 'all', label: 'Global', icon: Globe, desc: 'Public feed' },
+    { id: 'following', label: 'Following', icon: Activity, desc: 'Posts from your network' },
+    { id: 'communities', label: 'Communities', icon: Users, desc: 'Posts from your groups' }
 ];
 
 export default function FeedPage() {
@@ -140,52 +140,12 @@ export default function FeedPage() {
        {/* Background Depth */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[600px] bg-v-cyan/5 rounded-[100%] blur-[200px] pointer-events-none opacity-40 -z-10" />
 
+
       <section>
         <StoryReel />
       </section>
 
-      {/* Neural Interface Guide (Human Translation) */}
-      <AnimatePresence>
-        {showGuide && (
-          <motion.section 
-            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-            animate={{ height: 'auto', opacity: 1, marginBottom: 24 }}
-            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="glass-card p-6 border-l-4 border-v-cyan bg-v-cyan/5 relative group/guide">
-               <button 
-                onClick={() => setShowGuide(false)}
-                className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-               >
-                 <X size={14} className="text-on-surface-variant" />
-               </button>
-                <div className="flex items-start gap-5">
-                  <div className="w-14 h-14 rounded-2xl bg-v-cyan/10 flex items-center justify-center text-v-cyan flex-shrink-0">
-                     <KineticIcon icon={Zap} size={32} color="var(--v-cyan)" active pulse glow />
-                  </div>
-                  <div className="space-y-2">
-                     <h3 className="text-sm font-black uppercase tracking-widest text-white italic">Interface Established</h3>
-                     <p className="text-[11px] font-medium text-on-surface-variant leading-relaxed italic">
-                        Welcome to **Verlyn v1.0**. You are currently synced with the **Global Feed**. 
-                        Every post is a secure social signal. Use the **Communities** tab to access your groups.
-                     </p>
-                     <div className="flex gap-4 pt-2">
-                        <div className="flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity cursor-help">
-                           <Globe size={10} className="text-v-cyan" />
-                           <span className="text-[9px] font-black uppercase tracking-tighter">Public Feed</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity cursor-help">
-                           <ShieldCheck size={10} className="text-v-violet" />
-                           <span className="text-[9px] font-black uppercase tracking-tighter">Secure OS</span>
-                        </div>
-                     </div>
-                  </div>
-               </div>
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+      {/* Welcome removed */}
 
       <section className="relative z-10 glass-card p-2 rounded-[50px] bg-surface-lowest/40 border-none shadow-3xl">
         <CreatePost />

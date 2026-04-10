@@ -66,18 +66,20 @@ export default function KineticIcon({
       </motion.div>
 
       {/* Advanced Glint (Scanning Line) */}
-      <motion.div 
-        animate={{
-          left: ['-100%', '200%'],
-        }}
-        transition={{
-          repeat: Infinity,
-          duration: 3,
-          ease: 'linear',
-          delay: Math.random() * 2
-        }}
-        className="absolute top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/40 to-transparent pointer-events-none z-20"
-      />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-full z-20">
+        <motion.div 
+          animate={{
+            left: ['-10%', '110%'],
+          }}
+          transition={{
+            repeat: Infinity,
+            duration: 3,
+            ease: 'linear',
+            delay: Math.random() * 2
+          }}
+          className="absolute top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/40 to-transparent pointer-events-none"
+        />
+      </div>
     </motion.div>
   );
 }

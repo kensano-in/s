@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { login, signup } from './actions'
 import { Sparkles, KeyRound } from 'lucide-react'
 
@@ -22,10 +23,10 @@ export default async function LoginPage(
             </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-on-surface font-display">
-          Enter Sovereign Space
+          Welcome to Verlyn
         </h2>
         <p className="mt-2 text-center text-sm text-on-surface-variant">
-          The unified ecosystem restricted to verified identities.
+          Sign in to connect with your professional network.
         </p>
       </div>
 
@@ -62,7 +63,10 @@ export default async function LoginPage(
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Password</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">Password</label>
+                <Link href="/login/reset" className="text-xs font-bold text-v-cyan hover:underline transition-all">Forgot your password?</Link>
+              </div>
               <input
                 id="password"
                 name="password"
@@ -70,6 +74,24 @@ export default async function LoginPage(
                 required
                 className="w-full bg-surface-low text-on-surface rounded-xl px-4 py-3 border border-outline-variant/10 focus:ring-1 focus:ring-primary-light outline-none transition-all"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">Gender (For Signup)</label>
+              <div className="flex bg-surface-low p-1 rounded-xl border border-outline-variant/10">
+                <label className="flex-1 text-center cursor-pointer">
+                  <input type="radio" name="gender" value="male" className="peer sr-only" defaultChecked />
+                  <div className="py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest text-on-surface-variant peer-checked:bg-primary-dark/20 peer-checked:text-primary-light transition-all">Male</div>
+                </label>
+                <label className="flex-1 text-center cursor-pointer">
+                  <input type="radio" name="gender" value="female" className="peer sr-only" />
+                  <div className="py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest text-on-surface-variant peer-checked:bg-secondary-dark/20 peer-checked:text-secondary-light transition-all">Female</div>
+                </label>
+                <label className="flex-1 text-center cursor-pointer">
+                  <input type="radio" name="gender" value="other" className="peer sr-only" />
+                  <div className="py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest text-on-surface-variant peer-checked:bg-white/10 peer-checked:text-white transition-all">Other</div>
+                </label>
+              </div>
             </div>
 
             <div className="flex items-center gap-3 pt-2">

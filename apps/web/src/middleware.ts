@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const ratelimit = new Map<string, { count: number; resetAt: number }>();
+
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -13,6 +15,23 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     return NextResponse.next(); // Dev only — allows local work without env vars
+  }
+
+  const ip = (request as any).ip || request.headers.get('x-forwarded-for') || 'unknown';
+  if (ip !== 'unknown') {
+    const now = Date.now();
+    const windowMs = 60 * 1000;
+    const maxReqs = 200;
+    
+    let limit = ratelimit.get(ip);
+    if (!limit || now > limit.resetAt) {
+      ratelimit.set(ip, { count: 1, resetAt: now + windowMs });
+    } else {
+      limit.count++;
+      if (limit.count > maxReqs) {
+        return new NextResponse('Too Many Requests', { status: 429 });
+      }
+    }
   }
 
   let supabaseResponse = NextResponse.next({

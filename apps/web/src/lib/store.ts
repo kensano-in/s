@@ -103,6 +103,10 @@ interface AppState {
   // Command Palette (CMD+K)
   isCommandPaletteOpen: boolean;
   setCommandPaletteOpen: (v: boolean) => void;
+
+  // DM Settings Persistence (indexed by partnerId)
+  dmSettingsCache: Record<string, any>;
+  setDmSettingsCache: (partnerId: string, settings: any) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -278,6 +282,17 @@ export const useAppStore = create<AppState>()(
       _hasHydrated: false,
       isAuthLoading: true,
       setAuthLoading: (v: boolean) => set({ isAuthLoading: v }),
+
+      dmSettingsCache: {},
+      setDmSettingsCache: (partnerId, settings) => set((s) => {
+        const existing = s.dmSettingsCache[partnerId] || {};
+        return {
+          dmSettingsCache: { 
+            ...s.dmSettingsCache, 
+            [partnerId]: { ...existing, ...settings } 
+          }
+        };
+      }),
     }),
     {
       name: 'verlyn-app-state',
@@ -299,6 +314,7 @@ export const useAppStore = create<AppState>()(
         settingPushNotifs: state.settingPushNotifs,
         settingEmailDigest: state.settingEmailDigest,
         settingPrivateAccount: state.settingPrivateAccount,
+        dmSettingsCache: state.dmSettingsCache,
       }),
     }
   )

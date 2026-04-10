@@ -19,6 +19,7 @@ model User {
   
   followers      Follows[] @relation("following")
   following      Follows[] @relation("follower")
+  stickers       Sticker[]
   
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -46,5 +47,26 @@ model Post {
   isEphemeral    Boolean   @default(false)
   expiresAt      DateTime? 
   
+  createdAt      DateTime  @default(now())
+}
+
+model Report {
+  id                String    @id @default(uuid())
+  reporterId        String
+  reportedUserId    String?
+  reportedMessageId String?
+  reason            String
+  status            String    @default("PENDING") // PENDING, REVIEWED, PUNISHED, DISMISSED
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Sticker {
+  id             String    @id @default(uuid())
+  uploaderId     String
+  uploader       User      @relation(fields: [uploaderId], references: [id])
+  imageUrl       String
+  isPublic       Boolean   @default(false)
+  status         String    @default("PRIVATE") // PRIVATE, PENDING_REVIEW, APPROVED, REJECTED
   createdAt      DateTime  @default(now())
 }

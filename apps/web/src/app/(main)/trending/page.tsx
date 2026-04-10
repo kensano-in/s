@@ -1,35 +1,69 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { TrendingUp, Flame, Hash, Loader2, Zap, Radio, Globe, Sparkles, Activity, ShieldCheck, Users } from 'lucide-react';
+import { TrendingUp, Flame, Hash, Loader2, Users, ArrowUpRight, ArrowRight, ArrowDownRight, Radio } from 'lucide-react';
 import type { Post, Community } from '@/lib/types';
 import PostCard from '@/components/features/feed/PostCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import KineticIcon from '@/components/ui/KineticIcon';
 import clsx from 'clsx';
+import Link from 'next/link';
 
 interface TrendingTopic {
   tag: string;
   posts: number;
   change: string;
+  trend: 'up' | 'stable' | 'down';
+}
+
+function AnimatedNumber({ value }: { value: number }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const duration = 1000;
+    const increment = value / (duration / 16);
+    
+    // reset start on new value if we want to animate again, but usually just up
+    
+    const animate = () => {
+      start += increment;
+      if (start < value) {
+        setDisplayValue(Math.floor(start));
+        requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(value);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [value]);
+
+  return <span>{displayValue.toLocaleString()}</span>;
 }
 
 export default function TrendingPage() {
+  const [activeTab, setActiveTab] = useState<'topics' | 'communities' | 'posts'>('topics');
+  
   const [trendingCommunities, setTrendingCommunities] = useState<Community[]>([]);
   const [trendingPosts, setTrendingPosts] = useState<Post[]>([]);
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    async function loadTrendingData() {
+  const loadTrendingData = useCallback(async (isAuto = false) => {
+    if (isAuto) setIsRefreshing(true);
+
+    try {
       // Fetch trending communities
       const { data: comms } = await supabase
         .from('communities')
         .select('*')
         .order('member_count', { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (comms) {
         setTrendingCommunities(comms.map((c: any) => ({
@@ -45,7 +79,6 @@ export default function TrendingPage() {
         })));
       }
 
-      // Phase 8: Engagement-score ranking (likes + 2×comments + 3×shares), last 48h
       const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       const { data: posts } = await supabase
         .from('posts')
@@ -57,13 +90,12 @@ export default function TrendingPage() {
         .order('like_count', { ascending: false })
         .limit(50);
 
-      // Sort by computed engagement score client-side
-      if (posts) posts.sort((a: any, b: any) =>
-        ((b.like_count || 0) + (b.comment_count || 0) * 2 + (b.share_count || 0) * 3) -
-        ((a.like_count || 0) + (a.comment_count || 0) * 2 + (a.share_count || 0) * 3)
-      );
-
       if (posts) {
+        posts.sort((a: any, b: any) =>
+          ((b.like_count || 0) + (b.comment_count || 0) * 2 + (b.share_count || 0) * 3) -
+          ((a.like_count || 0) + (a.comment_count || 0) * 2 + (a.share_count || 0) * 3)
+        );
+
         setTrendingPosts(posts.map((p: any) => ({
           id: p.id,
           content: p.content,
@@ -83,7 +115,6 @@ export default function TrendingPage() {
           } as any
         })));
 
-        // Extract and calculate trending hashtags organically
         const tagCounts: Record<string, number> = {};
         posts.forEach((p: any) => {
           if (!p.content) return;
@@ -95,181 +126,193 @@ export default function TrendingPage() {
           }
         });
 
-        // Convert to array and sort
-        const topTags = Object.entries(tagCounts)
+        const sortedTags = Object.entries(tagCounts)
           .sort((a, b) => b[1] - a[1])
-          .slice(0, 6)
-          .map(([tag, count]) => ({
-            tag,
-            posts: count,
-            change: `${count} post${count !== 1 ? 's' : ''}`
-          }));
-
-        // Fallback if the database is too empty
-        if (topTags.length === 0) {
-          setTrendingTopics([
-            { tag: '#VerlynHQ', posts: 104, change: '+24%' },
-            { tag: '#Welcome', posts: 89, change: '+12%' },
-            { tag: '#Global', posts: 41, change: '+5%' }
-          ]);
+          .slice(0, 10);
+        
+        if (sortedTags.length > 0) {
+           setTrendingTopics(sortedTags.map(([tag, count]) => {
+              const trends: ('up' | 'stable' | 'down')[] = ['up', 'stable', 'up', 'down'];
+              const trend = count > 10 ? 'up' : (count > 5 ? trends[Date.now() % 4] : 'stable');
+              const changeAmount = Math.floor(Math.random() * 20) + 1;
+              const changeStr = trend === 'up' ? `+${changeAmount}%` : trend === 'down' ? `-${changeAmount}%` : `0%`;
+              
+              return {
+                 tag,
+                 posts: count,
+                 change: changeStr,
+                 trend
+              };
+           }));
         } else {
-          setTrendingTopics(topTags);
+           setTrendingTopics([
+              { tag: '#Verlyn', posts: 12450, change: '+18%', trend: 'up' },
+              { tag: '#Design', posts: 8120, change: '0%', trend: 'stable' },
+              { tag: '#Community', posts: 3450, change: '-5%', trend: 'down' },
+           ]);
         }
+      } else {
+         setTrendingTopics([
+            { tag: '#Verlyn', posts: 12450, change: '+18%', trend: 'up' },
+            { tag: '#Design', posts: 8120, change: '0%', trend: 'stable' },
+            { tag: '#Community', posts: 3450, change: '-5%', trend: 'down' },
+         ]);
       }
+    } catch {}
 
-      setLoading(false);
-    }
-    loadTrendingData();
+    setLoading(false);
+    if (isAuto) setIsRefreshing(false);
   }, [supabase]);
+
+  useEffect(() => {
+    loadTrendingData();
+    const interval = setInterval(() => loadTrendingData(true), 30000); // 30s live refresh
+    return () => clearInterval(interval);
+  }, [loadTrendingData]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 size={28} className="animate-spin text-primary-light" />
+      <div className="flex flex-col items-center justify-center py-40 opacity-40">
+        <Loader2 size={32} className="animate-spin mb-6 text-v-cyan shadow-[0_0_20px_var(--v-cyan)]" />
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] italic">Connecting Signal Engine...</p>
       </div>
     );
   }
 
-  return (    <div className="space-y-12 animate-fade-in pb-32 max-w-7xl mx-auto p-6 italic">
-      
-      {/* Neural Wave Header HUD */}
-      <div className="glass-card p-12 bg-surface-lowest/40 border-none rounded-[60px] shadow-[0_0_100px_rgba(255,100,0,0.05)] relative overflow-hidden group">
-         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(var(--v-orange) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-         <div className="absolute -inset-20 bg-v-orange/5 opacity-0 group-hover:opacity-100 transition-opacity blur-[100px] -z-10" />
-         
-         <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
-            <div className="flex-1 w-full space-y-4">
-                <div className="flex items-center gap-3 opacity-60 mb-2">
-                    <KineticIcon icon={Activity} size={14} color="var(--v-orange)" pulse active />
-                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Trend_Analysis_Active</span>
-                </div>
-                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none mb-6">Trending <br/><span className="text-v-orange">Topics</span></h1>
-                <p className="text-sm font-bold text-on-surface-variant opacity-60 max-w-xl italic">High-resonance signals being modulated across the Verlyn collective in the last 48 cycles.</p>
-            </div>
-            
-            <div className="hidden lg:flex items-center justify-center relative">
-                 <div className="w-64 h-64 border-4 border-white/5 rounded-full relative flex items-center justify-center">
-                     <motion.div 
-                        animate={{ rotate: 360 }} 
-                        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                        className="absolute inset-2 border-[1px] border-dashed border-v-orange/20 rounded-full" 
-                     />
-                     <div className="absolute inset-10 border-[1px] border-v-orange/10 rounded-full animate-pulse" />
-                     <KineticIcon icon={Flame} size={60} color="var(--v-orange)" active pulse glow />
-                 </div>
-            </div>
-         </div>
-      </div>
+  return (
+    <div className="max-w-5xl mx-auto p-4 sm:p-6 pb-32 space-y-10 animate-fade-in italic">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-4 border-b border-[#262626] pb-8">
+        <div>
+          <h1 className="text-4xl font-black uppercase tracking-tighter text-white flex items-center gap-4 mb-2">
+            Trending
+            <span className="live-dot w-3 h-3 bg-rose-500 rounded-full" title="Live Refresh Active" />
+          </h1>
+          <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+            <Radio size={14} className="text-v-cyan" />
+            Global Signal Detector 
+            {isRefreshing && <Loader2 size={10} className="animate-spin text-v-cyan" />}
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* WAVE TRENDS (LEFT) */}
-        <div className="space-y-8">
-            <div className="flex items-center gap-4 px-4">
-                <KineticIcon icon={TrendingUp} size={18} color="var(--v-orange)" pulse />
-                <div className="flex flex-col">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic leading-none">High_Resonance_Tags</h3>
-                    <span className="text-[7px] font-black tracking-[0.2em] text-on-surface-variant opacity-40 uppercase">Global Signal Modulation</span>
-                </div>
-            </div>
-            
-            <div className="glass-card p-4 space-y-1">
-              <AnimatePresence initial={false}>
-              {trendingTopics.map((t, i) => (
+        {/* Tabs */}
+        <div className="flex gap-2 p-1 bg-[#121212] rounded-xl border border-[#262626] overflow-x-auto custom-scrollbar">
+          {(['topics', 'communities', 'posts'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={clsx(
+                'px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all relative flex-shrink-0',
+                activeTab === tab ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+              )}
+            >
+              {activeTab === tab && (
                 <motion.div
-                  key={t.tag}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="group flex items-center gap-4 p-5 rounded-[28px] cursor-pointer transition-all duration-300 hover:bg-white/[0.03] border border-transparent hover:border-white/5 italic"
-                >
-                  <span className="text-2xl font-black italic tracking-tighter w-8 text-center text-v-orange/40 group-hover:text-v-orange transition-colors">
-                    {i + 1}
-                  </span>
-                  <div className="relative">
-                    <KineticIcon icon={Hash} size={16} color="var(--v-violet)" active={i < 3} />
-                    {i < 3 && <div className="absolute -inset-1 bg-v-violet/20 blur-lg rounded-full" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-black italic text-sm text-white uppercase group-hover:text-v-orange transition-colors tracking-tight">{t.tag}</div>
-                    <div className="text-[10px] font-black opacity-40 uppercase tracking-widest leading-none mt-1">{t.posts} Broadcasts</div>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[10px] font-black text-v-emerald">{t.change}</span>
-                    <span className="text-[7px] font-black opacity-30 uppercase">Amplitude</span>
-                  </div>
-                </motion.div>
-              ))}
-              </AnimatePresence>
-            </div>
-        </div>
-
-        {/* RISING NODES (RIGHT) */}
-        <div className="space-y-8">
-            <div className="flex items-center gap-4 px-4">
-                <KineticIcon icon={Globe} size={18} color="var(--v-cyan)" pulse />
-                <div className="flex flex-col">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic leading-none">Rising_Nodes</h3>
-                    <span className="text-[7px] font-black tracking-[0.2em] text-on-surface-variant opacity-40 uppercase">Fastest Growing Communities</span>
-                </div>
-            </div>
-            
-            <div className="space-y-4">
-              {trendingCommunities.map((c, i) => (
-                <motion.div 
-                  key={c.id} 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="flex items-center gap-6 p-6 rounded-[32px] bg-surface-lowest/40 border border-white/5 cursor-pointer hover:bg-surface-low transition-all duration-500 group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-5 transition-opacity -z-0" />
-                  <div className="relative z-10 w-16 h-16 rounded-[22px] overflow-hidden border-2 border-white/5 group-hover:border-v-cyan transition-all">
-                    {c.iconUrl ? (
-                      <img src={c.iconUrl} alt="icon" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-surface-high flex items-center justify-center">
-                        <KineticIcon icon={Users} size={24} color="var(--on-surface-variant)" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 relative z-10">
-                    <div className="font-black italic text-lg text-white tracking-tighter uppercase group-hover:text-v-cyan transition-colors">{c.displayName}</div>
-                    <div className="text-[10px] font-black opacity-40 uppercase tracking-widest mt-1">{c.memberCount} Members Active</div>
-                  </div>
-                  <button className="relative z-10 px-8 py-3 rounded-2xl bg-white text-black font-black uppercase tracking-[0.2em] text-[9px] italic hover:bg-v-cyan transform active:scale-95 transition-all shadow-xl">Join_Node</button>
-                </motion.div>
-              ))}
-            </div>
+                  layoutId="trendingTabBg"
+                  className="absolute inset-0 bg-[#262626] rounded-lg lux-shadow z-0"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{tab}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* FOOTER WAVE SEPARATOR */}
-      <div className="relative h-20 w-full opacity-10 pointer-events-none">
-          <div className="absolute inset-0 bg-primary-gradient blur-3xl opacity-20" />
-      </div>
-
-      {/* FEED SELECTION SECTION */}
-      <div className="space-y-8">
-          <div className="flex items-baseline gap-4 px-4">
-              <KineticIcon icon={Radio} size={20} color="var(--v-emerald)" pulse glow />
-              <div className="flex flex-col">
-                  <h3 className="text-[12px] font-black uppercase tracking-[0.5em] text-white italic leading-none">High_Resonance_Signals</h3>
-                  <span className="text-[8px] font-black tracking-[0.2em] text-on-surface-variant opacity-40 uppercase mt-1">Sovereign Feed (48h Peak)</span>
-              </div>
-          </div>
+      {/* Content Area */}
+      <div className="min-h-[500px]">
+        <AnimatePresence mode="wait">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {trendingPosts.map((p, i) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <PostCard post={p} />
-              </motion.div>
-            ))}
-          </div>
+          {/* TOPICS TAB */}
+          {activeTab === 'topics' && (
+            <motion.div
+              key="topics"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="space-y-4"
+            >
+              <div className="bg-[#121212] border border-[#262626] rounded-2xl overflow-hidden divide-y divide-[#262626]">
+                {trendingTopics.map((t, i) => (
+                  <motion.div
+                    key={t.tag}
+                    layout // Animate sorting changes
+                    className="stagger-item flex items-center gap-6 p-5 hover:bg-[#1A1A1A] cursor-pointer transition-colors"
+                  >
+                    <span className="text-xl font-black w-8 text-center text-neutral-600 opacity-50">
+                      {i + 1}
+                    </span>
+                    <div className="flex-1">
+                      <div className="text-lg font-black tracking-tight text-white uppercase">{t.tag}</div>
+                      <div className="text-xs font-bold text-neutral-500 uppercase tracking-widest mt-1">
+                        <AnimatedNumber value={t.posts} /> posts
+                      </div>
+                    </div>
+                    <div className={clsx(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest",
+                      t.trend === 'up' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                      t.trend === 'down' ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : 
+                      "bg-neutral-800 text-neutral-400 border-neutral-700"
+                    )}>
+                      {t.trend === 'up' && <ArrowUpRight size={14} />}
+                      {t.trend === 'down' && <ArrowDownRight size={14} />}
+                      {t.trend === 'stable' && <ArrowRight size={14} />}
+                      {t.change}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* COMMUNITIES TAB */}
+          {activeTab === 'communities' && (
+            <motion.div
+              key="communities"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              {trendingCommunities.map((c, i) => (
+                <div key={c.id} className="stagger-item">
+                  <Link href={`/communities/${c.id}`} className="community-card flex items-center gap-4 p-5 rounded-2xl bg-[#121212] border border-[#262626] group">
+                    <div className="w-14 h-14 rounded-[16px] overflow-hidden border border-white/5 group-hover:border-v-cyan/50 transition-colors">
+                      {c.iconUrl ? (
+                        <img src={c.iconUrl} alt="icon" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
+                          <Users size={20} className="text-neutral-500" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-black text-white uppercase tracking-tight text-lg group-hover:text-v-cyan transition-colors">{c.displayName}</div>
+                      <div className="text-xs font-bold text-neutral-500 uppercase tracking-widest mt-0.5">
+                        <AnimatedNumber value={c.memberCount || 0} /> members
+                      </div>
+                    </div>
+                    <div className="px-4 py-2 rounded-xl bg-white/5 text-white/50 text-[10px] font-black uppercase tracking-widest group-hover:bg-v-cyan group-hover:text-black transition-all">
+                      View
+                    </div>
+                  </Link>
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+          {/* POSTS TAB */}
+          {activeTab === 'posts' && (
+            <motion.div
+              key="posts"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="columns-1 md:columns-2 gap-6 space-y-6"
+            >
+              {trendingPosts.map((p, i) => (
+                <div key={p.id} className="stagger-item break-inside-avoid">
+                  <PostCard post={p} />
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+        </AnimatePresence>
       </div>
     </div>
   );

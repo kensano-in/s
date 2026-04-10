@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Terminal, UserCheck, UserX, Users, AlertTriangle, X } from 'lucide-react';
+import { Shield, Terminal, UserCheck, UserX, Users, AlertTriangle, X, ShieldAlert, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import { escalateUserToPrime, demoteUserToPublic, getAllUsers } from './actions';
 
 // ╔══════════════════════════════════╗
@@ -104,6 +105,19 @@ export default function AdminConsolePage() {
           </div>
           <p className="text-emerald-700 text-xs">Classified Terminal — Unauthorized access is a reportable offense.</p>
         </div>
+
+        {/* Moderation Shortcut */}
+        <Link
+          href="/admin/moderation"
+          className="flex items-center gap-3 px-5 py-4 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] transition-colors mb-6 group"
+        >
+          <ShieldAlert size={18} className="text-red-400" />
+          <div>
+            <p className="text-sm font-semibold text-white">Moderation Centre</p>
+            <p className="text-xs text-white/30">Review user reports &amp; sticker submissions</p>
+          </div>
+          <ExternalLink size={14} className="text-white/20 ml-auto group-hover:text-white/50 transition-colors" />
+        </Link>
 
         <AnimatePresence mode="wait">
           {!unlocked ? (

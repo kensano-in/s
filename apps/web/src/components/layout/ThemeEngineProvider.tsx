@@ -32,10 +32,11 @@ function applyObsidianPrime() {
 }
 
 export default function ThemeEngineProvider() {
-  const { uiThemeVariant, customThemeManifest, setUIThemeVariant, setCustomThemeManifest } = useAppStore();
+  const { uiThemeVariant, customThemeManifest, setUIThemeVariant, setCustomThemeManifest, _hasHydrated } = useAppStore();
 
   // — Theme Variant Applicator —
   useEffect(() => {
+    if (!_hasHydrated) return;
     const root = document.documentElement;
     root.classList.remove('theme-midnight', 'theme-amoled', 'theme-frost', 'theme-light');
     root.classList.add(`theme-${uiThemeVariant}`);
@@ -47,6 +48,9 @@ export default function ThemeEngineProvider() {
       root.style.removeProperty('--background');
       root.style.removeProperty('--surface-lowest');
     }
+
+    // Force persistence into localStorage to survive hydration issues
+    localStorage.setItem('verlyn-ui-variant', uiThemeVariant);
   }, [uiThemeVariant]);
 
   // — Sovereign CSS Sandbox Injector —

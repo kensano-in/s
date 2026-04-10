@@ -33,19 +33,34 @@ module.exports = {
         outline: {
           DEFAULT: '#948DA2',
           variant: '#494456',
-        }
+        },
+        'v-cyan': 'var(--v-cyan)',
+        'v-violet': 'var(--v-violet)',
+        'v-emerald': 'var(--v-emerald)',
       },
       fontFamily: {
         display: ['Inter', 'sans-serif'],
         body: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
+      transitionTimingFunction: {
+        'spring': 'cubic-bezier(0.175, 0.885, 0.32, 1.2)',
+        'out-quint': 'cubic-bezier(0.23, 1, 0.32, 1)',
+      },
+      transitionDuration: {
+        'micro': '100ms',
+        'normal': '190ms',
+        'page': '280ms',
+      },
       boxShadow: {
-        'ambient': '0 32px 64px -12px rgba(229, 225, 228, 0.06)', // Subliminal tonal shadow
+        'ambient': '0 32px 64px -12px rgba(0, 0, 0, 0.5)',
+        'glow': '0 0 20px 0 rgba(255,255,255,0.05)',
+        'glow-primary': '0 0 20px 0 rgba(59,130,246,0.2)',
+        'inner-light': 'inset 0 1px 1px rgba(255,255,255,0.08)',
       },
       backgroundImage: {
-        'glass-gradient': 'linear-gradient(135deg, rgba(208, 188, 255, 0.1) 0%, rgba(98, 44, 204, 0.1) 100%)',
-        'primary-gradient': 'linear-gradient(135deg, #D0BCFF 0%, #622CCC 100%)',
+        'glass-gradient': 'linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.0) 100%)',
+        'primary-gradient': 'linear-gradient(135deg, #1f2937 0%, #050505 100%)',
       }
     },
   },

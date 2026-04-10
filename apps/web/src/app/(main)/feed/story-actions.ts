@@ -43,3 +43,20 @@ export async function markStoryViewed(storyId: string, userId: string) {
     return { success: false, error: err.message };
   }
 }
+
+// Cleanup expired stories
+export async function cleanExpiredStories() {
+  try {
+    const { error } = await supabaseAdmin
+      .from('stories')
+      .delete()
+      .lt('expires_at', new Date().toISOString());
+
+    if (error) throw error;
+    revalidatePath('/feed');
+    return { success: true };
+  } catch (err: any) {
+    console.error('cleanExpiredStories error:', err.message);
+    return { success: false, error: err.message };
+  }
+}

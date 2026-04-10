@@ -26,16 +26,16 @@ export default function MobileDrawer() {
           initial={{ x: '-100%' }}
           animate={{ x: 0 }}
           exit={{ x: '-100%' }}
-          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-          className="fixed inset-y-0 left-0 z-50 w-[280px] md:hidden shadow-2xl"
+          transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
+          className="fixed inset-y-0 left-0 z-50 w-64 md:hidden shadow-2xl bg-[#0A0A0A]"
         >
           <div className="relative h-full">
             <button
               onClick={() => setMobileDrawerOpen(false)}
-              className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-surface-high border border-outline-variant/20 text-on-surface-variant hover:text-on-surface transition-colors"
+              className="absolute top-4 right-4 z-10 p-2 text-neutral-400 hover:text-white"
               aria-label="Close navigation menu"
             >
-              <X size={16} />
+              <X size={20} />
             </button>
             <Sidebar />
           </div>

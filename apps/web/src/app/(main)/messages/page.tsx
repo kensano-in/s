@@ -1,473 +1,569 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from 'react';
-import { Search, Edit, Lock, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, MessageCircle, Loader2, ArrowLeft, Check, CheckCheck, AlertCircle, Trash2, ShieldAlert, Sparkles, UserX, Ghost, Activity, ShieldCheck } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { formatDistanceToNow } from 'date-fns';
-import { useAppStore } from '@/lib/store';
-import { createClient } from '@/lib/supabase/client';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { deleteMessageDB, validateMessagingPermission } from './actions';
-import clsx from 'clsx';
-import KineticIcon from '@/components/ui/KineticIcon';
+/**
+ * MessagesPage — Perception-Controlled Reality Engine integration point.
+ * Wires:
+ *   Axiom 5  — conversationId key into MessageList (AnimatePresence)
+ *   Axiom 7  — onPreload into ConversationItem (predictive fetch)
+ *   Axiom 11 — skeleton auth state instead of spinner
+ */
 
-interface DBConversation {
-  id: string;
-  participant_id: string;
-  participant_name: string;
-  participant_username: string;
-  participant_avatar: string | null;
-  last_message: string;
-  updated_at: string;
-  unread: number;
-}
+import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { 
+  Search, 
+  Loader2, 
+  Plus,
+  MessageCircle
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAppStore } from "@/lib/store";
+import clsx from "clsx";
 
-interface ChatMessage {
-  id: string;
-  content: string;
-  sender_id: string;
-  sent_at: string;
-  is_mine: boolean;
-  status: 'sending' | 'sent' | 'error';
-}
+import ChatHeader from "@/components/Chat/ChatHeader";
+import MessageList from "@/components/Chat/MessageList";
+import ChatInput from "@/components/Chat/ChatInput";
+import ConversationItem, { DBConversation } from "@/components/Chat/ConversationItem";
+import NewMessageOverlay from "@/components/Chat/NewMessageOverlay";
+import CallModal from "@/components/Chat/CallModal";
+import ChatSettingsModal from "@/components/Chat/ChatSettingsModal";
+import ThemeBackground from "@/components/Chat/ThemeBackground";
+import { PRESET_THEMES } from "@/components/Chat/CustomThemeSelector";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
+
+import {
+  getConversationsDB,
+  sendMessageDB,
+  getMessagesDB,
+  clearChatDB,
+  blockUserDB,
+  reportUserDB,
+  deleteMessageDB,
+  leaveGroupDB,
+  getDMSettingsDB,
+  updateDMSettingsDB,
+  updateGroupSettingsDB,
+} from "./actions";
 
 function MessagesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const targetUserId = searchParams.get('user_id');
+  const targetId = searchParams.get("user_id") || searchParams.get("group_id");
+  const targetGroupId = searchParams.get("group_id");
 
-  const [activeFolder, setActiveFolder] = useState<'all' | 'unread'>('all');
-  const [activeConvId, setActiveConvId] = useState<string | null>(targetUserId || null);
-  const [conversations, setConversations] = useState<DBConversation[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [msg, setMsg] = useState('');
-  const [loadingConvs, setLoadingConvs] = useState(true);
-  
-  // Real-time & Global Search extensions
-  const [globalSearch, setGlobalSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [permError, setPermError] = useState<string | null>(null);
-
-  // Typing state
-  const [isTyping, setIsTyping] = useState(false);
-  const [otherUserTyping, setOtherUserTyping] = useState(false);
-  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMoreMsgs, setHasMoreMsgs] = useState(true);
-  const observerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const lastSendRef = useRef<number>(0);
-
-  const { chatWallpaperUrl, chatWallpaperBlur, chatWallpaperDim, currentUser } = useAppStore();
-  const bgRef = useRef<HTMLImageElement>(null);
   const supabase = useMemo(() => createClient(), []);
+  const { currentUser, isAuthLoading } = useAppStore();
 
-  // Audio Feedback Cache
-  const playPopSound = useCallback(() => {
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(600, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.1);
-    } catch (e) {}
-  }, []);
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
+  const [conversations, setConversations] = useState<DBConversation[]>([]);
+  const [loadingConvs, setLoadingConvs] = useState(true);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  const [search, setSearch] = useState("");
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [isNewTxOpen, setIsNewTxOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [dmSettings, setDmSettings] = useState<any>({});
 
-  const activeConv = useMemo(() => conversations.find(c => c.id === activeConvId), [conversations, activeConvId]);
+  // Stable ref — prevents loadMessages from changing reference on every sidebar update
+  // which would cause: send message → sidebar refresh → loadMessages re-fires → auto-refresh
+  const conversationsRef = useRef<DBConversation[]>([]);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
-  // --- INITIAL LOAD: Conversations (batched — no N+1) ---
-  useEffect(() => {
-    if (!currentUser?.id) { setLoadingConvs(false); return; }
-    async function loadConversations() {
-      const { data } = await supabase
-        .from('messages')
-        .select('id, content, sent_at, sender_id, recipient_id')
-        .or(`sender_id.eq.${currentUser!.id},recipient_id.eq.${currentUser!.id}`)
-        .order('sent_at', { ascending: false })
-        .limit(60);
+  // Axiom 7 — Prediction Engine: cache of already-preloaded conversation IDs
+  // Prevents redundant fetches on repeated hover.
+  const preloadedRef = useRef<Set<string>>(new Set());
 
-      if (!data) { setLoadingConvs(false); return; }
+  // WebRTC
+  const {
+    callState,
+    localStream,
+    remoteStream,
+    incomingCall,
+    acceptCall,
+    rejectCall,
+    hangUp,
+    startCall
+  } = useWebRTC({ myUserId: currentUser?.id });
 
-      // 1. Collect unique partner IDs (preserve order = most recent first)
-      const seenOrder: string[] = [];
-      const latestMsg: Record<string, typeof data[0]> = {};
-      for (const m of data) {
-        const otherId = m.sender_id === currentUser!.id ? m.recipient_id : m.sender_id;
-        if (!latestMsg[otherId]) {
-          latestMsg[otherId] = m;
-          seenOrder.push(otherId);
-        }
+  const activeConv = useMemo(() => {
+    const c = conversations.find(c => c.id === activeConvId);
+    if (!c) return null;
+    return {
+      ...c,
+      isOnline: !c.isGroup && onlineUsers.has(c.id)
+    };
+  }, [conversations, activeConvId, onlineUsers]);
+
+  const loadConversations = useCallback(async (silent = false) => {
+    if (!currentUser?.id || isAuthLoading) return;
+    if (!silent) setLoadingConvs(true);
+    const res = await getConversationsDB(currentUser.id);
+    if (res.success && res.data) {
+      setConversations(res.data);
+      if (targetId && !activeConvId) {
+        setActiveConvId(targetId);
+        setMobileView("chat");
       }
-
-      // Add targetUserId if not in messages yet
-      if (targetUserId && !latestMsg[targetUserId]) seenOrder.push(targetUserId);
-
-      // 2. Single batch query for all unique participants
-      const { data: profiles } = await supabase
-        .from('users')
-        .select('id, username, display_name, avatar_url')
-        .in('id', seenOrder);
-
-      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
-
-      const convMap = new Map<string, DBConversation>();
-      for (const otherId of seenOrder) {
-        const p = profileMap.get(otherId) as any;
-        const m = latestMsg[otherId];
-        convMap.set(otherId, {
-          id: otherId,
-          participant_id: otherId,
-          participant_name: p?.display_name || p?.username || 'Unknown Node',
-          participant_username: p?.username || '?',
-          participant_avatar: p?.avatar_url || null,
-          last_message: m ? m.content : 'Initialize transmission signal...',
-          updated_at: m ? m.sent_at : new Date().toISOString(),
-          unread: 0,
-        });
-      }
-
-      setConversations(Array.from(convMap.values()));
-      if (!activeConvId && convMap.size > 0) setActiveConvId(seenOrder[0]);
-      setLoadingConvs(false);
     }
+    if (!silent) setLoadingConvs(false);
+  }, [currentUser?.id, isAuthLoading, targetId, activeConvId]);
+
+  useEffect(() => {
     loadConversations();
-  }, [currentUser?.id, supabase, targetUserId]);
+  }, [loadConversations]);
 
-  // --- LOAD MESSAGES ---
-  useEffect(() => {
-    if (!activeConvId || !currentUser?.id) return;
-    setPermError(null);
-    async function checkPerms() {
-        const res = await validateMessagingPermission(currentUser!.id, activeConvId!);
-        if (!res.allowed) setPermError(res.error);
-    }
-    checkPerms();
-    async function loadMessages() {
-      const { data } = await supabase.from('messages').select('*').or(`and(sender_id.eq.${currentUser!.id},recipient_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser!.id})`).order('sent_at', { ascending: false }).limit(50);
-      setHasMoreMsgs(!!data && data.length === 50);
-      const parsed: ChatMessage[] = (data || []).map(m => ({ id: m.id, content: m.content, sender_id: m.sender_id, sent_at: m.sent_at, is_mine: m.sender_id === currentUser!.id, status: 'sent' as const })).reverse();
-      setMessages(parsed);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
-    }
-    loadMessages();
-  }, [activeConvId, currentUser?.id, supabase]);
-
-  // --- GLOBAL SEARCH: Users ---
-  useEffect(() => {
-    if (globalSearch.trim().length < 2) { setSearchResults([]); return; }
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      const { data } = await supabase
-        .from('users')
-        .select('id, username, display_name, avatar_url')
-        .or(`username.ilike.%${globalSearch.trim()}%,display_name.ilike.%${globalSearch.trim()}%`)
-        .neq('id', currentUser?.id || '')
-        .limit(10);
-      setSearchResults(data || []);
-      setIsSearching(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [globalSearch, supabase, currentUser?.id]);
-
-  // --- REAL-TIME: Messages & Typing ---
-  useEffect(() => {
+  const loadMessages = useCallback(async (partnerId: string, cursor?: string, silent = false) => {
     if (!currentUser?.id) return;
-    const channel = supabase.channel(`chat:${activeConvId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        const msgEvent = payload.new as any;
-        if (msgEvent.sender_id !== currentUser.id && msgEvent.recipient_id !== currentUser.id) return;
+    if (!cursor && !silent) setLoadingMsgs(true);
+    else if (cursor && !silent) setLoadingMore(true);
 
-        // If it's for current active chat
-        if (msgEvent.sender_id === activeConvId || msgEvent.recipient_id === activeConvId) {
-            setMessages(prev => {
-                if (prev.some(p => p.id === msgEvent.id)) return prev;
-                const newMessage: ChatMessage = { id: msgEvent.id, content: msgEvent.content, sender_id: msgEvent.sender_id, sent_at: msgEvent.sent_at, is_mine: msgEvent.sender_id === currentUser.id, status: 'sent' };
-                const optIndex = prev.findIndex(p => p.status === 'sending' && p.content === msgEvent.content);
-                if (optIndex !== -1) { const n = [...prev]; n[optIndex] = newMessage; return n; }
-                return [...prev, newMessage];
-            });
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-            setOtherUserTyping(false);
+    // Use ref, not state — so this callback stays stable when sidebar updates
+    const convMeta = conversationsRef.current.find(c => c.id === partnerId);
+    const isGroup = convMeta ? convMeta.isGroup : !!targetGroupId;
+
+    const res = await getMessagesDB(currentUser.id, partnerId, isGroup, 51, cursor);
+    if (res.success && res.data) {
+      const formatted = res.data.slice(0, 50).map(m => ({
+        ...m,
+        is_mine: m.sender_id === currentUser.id
+      }));
+      // If it's a silent reload (likely reconnect), merge carefully to preserve optimistic msgs
+      setMessages(prev => {
+        if (cursor) return [...prev, ...formatted];
+        if (silent) {
+          // preserve temp un-sent messages and mix with fresh fetch
+          const tempMsgs = prev.filter(m => m.client_temp_id && m.status === 'sending');
+          // deduplicate
+          const fresh = formatted.filter(f => !tempMsgs.some(t => t.client_temp_id === f.client_temp_id));
+          return [...tempMsgs, ...fresh].sort((a,b) => new Date(b.sent_at).valueOf() - new Date(a.sent_at).valueOf());
         }
-      })
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
-          if (payload.userId === activeConvId) {
-              setOtherUserTyping(payload.isTyping);
+        return formatted;
+      });
+      setHasMore(res.data.length > 50);
+    }
+    setLoadingMsgs(false);
+    setLoadingMore(false);
+  // conversations removed — using conversationsRef to keep callback stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, targetGroupId]);
+
+  // Only re-load messages when switching conversations — NOT on every sidebar state change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (activeConvId && currentUser?.id) {
+      loadMessages(activeConvId);
+      setMobileView("chat");
+      
+      const convMeta = conversationsRef.current.find(c => c.id === activeConvId);
+      const isGroup = convMeta?.isGroup || !!targetGroupId;
+      if (!isGroup) {
+        getDMSettingsDB(currentUser.id, activeConvId).then((res) => {
+          if (res.success && res.data) {
+            setDmSettings(res.data);
+          } else {
+            setDmSettings({});
           }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [currentUser?.id, activeConvId, supabase]);
-
-  // --- TYPING BROADCAST ---
-  const handleTyping = (text: string) => {
-      setMsg(text);
-      if (!activeConvId || !currentUser?.id) return;
-      if (!isTyping) {
-          setIsTyping(true);
-          supabase.channel(`chat:${activeConvId}`).send({ type: 'broadcast', event: 'typing', payload: { userId: currentUser.id, isTyping: true } });
-      }
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-      typingTimerRef.current = setTimeout(() => {
-          setIsTyping(false);
-          supabase.channel(`chat:${activeConvId}`).send({ type: 'broadcast', event: 'typing', payload: { userId: currentUser.id, isTyping: false } });
-      }, 3000);
-  };
-
-  const sendMessage = async (retryContent?: string) => {
-    const rawContent = retryContent || msg.trim();
-    if (!rawContent || !activeConvId || !currentUser?.id || permError) return;
-    
-    setIsSending(true);
-    let trimmed = rawContent;
-    
-    // Commands
-    if (trimmed.startsWith('/') && !retryContent) {
-        if (trimmed === '/coinflip') trimmed = `🪙 ⚡️ **${Math.random() > 0.5 ? 'HEADS' : 'TAILS'}**`;
-        else if (trimmed === '/shrug') trimmed = `¯\\_(ツ)_/¯`;
-    }
-
-    const optimistic: ChatMessage = { id: `opt_${Date.now()}`, content: trimmed, sender_id: currentUser.id, sent_at: new Date().toISOString(), is_mine: true, status: 'sending' };
-    playPopSound();
-    setMessages(prev => [...prev, optimistic]);
-    setMsg('');
-    setIsTyping(false);
-
-    const { sendMessageDB } = await import('./actions');
-    const res = await sendMessageDB(currentUser.id, activeConvId, trimmed);
-    if (!res.success) {
-        setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, status: 'error' } : m));
-    } else {
-        setMessages(prev => prev.map(m => m.id === optimistic.id ? { ...m, id: (res.message as any).id, status: 'sent' } : m));
-        // Bump conversation
-        setConversations(prev => {
-            const c = prev.find(x => x.id === activeConvId);
-            if (!c) return prev;
-            return [{ ...c, last_message: trimmed, updated_at: optimistic.sent_at }, ...prev.filter(x => x.id !== activeConvId)];
         });
+      } else {
+        // For groups, themes might be synced differently, but we can set defaults based on convMeta
+        setDmSettings({
+          theme_id: convMeta?.theme_id || "midnight",
+          theme_blur: convMeta?.theme_blur || 10,
+        });
+      }
+    } else {
+      setDmSettings({});
     }
-    setIsSending(false);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConvId, currentUser?.id]); // intentionally drops loadMessages from deps
 
-  const deleteMsg = async (id: string) => {
-      if (!currentUser?.id) return;
-      const res = await deleteMessageDB(currentUser.id, id);
-      if (res.success) setMessages(prev => prev.filter(m => m.id !== id));
+  const handleSendText = useCallback(async (content: string) => {
+    if (!activeConvId || !currentUser?.id) return;
+    const tempId = `temp-${Date.now()}`;
+    const isGroup = activeConv?.isGroup || !!targetGroupId;
+
+    // Optimistic UI
+    const optimisticMsg: any = {
+      id: tempId,
+      client_temp_id: tempId,
+      sender_id: currentUser.id,
+      content,
+      type: "text",
+      sent_at: new Date().toISOString(),
+      is_mine: true,
+      status: "sending"
+    };
+
+    setMessages(prev => [optimisticMsg, ...prev]);
+
+    const res = await sendMessageDB(
+      currentUser.id,
+      isGroup ? "" : activeConvId,
+      content,
+      "text",
+      undefined, undefined, undefined,
+      undefined, undefined,
+      isGroup ? activeConvId : undefined,
+      tempId
+    );
+
+    if (res.success && res.data) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...res.data, is_mine: true, status: "sent" } : m));
+    } else {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "error" } : m));
+    }
+  }, [activeConvId, currentUser, activeConv?.isGroup, targetGroupId]);
+
+  const handleSendFile = useCallback(async (url: string, fileName: string, mimeType: string) => {
+    if (!activeConvId || !currentUser?.id) return;
+    const tempId = `temp-f-${Date.now()}`;
+    const isGroup = activeConv?.isGroup || !!targetGroupId;
+    const type = mimeType.startsWith("image/") ? "image" : "file";
+
+    const optimisticMsg: any = {
+      id: tempId,
+      client_temp_id: tempId,
+      sender_id: currentUser.id,
+      content: fileName,
+      type,
+      media_url: url,
+      file_name: fileName,
+      sent_at: new Date().toISOString(),
+      is_mine: true,
+      status: "sending"
+    };
+
+    setMessages(prev => [optimisticMsg, ...prev]);
+
+    const res = await sendMessageDB(
+      currentUser.id,
+      isGroup ? "" : activeConvId,
+      fileName,
+      type as any,
+      url,
+      fileName,
+      mimeType,
+      undefined, undefined,
+      isGroup ? activeConvId : undefined,
+      tempId
+    );
+
+    if (res.success && res.data) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...res.data, is_mine: true, status: "sent" } : m));
+    } else {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "error" } : m));
+    }
+  }, [activeConvId, currentUser, activeConv?.isGroup, targetGroupId]);
+
+  const handleSendVoice = useCallback(async (url: string, duration: number) => {
+    if (!activeConvId || !currentUser?.id) return;
+    const tempId = `temp-v-${Date.now()}`;
+    const isGroup = activeConv?.isGroup || !!targetGroupId;
+
+    const optimisticMsg: any = {
+      id: tempId,
+      client_temp_id: tempId,
+      sender_id: currentUser.id,
+      content: `Voice note (${duration}s)`,
+      type: "voice",
+      media_url: url,
+      sent_at: new Date().toISOString(),
+      is_mine: true,
+      status: "sending"
+    };
+
+    setMessages(prev => [optimisticMsg, ...prev]);
+
+    const res = await sendMessageDB(
+      currentUser.id,
+      isGroup ? "" : activeConvId,
+      `Voice note (${duration}s)`,
+      "voice",
+      url,
+      undefined,
+      "audio/webm",
+      undefined, undefined,
+      isGroup ? activeConvId : undefined,
+      tempId
+    );
+
+    if (res.success && res.data) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...res.data, is_mine: true, status: "sent" } : m));
+    } else {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "error" } : m));
+    }
+  }, [activeConvId, currentUser, activeConv?.isGroup, targetGroupId]);
+
+  const handleDeleteMessage = useCallback(async (id: string) => {
+    if (!currentUser?.id) return;
+    setMessages(prev => prev.filter(m => m.id !== id));
+    await deleteMessageDB(currentUser.id, id);
+  }, [currentUser?.id]);
+
+  // Realtime Integration
+  useRealtimeMessages({
+    supabase,
+    currentUser: currentUser as any,
+    activeConvId,
+    conversations,
+    setMessages,
+    setConversations,
+    setIsOtherTyping,
+    setSettingsVersion: () => {},
+    setOnlineUsers: setOnlineUsers as any,
+    loadConversations,
+    loadMessages,
+  });
+
+  const filteredConvs = conversations.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Axiom 11 — Latency Masking: skeleton during auth instead of bare spinner
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-full w-full bg-background overflow-hidden">
+        {/* Sidebar skeleton */}
+        <div className="w-full md:w-[380px] border-r border-surface-border flex flex-col gap-0">
+          <div className="px-6 py-8">
+            <div className="skeleton h-7 w-32 rounded-lg" />
+          </div>
+          <div className="px-6 mb-4">
+            <div className="skeleton h-10 w-full rounded-xl" />
+          </div>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3.5 px-4 py-4">
+              <div className="skeleton w-12 h-12 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="skeleton h-3 w-28 rounded-full" />
+                <div className="skeleton h-2.5 w-44 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Chat area skeleton — desktop only */}
+        <div className="hidden md:flex flex-1 flex-col" />
+      </div>
+    );
   }
 
-  const filteredConvs = conversations.filter(c => activeFolder === 'unread' ? c.unread > 0 : true);
-
   return (
-    <div className="flex h-full w-full animate-fade-in bg-[#050505] text-on-surface font-sans italic selection:bg-v-cyan/30">
-      <div className="w-[340px] flex-shrink-0 flex flex-col bg-[#0a0a0f] border-r border-white/5 relative z-10 shadow-[4px_0_24px_rgba(0,0,0,0.6)]">
-        <div className="px-8 py-10 flex items-center justify-between border-b border-white/5">
-          <div>
-            <h2 className="text-3xl font-black italic tracking-tighter text-white uppercase leading-none mb-1">Messages</h2>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-v-cyan opacity-60">Private Neural Network</p>
-          </div>
-          <button className="w-10 h-10 rounded-2xl bg-surface-high/50 flex items-center justify-center hover:bg-v-cyan hover:text-black transition-all border border-white/5 shadow-xl group">
-            <KineticIcon icon={Edit} size={18} active />
+    <div className="flex h-full w-full bg-background overflow-hidden relative">
+      {/* Sidebar List */}
+      <div className={clsx(
+        "w-full md:w-[380px] flex flex-col border-r border-surface-border bg-background transition-all duration-300 md:block",
+        mobileView === "chat" ? "hidden" : "block"
+      )}>
+        <div className="px-6 py-8 flex items-center justify-between">
+          <h1 className="text-2xl font-black text-white tracking-tight">Messages</h1>
+          <button 
+            onClick={() => setIsNewTxOpen(true)}
+            className="w-10 h-10 rounded-full bg-surface-elevated flex items-center justify-center text-primary border border-surface-border hover:bg-surface-border transition-colors"
+          >
+            <Plus size={20} />
           </button>
         </div>
 
-        <div className="px-6 py-6 border-b border-white/5">
-           <div className="relative group">
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                 <KineticIcon icon={Search} size={16} color="var(--v-cyan)" active pulse />
-              </div>
-              <input value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} placeholder="Search people or messages..." className="w-full bg-surface-lowest/50 border border-white/5 text-xs font-black uppercase tracking-widest rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-1 focus:ring-v-cyan/30 transition-all placeholder:text-on-surface-variant/40 italic" />
-           </div>
+        <div className="px-6 mb-4">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-muted shadow-sm" size={16} />
+            <input 
+              type="text"
+              placeholder="Search conversations..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-surface-elevated border border-surface-border rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-primary/50 transition-all placeholder:text-foreground-muted"
+            />
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1">
-          {globalSearch.trim().length >= 2 ? (
-            <div className="px-4">
-               {isSearching ? <div className="flex items-center gap-3 p-6 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50"><Loader2 size={16} className="animate-spin" /> Scanning Matrix...</div> : searchResults.map(u => (
-                  <div key={u.id} onClick={() => { setGlobalSearch(''); if (!conversations.find(c => c.id === u.id)) setConversations(p => [{ id: u.id, participant_id: u.id, participant_name: u.display_name || u.username, participant_username: u.username, participant_avatar: u.avatar_url, last_message: 'INIT SIGNAL...', updated_at: new Date().toISOString(), unread: 0 }, ...p]); setActiveConvId(u.id); }} className="flex items-center gap-4 p-4 hover:bg-white/5 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/5 italic">
-                     <img src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`} className="w-11 h-11 rounded-2xl object-cover border border-white/10" alt="avatar" />
-                     <div><p className="text-xs font-black text-white">{u.display_name || u.username}</p><p className="text-[10px] font-bold text-v-cyan opacity-60 uppercase">@{u.username}</p></div>
-                  </div>
-               ))}
-            </div>
-          ) : loadingConvs ? (
-            <div className="flex flex-col items-center justify-center py-20 opacity-30 italic"><Loader2 size={24} className="animate-spin mb-4" /><p className="text-[10px] font-black uppercase tracking-widest">Connecting to Chats...</p></div>
-          ) : filteredConvs.map(conv => {
-            const active = activeConvId === conv.id;
-            return (
-              <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={clsx('group mx-4 px-6 py-5 cursor-pointer transition-all duration-300 rounded-[28px] relative border border-transparent', active ? 'bg-surface-high/60 shadow-[0_15px_30px_rgba(0,0,0,0.4)] border-white/5' : 'hover:bg-white/[0.03]')}>
-                {active && (
-                    <motion.div 
-                        layoutId="active-signal-pill" 
-                        className="absolute inset-0 bg-primary-gradient/10 rounded-[28px] -z-10" 
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                    />
-                )}
-                <div className="flex items-center gap-5">
-                   <div className="relative flex-shrink-0">
-                      <img src={conv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participant_username}`} className="w-12 h-12 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform duration-500" alt="avatar" />
-                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-v-emerald border-[3px] border-surface shadow-[0_0_10px_var(--v-emerald)]" />
-                   </div>
-                   <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline mb-0.5">
-                         <h4 className="text-sm font-black text-white truncate scale-x-95 -ml-1 group-hover:ml-0 transition-all">{conv.participant_name}</h4>
-                         <span className="text-[9px] font-bold text-on-surface-variant opacity-40 uppercase">{formatDistanceToNow(new Date(conv.updated_at), { addSuffix: false })}</span>
-                      </div>
-                      <p className="text-[11px] font-medium text-on-surface-variant/60 truncate group-hover:text-v-cyan transition-colors">{conv.last_message}</p>
-                   </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {loadingConvs ? (
+            // Axiom 11: skeleton, not spinner
+            Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3.5 px-4 py-4">
+                <div className="skeleton w-12 h-12 rounded-full flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton h-3 w-28 rounded-full" />
+                  <div className="skeleton h-2.5 w-44 rounded-full" />
                 </div>
+                <div className="skeleton h-2 w-8 rounded-full" />
               </div>
-            );
-          })}
+            ))
+          ) : filteredConvs.length > 0 ? (
+            filteredConvs.map(conv => (
+              <ConversationItem
+                key={conv.id}
+                conv={conv}
+                active={activeConvId === conv.id}
+                onClick={() => {
+                  setActiveConvId(conv.id);
+                  setMobileView("chat");
+                }}
+                onPreload={(id) => {
+                  // Axiom 7: only preload once per session per conversation
+                  if (preloadedRef.current.has(id)) return;
+                  preloadedRef.current.add(id);
+                  loadMessages(id);
+                }}
+              />
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 opacity-20 text-center px-8">
+              <MessageCircle size={40} className="mb-4" />
+              <p className="text-sm">No conversations yet.</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {activeConv ? (
-        <div className="flex-1 flex flex-col min-w-0 relative bg-[#080810] overflow-hidden border-l border-white/5">
-          {/* Header */}
-          <div className="px-10 py-6 flex items-center justify-between border-b border-white/5 bg-black/60 backdrop-blur-2xl z-20">
-             <div className="flex items-center gap-5">
-                <div className="relative">
-                    <img src={activeConv.participant_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeConv.participant_username}`} className="w-14 h-14 rounded-3xl object-cover border-2 border-white/5 shadow-2xl" alt="avatar" />
-                    {otherUserTyping && <div className="absolute -bottom-2 -right-2 bg-v-cyan p-1.5 rounded-xl shadow-[0_0_15px_var(--v-cyan)]"><Sparkles size={12} className="text-black animate-pulse" /></div>}
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-white italic tracking-tighter uppercase leading-none mb-1 group-hover:text-v-cyan transition-colors">{activeConv.participant_name}</h3>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-v-cyan opacity-80">@{activeConv.participant_username}</span>
-                        {otherUserTyping && <span className="text-[9px] font-black uppercase text-v-cyan animate-pulse tracking-widest">• Modulating Signal...</span>}
-                    </div>
-                </div>
-             </div>
-              <div className="flex items-center gap-3">
-                  <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl group">
-                      <KineticIcon icon={Phone} size={18} active />
-                  </button>
-                  <button className="w-11 h-11 rounded-2xl bg-surface-high/50 flex items-center justify-center text-v-cyan border border-white/5 hover:bg-white hover:text-black transition-all shadow-xl group">
-                      <KineticIcon icon={Video} size={18} active />
-                  </button>
-                  <button className="w-11 h-11 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-white transition-all">
-                      <KineticIcon icon={MoreHorizontal} size={20} />
-                  </button>
-              </div>
-          </div>
-
-          {/* Message Stream */}
-          <div className="flex-1 overflow-y-auto px-10 py-10 space-y-8 z-10 custom-scrollbar-hidden select-text">
-             <div className="flex justify-center mb-10">
-                <div className="px-6 py-2.5 rounded-full bg-white/[0.03] border border-white/5 flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-v-cyan shadow-3xl backdrop-blur-md group cursor-pointer hover:bg-v-cyan/5 transition-all">
-                   <KineticIcon icon={ShieldCheck} size={14} color="var(--v-cyan)" pulse glow />
-                   <div className="flex flex-col">
-                      <span className="leading-none mb-0.5">Encrypted Connection</span>
-                      <span className="text-[7px] text-on-surface-variant opacity-40 leading-none">Military-Grade (Signal Proof)</span>
-                   </div>
-                </div>
-             </div>
-
-             <AnimatePresence initial={false}>
-                {messages.map((m) => (
-                    <motion.div key={m.id} initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} className={`flex ${m.is_mine ? 'justify-end' : 'justify-start'} group relative`}>
-                        <div className={`flex flex-col ${m.is_mine ? 'items-end' : 'items-start'} max-w-[70%] gap-2 transition-transform duration-300`}>
-                           <div className={clsx('relative p-5 text-sm font-bold leading-relaxed shadow-3xl break-words italic tracking-tight', m.is_mine ? 'bg-primary-gradient text-white rounded-[32px] rounded-br-lg shadow-[0_15px_30px_rgba(108,99,255,0.25)]' : 'bg-surface-high/40 text-on-surface rounded-[32px] rounded-bl-lg border border-white/5')}>
-                              {m.content}
-                              {m.is_mine && (
-                                 <div className="absolute bottom-2 right-4 flex items-center gap-1 opacity-40 scale-75">
-                                    {m.status === 'sending' ? <Loader2 size={12} className="animate-spin" /> : <KineticIcon icon={CheckCheck} size={12} color="white" active />}
-                                 </div>
-                              )}
-                              {m.is_mine && (
-                                 <button onClick={() => deleteMsg(m.id)} className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 items-center justify-center opacity-0 group-hover:opacity-100 transition-all flex hover:bg-rose-500 hover:text-white">
-                                    <KineticIcon icon={Trash2} size={14} />
-                                 </button>
-                              )}
-                           </div>
-                           <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-0 group-hover:opacity-40 transition-opacity px-2">{formatDistanceToNow(new Date(m.sent_at), { addSuffix: true })}</span>
-                        </div>
-                    </motion.div>
-                ))}
-             </AnimatePresence>
-             <div ref={messagesEndRef} />
-          </div>
-
-          {/* Footer & Signal Input */}
-          <div className="px-10 pb-8 pt-2 z-20">
-             {permError ? (
-                <div className={clsx(
-                    "p-8 rounded-[38px] border backdrop-blur-2xl flex flex-col items-center text-center gap-4 transition-all duration-700",
-                    permError.includes('purged') ? "bg-white/[0.02] border-white/10" : "bg-rose-500/10 border-rose-500/20"
-                )}>
-                   {permError.includes('purged') ? (
-                       <Ghost size={40} className="text-white/20 animate-pulse" />
-                   ) : (
-                       <ShieldAlert size={32} className="text-rose-500 animate-pulse" />
-                   )}
-                   <div className="max-w-md">
-                       <p className={clsx(
-                           "text-[10px] font-black uppercase tracking-[0.4em] mb-2",
-                           permError.includes('purged') ? "text-white/40" : "text-rose-500"
-                       )}>
-                           {permError.includes('purged') ? 'Session_Archive_Active' : 'Signal_Blocked_by_Kernel'}
-                       </p>
-                       <p className="text-xs font-bold text-on-surface-variant opacity-80 leading-relaxed italic">
-                           {permError.includes('purged') 
-                             ? 'THIS_NODE_HAS_BEEN_PURGED_FROM_THE_MATRIX. COMMUNICATION_IS_NOW_ARCHIVED_IN_READ_ONLY_MODE.'
-                             : permError}
-                       </p>
-                   </div>
-                   {permError.includes('purged') && (
-                       <div className="mt-2 px-6 py-2 rounded-full bg-white/5 border border-white/5 flex items-center gap-3">
-                           <Lock size={12} className="text-white/20" />
-                           <span className="text-[9px] font-black uppercase tracking-widest text-white/30">LOCKED_BY_SOVEREIGN_OS</span>
-                       </div>
-                   )}
-                </div>
-             ) : (
-                <div className="relative">
-                    <div className="flex items-center gap-4 p-4 bg-surface-lowest/60 backdrop-blur-3xl border border-white/5 rounded-[32px] shadow-3xl group focus-within:ring-2 focus-within:ring-v-cyan/20 transition-all">
-                       <button className="w-12 h-12 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all group">
-                          <KineticIcon icon={Paperclip} size={20} />
-                       </button>
-                       <input value={msg} onChange={(e) => handleTyping(e.target.value)} onKeyDown={(e) => { if(e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Type a message..." className="flex-1 bg-transparent border-none text-on-surface text-sm font-black italic focus:outline-none placeholder:text-on-surface-variant/30" />
-                       <button className="w-12 h-12 rounded-2xl flex items-center justify-center text-on-surface-variant hover:text-v-cyan transition-all group">
-                          <KineticIcon icon={Smile} size={20} />
-                       </button>
-                       <button onClick={() => sendMessage()} className={clsx('w-14 h-14 rounded-2xl flex items-center justify-center text-white transition-all shadow-[0_15px_30px_rgba(108,99,255,0.4)]', msg.trim() ? 'bg-primary-gradient hover:scale-105 active:scale-95' : 'bg-surface-high opacity-40')}>
-                          <KineticIcon icon={Send} size={18} color="white" active={!!msg.trim()} pulse={!!msg.trim()} />
-                       </button>
-                    </div>
-                 </div>
-             )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[#080810] border-l border-white/5 relative overflow-hidden">
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--v-cyan)/3%_0,transparent_100%)] animate-pulse" />
-             <div className="w-48 h-48 bg-surface-low rounded-[60px] flex items-center justify-center border border-white/5 shadow-2xl relative group overflow-hidden">
-                <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-20 transition-opacity" />
-                <KineticIcon icon={Ghost} size={60} color="var(--on-surface-variant)" active pulse glow />
-             </div>
-             <p className="mt-8 text-[11px] font-black uppercase tracking-[0.5em] text-on-surface-variant opacity-40 italic">Initialize Secure Session</p>
-             <span className="text-[7px] font-black tracking-[0.2em] text-on-surface-variant/40 uppercase mt-2">Waiting for neural link...</span>
-        </div>
+      {/* Main Chat Area */}
+      <div className={clsx(
+        "flex-1 flex flex-col relative transition-all duration-300",
+        mobileView === "list" ? "hidden md:flex" : "flex",
+        !dmSettings?.theme_id ? "bg-background" : ""
       )}
+      style={(() => {
+        const t = PRESET_THEMES.find(t => t.id === dmSettings?.theme_id);
+        return t?.style ? (t.style as any) : undefined;
+      })()}
+      >
+        {activeConv ? (
+          <>
+            {dmSettings?.theme_id && (
+              <ThemeBackground themeId={dmSettings.theme_id} />
+            )}
+            <ChatHeader 
+              participant={activeConv}
+              isOtherTyping={isOtherTyping}
+              onBack={() => setMobileView("list")}
+              onCall={() => startCall(activeConv.id, 'audio')}
+              onVideoCall={() => startCall(activeConv.id, 'video')}
+              onViewProfile={() => router.push(`/profile/${activeConv.username}`)}
+              onSearch={() => {}}
+              onBlock={async () => {
+                await blockUserDB(currentUser!.id, activeConv.id);
+                setConversations(prev => prev.filter(c => c.id !== activeConv.id));
+                setActiveConvId(null);
+                setMobileView("list");
+              }}
+              onReport={() => reportUserDB(currentUser!.id, activeConv.id, "Violation")}
+              onClearChat={async () => {
+                await clearChatDB(currentUser!.id, activeConv.id);
+                setMessages([]);
+              }}
+              onExportChat={() => {}}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+            />
+            
+            {/* Axiom 5: conversationId key drives AnimatePresence conv-switch transition */}
+            <MessageList
+              conversationId={activeConvId}
+              messages={messages}
+              loading={loadingMsgs}
+              loadingMore={loadingMore}
+              hasMore={hasMore}
+              bubbleStyle={dmSettings?.bubble_style}
+              onLoadMore={() => {
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg) loadMessages(activeConvId!, lastMsg.sent_at);
+              }}
+              onRetry={(m) => handleSendText(m.content)}
+              onDelete={handleDeleteMessage}
+              isOtherTyping={isOtherTyping}
+              currentUserId={currentUser?.id}
+            />
+
+            <ChatInput 
+              onSendText={handleSendText}
+              onSendFile={handleSendFile}
+              onSendVoice={handleSendVoice}
+            />
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center px-12">
+            <div className="w-20 h-20 rounded-3xl bg-surface-elevated flex items-center justify-center mb-6">
+              <MessageCircle size={40} />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Your Space</h2>
+            <p className="max-w-[280px] text-sm leading-relaxed">
+              Select a conversation to start messaging. Your chats are secured and private.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <NewMessageOverlay 
+        isOpen={isNewTxOpen}
+        onClose={() => setIsNewTxOpen(false)}
+        currentUser={currentUser}
+        onSelectUser={(user) => {
+          setActiveConvId(user.id);
+          setIsNewTxOpen(false);
+          setMobileView("chat");
+        }}
+        onCreated={(id) => {
+          setActiveConvId(id);
+          setIsNewTxOpen(false);
+          setMobileView("chat");
+          loadConversations();
+        }}
+      />
+
+      <CallModal 
+        isOpen={callState !== "idle" || incomingCall !== null}
+        callType={incomingCall?.type ?? "audio"}
+        callState={callState as any}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        participant={{
+          name: activeConv?.name ?? activeConv?.username ?? "User",
+          username: activeConv?.username ?? "",
+          avatarUrl: activeConv?.avatarUrl
+        }}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+        onHangUp={hangUp}
+        onClose={hangUp}
+      />
+      <ChatSettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        partnerName={activeConv?.name || "Group"}
+        partnerUsername={activeConv?.username}
+        partnerAvatar={activeConv?.avatarUrl || ""}
+        dmSettings={dmSettings}
+        setDmSettings={async (updates) => {
+          setDmSettings((prev: any) => ({ ...prev, ...updates }));
+          if (currentUser?.id && activeConvId) {
+             if (activeConv?.isGroup) {
+               await updateGroupSettingsDB(activeConvId, updates);
+             } else {
+               await updateDMSettingsDB(currentUser.id, activeConvId, updates);
+             }
+          }
+        }}
+        activeConvId={activeConvId}
+      />
     </div>
   );
 }
 
 export default function MessagesPage() {
   return (
-    <Suspense fallback={<div className="flex h-full w-full items-center justify-center bg-[#050505]"><Loader2 className="w-12 h-12 animate-spin text-v-cyan shadow-[0_0_20px_var(--v-cyan)]" /></div>}>
+    <Suspense fallback={
+       <div className="flex h-[calc(100vh-80px)] items-center justify-center">
+         <Loader2 className="animate-spin text-v-cyan opacity-50" />
+       </div>
+    }>
       <MessagesContent />
     </Suspense>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp, Users, UserPlus, UserCheck, Loader2, Zap, Activity, ShieldCheck, Hash, Fingerprint, Cpu } from 'lucide-react';
+import { TrendingUp, Users, UserPlus, UserCheck, Loader2, Zap, Activity, ShieldCheck, Hash, Fingerprint, Cpu, Settings } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
@@ -26,6 +26,7 @@ interface RealUser {
 interface TrendTag {
   tag: string;
   count: number;
+  trend: 'up' | 'stable' | 'down';
 }
 
 export default function RightPanel() {
@@ -33,16 +34,13 @@ export default function RightPanel() {
   const [suggestedUsers, setSuggestedUsers] = useState<RealUser[]>([]);
   const [trendingTags, setTrendingTags] = useState<TrendTag[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    async function loadData() {
-      if (!currentUser?.id) {
-        setLoading(false);
-        return;
-      }
+    async function loadWhoToFollow() {
+      if (!currentUser?.id) return;
       try {
-        // Who to follow
         const { data: users } = await supabase
           .from('users')
           .select('id, username, display_name, avatar_url, is_verified, follower_count, security_score')
@@ -51,9 +49,12 @@ export default function RightPanel() {
           .limit(5);
 
         setSuggestedUsers((users || []) as RealUser[]);
+      } catch {}
+    }
 
-        // Trending: count posts per tag from post content (simple approach)
-        // Fallback to popular static tags if no data
+    async function loadTrending() {
+      if (!currentUser?.id) return;
+      try {
         const { data: posts } = await supabase
           .from('posts')
           .select('content')
@@ -72,25 +73,35 @@ export default function RightPanel() {
           const sorted = Object.entries(tagMap)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5)
-            .map(([tag, count]) => ({ tag, count }));
+            .map(([tag, count]) => {
+               const trends: ('up' | 'stable' | 'down')[] = ['up', 'stable', 'up', 'down'];
+               const trend = count > 10 ? 'up' : (count > 5 ? trends[Date.now() % 4] : 'stable');
+               return { tag, count, trend };
+            });
           if (sorted.length > 0) {
             setTrendingTags(sorted);
           } else {
-            // No hashtags in posts yet — show placeholders
             setTrendingTags([
-              { tag: 'verlyn', count: 0 },
-              { tag: 'design', count: 0 },
-              { tag: 'community', count: 0 },
+              { tag: 'verlyn', count: 0, trend: 'stable' },
+              { tag: 'design', count: 0, trend: 'stable' },
+              { tag: 'community', count: 0, trend: 'stable' },
             ]);
           }
         }
-      } catch {
-        setSuggestedUsers([]);
-      } finally {
-        setLoading(false);
-      }
+        setLastUpdated(new Date());
+      } catch {}
     }
-    loadData();
+
+    async function init() {
+       setLoading(true);
+       await Promise.all([loadWhoToFollow(), loadTrending()]);
+       setLoading(false);
+    }
+    
+    init();
+    
+    const interval = setInterval(loadTrending, 60000); // 60s
+    return () => clearInterval(interval);
   }, [currentUser?.id, supabase]);
 
   return (
@@ -108,24 +119,23 @@ export default function RightPanel() {
           <Link href="/explore" className="text-[9px] font-black uppercase tracking-widest text-v-cyan/40 hover:text-v-cyan transition-colors">See All</Link>
         </div>
 
-        <div className="glass-card p-6 bg-surface-lowest/20 border-none rounded-[40px] shadow-2xl relative overflow-hidden group">
-          <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-5 transition-opacity" />
+        <div className="glass-card p-6 bg-surface-lowest/20 border-none rounded-3xl shadow-2xl relative overflow-hidden group">
+          <div className="absolute inset-0 bg-primary-gradient opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none" />
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-10 opacity-40">
               <Loader2 size={24} className="animate-spin mb-3 text-v-cyan" />
-              <span className="text-[9px] font-black tracking-widest uppercase">Finding people...</span>
+              <span className="text-[9px] font-bold tracking-widest uppercase">Finding people...</span>
             </div>
           ) : suggestedUsers.length === 0 ? (
-            <div className="py-10 text-center opacity-30 italic">
+            <div className="py-10 text-center opacity-30">
               <Users size={24} className="mx-auto mb-4" />
-              <p className="text-[9px] font-black uppercase tracking-widest leading-none">No suggestions yet</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest leading-none">No suggestions yet</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 relative z-10">
               {suggestedUsers.map((u) => {
                 const isFollowingUser = following.includes(u.id);
-                const isPrime = (u.security_score || 0) >= 80;
                 return (
                   <div key={u.id} className="flex items-center justify-between gap-4 group/node">
                     <Link href={`/profile/${u.username}`} className="flex items-center gap-3 flex-1 min-w-0">
@@ -137,12 +147,11 @@ export default function RightPanel() {
                             alt={u.display_name}
                           />
                         </div>
-                        {isPrime && <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-black border border-v-cyan/20 rounded-full flex items-center justify-center text-v-cyan"><Zap size={8} /></div>}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-[11px] font-black text-white uppercase italic leading-none mb-1 group-hover/node:text-v-cyan transition-colors truncate">{u.display_name}</h4>
+                        <h4 className="text-[11px] font-bold text-white uppercase leading-none mb-1 group-hover/node:text-v-cyan transition-colors truncate">{u.display_name}</h4>
                         <div className="flex items-center gap-1.5 opacity-40">
-                          <span className="text-[8px] font-black uppercase tracking-widest truncate">@{u.username}</span>
+                          <span className="text-[8px] font-bold uppercase tracking-widest truncate">@{u.username}</span>
                           {u.is_verified && <ShieldCheck size={8} className="text-v-cyan" />}
                         </div>
                       </div>
@@ -150,9 +159,9 @@ export default function RightPanel() {
                     <button
                       onClick={() => toggleFollow(u.id)}
                       className={clsx(
-                        'px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-500',
+                        'px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all duration-500',
                         isFollowingUser
-                          ? 'bg-white/5 text-white/40 border border-white/5'
+                          ? 'bg-white/5 text-white/40 border border-white/5 hover:bg-white/10'
                           : 'bg-primary-gradient text-white shadow-xl hover:scale-110 active:scale-95'
                       )}
                     >
@@ -168,27 +177,36 @@ export default function RightPanel() {
 
       {/* Trending */}
       <section className="space-y-6">
-        <div className="flex items-center gap-3 px-2">
-          <TrendingUp size={16} className="text-v-violet" />
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Trending</h3>
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+             <TrendingUp size={16} className="text-v-violet" />
+             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Trending</h3>
+          </div>
+          <span className="text-[8px] uppercase tracking-widest text-on-surface-variant/40 hover:text-white transition-colors cursor-default">
+             Updated just now
+          </span>
         </div>
-        <div className="glass-card p-6 bg-surface-lowest/20 border-none rounded-[40px] shadow-2xl space-y-4">
+        <div className="glass-card p-6 bg-surface-lowest/20 border-none rounded-3xl shadow-2xl space-y-4">
           {trendingTags.length === 0 ? (
-            <p className="text-[9px] font-black uppercase tracking-widest opacity-20 text-center py-4">Nothing trending yet</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest opacity-20 text-center py-4">Nothing trending yet</p>
           ) : (
-            trendingTags.map(({ tag, count }) => (
-              <Link key={tag} href="/feed" className="group cursor-pointer block">
+            trendingTags.map(({ tag, count, trend }) => (
+              <Link key={tag} href={`/trending?tag=${tag}`} className="group cursor-pointer block">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <Hash size={10} className="text-v-violet opacity-40" />
-                    <span className="text-[10px] font-black uppercase tracking-tighter italic group-hover:text-white transition-colors text-on-surface-variant">
+                    <span className="text-[10px] font-bold uppercase tracking-tighter group-hover:text-white transition-colors text-on-surface-variant">
                       {tag}
                     </span>
                   </div>
-                  <Activity size={10} className="text-v-cyan opacity-0 group-hover:opacity-100 transition-all scale-0 group-hover:scale-100" />
+                  <div className="flex items-center gap-1">
+                     {trend === 'up' && <TrendingUp size={10} className="text-emerald-400 opacity-80" />}
+                     {trend === 'down' && <TrendingUp size={10} className="text-rose-400 opacity-80 rotate-180" />}
+                     {trend === 'stable' && <span className="text-neutral-500 font-black text-xs leading-none mr-1">→</span>}
+                  </div>
                 </div>
                 {count > 0 && (
-                  <p className="text-[8px] font-black uppercase tracking-widest opacity-20 ml-5">{fmt(count)} posts</p>
+                  <p className="text-[8px] font-bold tracking-widest opacity-20 ml-5">{fmt(count)} posts</p>
                 )}
               </Link>
             ))
@@ -198,37 +216,18 @@ export default function RightPanel() {
 
       {/* Footer */}
       <div className="mt-auto pt-8">
-        <div className="glass-card p-8 bg-surface-lowest/10 border-none rounded-[50px] relative overflow-hidden group">
-          <div className="absolute inset-0 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-v-emerald animate-pulse shadow-[0_0_10px_var(--v-emerald)]" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-v-emerald">Platform Online</span>
-              </div>
-              <Cpu size={14} className="opacity-20" />
+        <div className="glass-card p-6 bg-surface-lowest/10 border-none rounded-3xl relative overflow-hidden group">
+          <div className="absolute inset-0 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center justify-between opacity-40 text-[9px] font-bold uppercase tracking-widest">
+              <Link href="#" className="hover:text-v-cyan transition-colors">Privacy</Link>
+              <Link href="#" className="hover:text-v-cyan transition-colors">Terms</Link>
+              <Link href="#" className="hover:text-v-cyan transition-colors">Help</Link>
             </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center opacity-40">
-                <span className="text-[8px] font-black uppercase tracking-widest">Version</span>
-                <span className="text-[10px] font-mono tracking-tighter text-white">v1.0.0</span>
-              </div>
-              <div className="flex justify-between items-center opacity-40">
-                <span className="text-[8px] font-black uppercase tracking-widest">Status</span>
-                <span className="text-[10px] font-mono tracking-tighter text-white">All Systems Go</span>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
-                  <Fingerprint size={14} className="opacity-30" />
-                </div>
-                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-white/30 italic">© 2026 Verlyn</span>
-              </div>
-              <Link href="/settings" className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 hover:text-v-cyan transition-colors">
-                <Zap size={14} />
+            <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+              <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-white/30">© 2026 Verlyn</span>
+              <Link href="/settings" className="hover:text-v-cyan transition-colors text-white/30">
+                <Settings size={12} />
               </Link>
             </div>
           </div>

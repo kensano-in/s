@@ -121,7 +121,7 @@ export default function StoryReel() {
       <div className="flex gap-4 p-6 rounded-[32px] bg-surface-lowest/20 border border-white/5 overflow-x-auto hide-scrollbar italic backdrop-blur-xl shadow-2xl relative overflow-hidden group">
         <div className="absolute inset-0 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         
-        {/* Inject Node (Upload) */}
+        {/* Add Story (Upload) */}
         <button className="flex flex-col items-center gap-3 flex-shrink-0 group/add" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             <div className="relative">
                 <div className="w-16 h-16 rounded-[22px] p-0.5 bg-white/5 border border-white/10 group-hover/add:border-v-cyan transition-all duration-500 overflow-hidden shadow-xl">
@@ -134,10 +134,10 @@ export default function StoryReel() {
                     <Zap size={10} />
                 </div>
             </div>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant opacity-40 group-hover/add:opacity-100 transition-opacity">Launch_Signal</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant opacity-40 group-hover/add:opacity-100 transition-opacity">Add Story</span>
         </button>
 
-        {/* Intelligence Streams */}
+        {/* Stories */}
         {loading ? (
              <div className="flex items-center gap-6 px-4">
                 {[1,2,3,4].map(i => <div key={i} className="w-16 h-16 rounded-[22px] bg-white/5 animate-pulse" />)}
@@ -165,12 +165,12 @@ export default function StoryReel() {
         )}
       </div>
 
-      {/* Volatile Intelligence Viewer (Story Modal) */}
+      {/* Story Viewer */}
       <AnimatePresence>
         {viewerOpen && viewerGroup && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[500] bg-black/95 backdrop-blur-3xl flex items-center justify-center font-sans italic italic">
             
-            {/* Neural Overlay Background */}
+            {/* Background Overlay */}
             <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(var(--white) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
             
             <div className="relative w-full max-w-[480px] h-full sm:max-h-[90vh] bg-surface-lowest shadow-[0_0_150px_rgba(0,0,0,1)] flex flex-col sm:rounded-[60px] overflow-hidden border border-white/5">
@@ -192,7 +192,7 @@ export default function StoryReel() {
                                 <h4 className="text-sm font-black text-white uppercase tracking-tighter italic">{viewerGroup.author.display_name}</h4>
                                 <div className="flex items-center gap-2">
                                     <Clock size={10} className="text-v-cyan" />
-                                    <span className="text-[9px] font-bold text-on-surface-variant opacity-60 uppercase tracking-widest">SIGNAL_EXPIRES: {new Date(viewerGroup.stories[viewerIdx].expires_at).toLocaleTimeString()}</span>
+                                    <span className="text-[9px] font-bold text-on-surface-variant opacity-60 uppercase tracking-widest">EXPIRES AT: {new Date(viewerGroup.stories[viewerIdx].expires_at).toLocaleTimeString()}</span>
                                 </div>
                              </div>
                         </div>

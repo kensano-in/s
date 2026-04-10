@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { deletePost, editPost, submitCommentDB, toggleLikeDB, toggleSaveDB } from '@/app/(main)/feed/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import KineticIcon from '@/components/ui/KineticIcon';
+import { SPRING } from '@/lib/motion';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -38,7 +39,7 @@ function renderParsedContent(rawText: string) {
                   <span className="text-sm font-black text-white italic uppercase tracking-tighter">{label}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] text-v-cyan uppercase tracking-widest font-black opacity-60">
-                      {isImage ? 'IMAGE_ASSET_READY' : 'VIDEO_ASSET_READY'}
+                      {isImage ? 'IMAGE' : 'VIDEO'}
                     </span>
                     <span className="text-[8px] text-white/20 uppercase tracking-tighter font-bold">
                       ({isImage ? 'View' : 'Play'})
@@ -154,7 +155,7 @@ export default function PostCard({ post, currentUserId }: Props) {
     const url = `${window.location.origin}/feed#${post.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      alert('LINK COPIED TO CLIPBOARD');
+      alert('Link copied to clipboard.');
     } catch(err) {
       console.log('Failed to copy', err);
     }
@@ -163,7 +164,7 @@ export default function PostCard({ post, currentUserId }: Props) {
 
   const handleDelete = async () => {
     setMenuOpen(false);
-    if (!confirm('EXECUTE PERMANENT ERASURE?')) return;
+    if (!confirm('Delete this post?')) return;
     const result = await deletePost(post.id);
     if (result?.success) setIsDeleted(true);
   };
@@ -183,8 +184,12 @@ export default function PostCard({ post, currentUserId }: Props) {
   if (isDeleted) return null;
 
   return (
-    <article
-      className="glass-card flex flex-col group overflow-hidden transition-all duration-500 hover:shadow-[0_45px_100px_-20px_rgba(0,0,0,0.6)] relative rounded-[40px] border-none bg-surface-lowest/40 backdrop-blur-3xl italic"
+    <motion.article
+      layout
+      whileHover={{ y: -3, boxShadow: '0 45px 100px -20px rgba(0,0,0,0.6)' }}
+      whileTap={{ scale: 0.98 }}
+      transition={SPRING.micro}
+      className="glass-card flex flex-col group overflow-hidden transition-all duration-primary relative rounded-[40px] border-none bg-surface-lowest/40 backdrop-blur-3xl italic"
       onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMousePos({ x: e.clientX - r.left, y: e.clientY - r.top }); }}
       onMouseEnter={() => setIsCardHovered(true)}
       onMouseLeave={() => setIsCardHovered(false)}
@@ -192,7 +197,7 @@ export default function PostCard({ post, currentUserId }: Props) {
       {/* Magnetic Signal Shimmer */}
       <div className="pointer-events-none absolute inset-0 z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: `radial-gradient(500px circle at ${mousePos.x}px ${mousePos.y}px, rgba(108, 99, 255, 0.05), transparent 40%)` }} />
       
-      {/* 2026 Neural Sweep (Advanced Glint) */}
+      {/* Sweep Glint */}
       <motion.div 
         animate={{ x: ['-100%', '300%'] }}
         transition={{ repeat: Infinity, duration: 6, ease: 'linear', delay: 2 }}
@@ -223,8 +228,8 @@ export default function PostCard({ post, currentUserId }: Props) {
                    <h4 className="text-base font-black italic text-white uppercase tracking-tighter leading-none">{post.author?.displayName}</h4>
                    {isPrimeUser && (
                      <div className="flex flex-col">
-                        <span className="text-[8px] font-black bg-v-violet/10 text-v-violet border border-v-violet/20 px-2 py-0.5 rounded-full tracking-widest uppercase mb-1">PRIME_IDENTITY</span>
-                        <span className="text-[7px] text-v-violet/60 font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Neural Verified Node</span>
+                        <span className="text-[8px] font-black bg-v-violet/10 text-v-violet border border-v-violet/20 px-2 py-0.5 rounded-full tracking-widest uppercase mb-1">VERIFIED</span>
+                        <span className="text-[7px] text-v-violet/60 font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Verified User</span>
                      </div>
                    )}
                 </div>
@@ -261,7 +266,7 @@ export default function PostCard({ post, currentUserId }: Props) {
             <div className="space-y-4">
               <textarea value={editContent} onChange={e => setEditContent(e.target.value)} className="w-full bg-surface-lowest border border-v-violet/30 text-white rounded-[32px] px-6 py-5 text-sm font-bold italic outline-none resize-none focus:border-v-violet transition-all shadow-inner" rows={4} autoFocus />
               <div className="flex gap-2">
-                <button onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 rounded-full bg-primary-gradient text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"> {isSaving ? 'SYNCING...' : 'COMMIT CHANGES'} </button>
+                <button onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 rounded-full bg-primary-gradient text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"> {isSaving ? 'SAVING...' : 'SAVE CHANGES'} </button>
                 <button onClick={() => { setIsEditing(false); setEditContent(post.content); }} className="px-6 py-2.5 rounded-full bg-surface-high text-on-surface-variant text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-all"> CANCEL </button>
               </div>
             </div>
@@ -308,14 +313,14 @@ export default function PostCard({ post, currentUserId }: Props) {
             {showCommentInput && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-4 pl-0 sm:pl-18 space-y-6 overflow-hidden">
                 <div className="w-full h-px bg-white/5 mb-6" />
-                {isLoadingComments ? <div className="text-[9px] font-black uppercase text-v-cyan animate-pulse tracking-[0.3em]">RETRIVING_NEURAL_REACTIONS...</div> : (
+                {isLoadingComments ? <div className="text-[9px] font-black uppercase text-v-cyan animate-pulse tracking-[0.3em]">Loading Comments...</div> : (
                   <div className="space-y-6 relative ml-4 border-l-2 border-white/5 pl-8">
                      {commentsStream.map(c => (
                         <div key={c.id} className="relative group/cmnt">
                            <div className="absolute -left-[41px] top-2 w-3 h-3 rounded-full bg-surface border-2 border-white/10 group-hover/cmnt:bg-v-cyan transition-colors" />
                            <div className="flex flex-col gap-1.5 p-5 bg-surface-lowest/60 rounded-[28px] border border-white/5 group-hover/cmnt:bg-surface-low transition-all">
                               <div className="flex items-center gap-3 mb-1">
-                                 <span className="text-xs font-black text-white italic uppercase tracking-tighter">{c.author?.display_name || 'Anonymous Node'}</span>
+                                 <span className="text-xs font-black text-white italic uppercase tracking-tighter">{c.author?.display_name || 'Anonymous User'}</span>
                                  <span className="text-[9px] font-bold text-v-cyan opacity-40">@{c.author?.username}</span>
                               </div>
                               <p className="text-[13px] font-medium leading-relaxed opacity-70 italic tracking-tight">{c.content}</p>
@@ -332,7 +337,7 @@ export default function PostCard({ post, currentUserId }: Props) {
             )}
         </AnimatePresence>
       </div>
-    </article>
+    </motion.article>
   );
 }
 

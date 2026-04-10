@@ -57,7 +57,7 @@ export async function createCommunity(formData: { name: string; displayName: str
       .single();
 
     if (error) {
-      if (error.code === '23505') return { success: false, error: 'Protocol identifier already registered.' };
+      if (error.code === '23505') return { success: false, error: 'Community name already exists.' };
       return { success: false, error: error.message };
     }
 
@@ -68,10 +68,100 @@ export async function createCommunity(formData: { name: string; displayName: str
       role: 'admin',
     });
 
+    // Create a default 'general' text channel
+    await supabase.from('community_channels').insert({
+      community_id: community.id,
+      name: 'general',
+      type: 'text'
+    });
+
     revalidatePath('/communities');
     return { success: true, community };
   } catch (err: any) {
     return { success: false, error: err.message || 'Internal error checking community' };
+  }
+}
+
+export async function getCommunityChannels(communityId: string) {
+  try {
+    const { data: channels, error } = await supabase
+      .from('community_channels')
+      .select('*')
+      .eq('community_id', communityId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return { success: true, channels: channels || [] };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getCommunityMessages(channelId: string) {
+  try {
+    const { data: messages, error } = await supabase
+      .from('community_messages')
+      .select(`
+        *,
+        sender:auth.users!sender_id (
+          id,
+          raw_user_meta_data
+        )
+      `)
+      .eq('channel_id', channelId)
+      .order('sent_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    
+    // Map sender info like normal messages
+    const parsed = ((messages as any[]) || []).map(m => ({
+      ...m,
+      sender_display: m.sender?.raw_user_meta_data?.display_name || 'User',
+    })).reverse();
+
+    return { success: true, messages: parsed };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function sendCommunityMessage(
+  channelId: string,
+  senderId: string,
+  content: string,
+  type: string = 'text',
+  mediaUrl?: string
+) {
+  try {
+    const { data, error } = await supabase
+      .from('community_messages')
+      .insert({
+        channel_id: channelId,
+        sender_id: senderId,
+        content,
+        type,
+        media_url: mediaUrl,
+      })
+      .select(`
+        *,
+        sender:auth.users!sender_id (
+          id,
+          raw_user_meta_data
+        )
+      `)
+      .single();
+
+    if (error) throw error;
+    
+    const parsed = {
+      ...(data as any),
+      sender_display: (data as any)?.sender?.raw_user_meta_data?.display_name || 'User',
+    };
+
+    return { success: true, data: parsed };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 

@@ -198,13 +198,13 @@ export default function CreatePost() {
                 )}
             </div>
 
-            {/* Signal Control Bar */}
+            {/* Post Options */}
             <div className="px-8 py-6 bg-white/[0.02] border-t border-white/5 flex flex-wrap items-center justify-between gap-6">
                 <div className="flex items-center gap-2">
-                    <CreatorAction icon={ImageIcon} color="text-v-cyan" onClick={() => imageInputRef.current?.click()} label="Vision" />
-                    <CreatorAction icon={Video} color="text-v-violet" onClick={() => videoInputRef.current?.click()} label="Motion" />
+                    <CreatorAction icon={ImageIcon} color="text-v-cyan" onClick={() => imageInputRef.current?.click()} label="Image" />
+                    <CreatorAction icon={Video} color="text-v-violet" onClick={() => videoInputRef.current?.click()} label="Video" />
                     <div className="relative">
-                        <CreatorAction icon={Smile} color="text-v-amber" onClick={() => setShowEmojiPicker(!showEmojiPicker)} label="Tone" />
+                        <CreatorAction icon={Smile} color="text-v-amber" onClick={() => setShowEmojiPicker(!showEmojiPicker)} label="Emoji" />
                         {showEmojiPicker && (
                             <div className="absolute bottom-full mb-4 left-0 p-4 bg-surface-highest border border-white/10 rounded-2xl shadow-3xl z-50 grid grid-cols-5 gap-2 w-52 animate-fade-in">
                                 {EMOJIS.map(e => <button key={e} type="button" onClick={() => { setContent(c => c + e); setShowEmojiPicker(false); }} className="text-xl hover:bg-white/10 p-2 rounded-lg">{e}</button>)}
@@ -221,7 +221,7 @@ export default function CreatePost() {
 
                 <div className="flex items-center gap-6">
                      <div className="flex flex-col items-end opacity-40">
-                         <span className={clsx('text-[10px] font-black tracking-widest uppercase', content.length > MAX_CHARS ? 'text-rose-500' : 'text-v-cyan')}>Character_Count</span>
+                         <span className={clsx('text-[10px] font-black tracking-widest uppercase', content.length > MAX_CHARS ? 'text-rose-500' : 'text-v-cyan')}>Characters</span>
                          <span className="text-[10px] font-mono">{content.length}/{MAX_CHARS}</span>
                      </div>
                      <button

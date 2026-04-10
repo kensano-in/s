@@ -1,322 +1,695 @@
 'use client';
 
-import { Search, TrendingUp, Compass, Hash, Sparkles, Activity, Radio, Globe, Zap, Loader2, Signal, Eye, MessageCircle } from 'lucide-react';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { getTrendingWaves, getDiscoverySignals } from './actions';
+import {
+  Search, TrendingUp, Users, Globe, Hash,
+  ArrowUpRight, Minus, ArrowDownRight,
+  Loader2, X, ChevronRight, ImageIcon, MessageCircle, Heart
+} from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import clsx from 'clsx';
+import { createClient } from '@/lib/supabase/client';
+import { getTrendingHashtags, getDiscoveryPosts, getSuggestedPeople, searchAll } from './actions';
 import Link from 'next/link';
-import PostCard from '@/components/features/feed/PostCard';
-import KineticIcon from '@/components/ui/KineticIcon';
+import { formatDistanceToNow } from 'date-fns';
+import clsx from 'clsx';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
 }
 
-const CATEGORIES = [
-  { id: 'trending', label: 'Trending', sub: 'Waves', icon: TrendingUp },
-  { id: 'broadcast', label: 'Broadcasts', sub: 'Live', icon: Radio },
-  { id: 'nodes', label: 'Top Nodes', sub: 'Verified', icon: Globe },
-  { id: 'matrix', label: 'Network Matrix', sub: 'Grid', icon: Signal }
-];
+function Avatar({ src, username, size = 36 }: { src?: string; username?: string; size?: number }) {
+  const fallback = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username || 'default'}`;
+  return (
+    <img
+      src={src || fallback}
+      alt={username || 'user'}
+      width={size}
+      height={size}
+      className="rounded-lg object-cover bg-[#1a1a1a] flex-shrink-0"
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
-export default function ExplorePage() {
-  const [activeTab, setActiveTab] = useState('trending');
-  const [waves, setWaves] = useState<any[]>([]);
-  const [signals, setSignals] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
+// ─── Tab definition ───────────────────────────────────────────────────────────
 
-  const loadExploreData = useCallback(async () => {
-    setLoading(true);
-    const wavesData = await getTrendingWaves();
-    if (Array.isArray(wavesData)) setWaves(wavesData);
-    
-    const signalsRes = await getDiscoverySignals();
-    if (signalsRes.success) {
-        setSignals((signalsRes.signals || []).map((m: any) => ({
-            ...m,
-            mediaUrls: m.media_urls || [],
-            author: {
-               id: m.author?.id,
-               username: m.author?.username,
-               displayName: m.author?.display_name,
-               avatar: m.author?.avatar_url,
-               security_score: m.author?.security_score
-            }
-        })));
-    }
-    setLoading(false);
-  }, []);
+const TABS = [
+  { id: 'all', label: 'Trending' },
+  { id: 'people', label: 'People' },
+  { id: 'communities', label: 'Communities' },
+  { id: 'media', label: 'Media' },
+] as const;
+type TabId = typeof TABS[number]['id'];
 
-  useEffect(() => {
-    loadExploreData();
-  }, [loadExploreData]);
+// ─── Trend icon ───────────────────────────────────────────────────────────────
 
-  // --- SEARCH: Debounced user + tag search ---
-  useEffect(() => {
-    if (searchQuery.trim().length < 2) { setSearchResults([]); return; }
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      const { data } = await supabase
-        .from('users')
-        .select('id, username, display_name, avatar_url')
-        .or(`username.ilike.%${searchQuery.trim()}%,display_name.ilike.%${searchQuery.trim()}%`)
-        .limit(6);
-      setSearchResults(data || []);
-      setIsSearching(false);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchQuery, supabase]);
+function TrendIcon({ trend }: { trend: 'up' | 'stable' | 'down' }) {
+  if (trend === 'up') return <ArrowUpRight size={13} className="text-emerald-400 flex-shrink-0" />;
+  if (trend === 'down') return <ArrowDownRight size={13} className="text-rose-400 flex-shrink-0" />;
+  return <Minus size={13} className="text-neutral-500 flex-shrink-0" />;
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-3 py-3 px-1 animate-pulse">
+      <div className="w-9 h-9 rounded-lg bg-[#1a1a1a] flex-shrink-0" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 bg-[#1a1a1a] rounded w-1/2" />
+        <div className="h-2.5 bg-[#161616] rounded w-1/3" />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return <div className="aspect-square bg-[#141414] rounded-xl animate-pulse border border-[#1f1f1f]" />;
+}
+
+function SkeletonTag() {
+  return (
+    <div className="flex items-center justify-between py-3 px-1 animate-pulse">
+      <div className="h-3 bg-[#1a1a1a] rounded w-24" />
+      <div className="h-3 bg-[#1a1a1a] rounded w-16" />
+    </div>
+  );
+}
+
+// ─── Search result sections ───────────────────────────────────────────────────
+
+function SearchResults({
+  results,
+  onClose,
+}: {
+  results: Awaited<ReturnType<typeof searchAll>>;
+  onClose: () => void;
+}) {
+  const hasAny =
+    results.users.length > 0 ||
+    results.posts.length > 0 ||
+    results.communities.length > 0 ||
+    results.tags.length > 0;
+
+  if (!hasAny) {
+    return (
+      <div className="px-4 py-8 text-center">
+        <p className="text-sm text-neutral-500">No results found</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-12 max-w-[1200px] mx-auto pb-40 animate-fade-in text-on-surface font-sans italic italic">
-      
-      {/* Sovereign Radar HUD */}
-      <div className="glass-card p-12 bg-surface-lowest/40 border-none rounded-[60px] shadow-[0_0_100px_rgba(0,255,255,0.05)] relative overflow-hidden group">
-         <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(var(--white) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-         <div className="absolute -inset-20 bg-v-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity blur-[100px] -z-10" />
-         
-         <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
-            <div className="flex-1 w-full space-y-4">
-                <div className="flex items-center gap-3 opacity-40 mb-2">
-                    <Activity size={14} className="text-v-cyan animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Network_Recon_Active</span>
-                </div>
-                <h1 className="text-5xl sm:text-7xl font-black italic tracking-tighter text-white uppercase leading-none mb-6">Discover <br/><span className="text-v-cyan">The Collective</span></h1>
-                 <div className="relative group/search max-w-xl">
-                    <div className="absolute left-6 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                        <KineticIcon icon={Search} size={22} color="var(--v-cyan)" active pulse />
-                    </div>
-                    <input 
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search people, tags, or signals..." 
-                      className="w-full bg-black/40 border-2 border-white/5 rounded-[30px] py-6 pl-16 pr-8 text-lg font-black italic tracking-tight text-white placeholder:text-on-surface-variant/20 focus:outline-none focus:border-v-cyan/20 focus:ring-1 focus:ring-v-cyan/20 transition-all font-mono"
-                    />
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3 opacity-30">
-                        {isSearching ? (
-                          <Loader2 size={14} className="animate-spin text-v-cyan opacity-100" />
-                        ) : (
-                          <>
-                            <span className="text-[8px] font-black uppercase tracking-[0.4em] text-v-emerald">Ready</span>
-                            <div className="w-2 h-2 rounded-full bg-v-emerald animate-pulse" />
-                          </>
-                        )}
-                    </div>
-                    {/* Scanning Line Animation */}
-                    <motion.div 
-                        animate={{ top: ['0%', '100%', '0%'] }} 
-                        transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-                        className="absolute left-4 right-4 h-[1px] bg-v-cyan/20 pointer-events-none blur-sm"
-                    />
-                    {/* Live Search Results Dropdown */}
-                    <AnimatePresence>
-                      {searchResults.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                          className="absolute top-full mt-3 left-0 right-0 bg-surface-lowest/95 backdrop-blur-2xl border border-white/5 rounded-[24px] overflow-hidden shadow-2xl z-50"
-                        >
-                          {searchResults.map((u: any) => (
-                            <a key={u.id} href={`/profile/${u.username}`} className="flex items-center gap-4 px-6 py-4 hover:bg-white/5 transition-all group/result">
-                              <img src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`} className="w-9 h-9 rounded-xl border border-white/10 object-cover" alt="avatar" />
-                              <div>
-                                <p className="text-xs font-black text-white italic">{u.display_name || u.username}</p>
-                                <p className="text-[10px] font-bold text-v-cyan opacity-60 uppercase tracking-widest">@{u.username}</p>
-                              </div>
-                            </a>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                 </div>
-            </div>
-            
-            <div className="hidden lg:flex items-center justify-center relative">
-                 <div className="w-64 h-64 border-4 border-white/5 rounded-full relative flex items-center justify-center animate-spin-slow">
-                     <span className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-v-cyan rounded-full shadow-[0_0_20px_var(--v-cyan)]" />
-                     <div className="w-48 h-48 border-[1px] border-white/5 rounded-full" />
-                 </div>
-                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <Signal size={40} className="text-v-cyan opacity-40 mb-2" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Scanning</span>
-                 </div>
-            </div>
-         </div>
-      </div>
+    <div className="divide-y divide-[#1f1f1f]">
+      {/* Users */}
+      {results.users.length > 0 && (
+        <section>
+          <div className="px-4 pt-3 pb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">People</span>
+          </div>
+          {results.users.map((u: any) => (
+            <Link
+              key={u.id}
+              href={`/${u.username}`}
+              onClick={onClose}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#111] transition-colors"
+            >
+              <Avatar src={u.avatar_url} username={u.username} size={36} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{u.display_name || u.username}</p>
+                <p className="text-xs text-neutral-500 truncate">@{u.username}</p>
+              </div>
+              <ChevronRight size={14} className="ml-auto text-neutral-700 flex-shrink-0" />
+            </Link>
+          ))}
+        </section>
+      )}
 
-      {/* Wave Selectors */}
-      <div className="flex flex-wrap gap-4 justify-center sm:justify-start px-4 relative">
-        {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const active = activeTab === cat.id;
-            return (
-                <button
-                    key={cat.id}
-                    onClick={() => setActiveTab(cat.id)}
-                    className={clsx(
-                        'group flex items-center gap-4 px-10 py-5 rounded-[25px] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 overflow-hidden relative shadow-2xl',
-                        active ? 'text-white translate-y-[-4px]' : 'bg-surface-lowest/40 text-on-surface-variant border border-white/5 hover:bg-white/5'
-                    )}
-                >
-                    <div className="relative z-10">
-                        <KineticIcon 
-                            icon={Icon} 
-                            size={16} 
-                            active={active} 
-                            pulse={active} 
-                            color={active ? 'white' : 'currentColor'} 
-                        />
-                    </div>
-                    <div className="flex flex-col items-start relative z-10 transition-transform duration-500 group-hover:translate-x-1">
-                        <span className="leading-none mb-0.5">{cat.label}</span>
-                        <span className={clsx('text-[7px] font-black tracking-[0.3em] opacity-40', active && 'text-white/60')}>({cat.sub})</span>
-                    </div>
-                    
-                    {active && (
-                       <motion.div 
-                        layoutId="explore-active-pill"
-                        className="absolute inset-0 bg-primary-gradient -z-0"
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                       />
-                    )}
-                </button>
-            )
-        })}
-      </div>
-
-      {/* Discovery Matrix Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 px-2">
-        {/* WAVE TRENDS (LEFT) */}
-        <div className="lg:col-span-1 space-y-8">
-            <div className="flex items-center gap-4 px-4">
-                <KineticIcon icon={TrendingUp} size={18} color="var(--v-violet)" pulse />
-                <div className="flex flex-col">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic leading-none">Active_Waves</h3>
-                    <span className="text-[7px] font-black tracking-[0.2em] text-on-surface-variant opacity-40 uppercase">Global Trends</span>
-                </div>
-            </div>
-            
-            <div className="glass-card p-10 bg-surface-lowest/20 border-none rounded-[50px] shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-v-violet/5 blur-3xl rounded-full" />
-                
-                {loading ? (
-                    <div className="py-20 flex flex-col items-center opacity-30">
-                        <Loader2 size={24} className="animate-spin mb-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest italic">Finding Trends...</span>
-                    </div>
+      {/* Communities */}
+      {results.communities.length > 0 && (
+        <section>
+          <div className="px-4 pt-3 pb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">Communities</span>
+          </div>
+          {results.communities.map((c: any) => (
+            <Link
+              key={c.id}
+              href={`/communities/${c.id}`}
+              onClick={onClose}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#111] transition-colors"
+            >
+              <div
+                className="w-9 h-9 rounded-lg flex-shrink-0 overflow-hidden bg-[#1a1a1a]"
+              >
+                {c.icon_url ? (
+                  <img src={c.icon_url} className="w-full h-full object-cover" alt={c.name} />
                 ) : (
-                    <div className="space-y-6">
-                        {(waves.length > 0 ? waves : [
-                            { tag: '#SignalCore', count: 1200 },
-                            { tag: '#VerlynOS', count: 840 },
-                            { tag: '#NeuralGrid', count: 520 },
-                            { tag: '#E2EE_Privacy', count: 310 },
-                            { tag: '#CyberExpanse', count: 220 },
-                            { tag: '#PrimeIdentity', count: 180 }
-                        ]).map((t, index) => (
-                            <motion.div 
-                                key={t.tag}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                className="flex items-center justify-between p-5 rounded-[24px] hover:bg-white/5 border border-transparent hover:border-white/5 transition-all cursor-pointer group"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <Hash size={16} className="text-v-violet opacity-40 group-hover:opacity-100 transition-opacity" />
-                                    <span className="text-sm font-black italic group-hover:text-v-cyan transition-colors uppercase tracking-tight">{t.tag}</span>
-                                </div>
-                                <div className="flex flex-col items-end opacity-40">
-                                    <span className="text-[10px] font-mono text-white leading-none mb-1">{fmt(t.count)}</span>
-                                    <span className="text-[8px] font-black uppercase tracking-widest">Hits</span>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-neutral-400">
+                    {c.display_name?.[0]?.toUpperCase() || '#'}
+                  </div>
                 )}
-            </div>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{c.display_name || c.name}</p>
+                <p className="text-xs text-neutral-500">{fmt(c.member_count || 0)} members</p>
+              </div>
+              <ChevronRight size={14} className="ml-auto text-neutral-700 flex-shrink-0" />
+            </Link>
+          ))}
+        </section>
+      )}
 
-            <div className="glass-card p-10 bg-v-cyan/5 border border-v-cyan/10 rounded-[50px] shadow-2xl flex flex-col justify-between h-40 group">
-                <div className="flex justify-between items-start">
-                    <Sparkles size={24} className="text-v-cyan animate-pulse" />
-                    <span className="text-[8px] font-black uppercase tracking-widest text-v-cyan border border-v-cyan/20 px-2 py-0.5 rounded-lg">AI_SCAN_ACTIVE</span>
-                </div>
-                <p className="text-xs font-black italic tracking-tight text-on-surface-variant opacity-80 group-hover:opacity-100 transition-opacity">Discover personalized intelligence nodes based on your current signal modulation.</p>
-            </div>
-        </div>
+      {/* Posts */}
+      {results.posts.length > 0 && (
+        <section>
+          <div className="px-4 pt-3 pb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">Posts</span>
+          </div>
+          {results.posts.map((p: any) => (
+            <Link
+              key={p.id}
+              href={`/feed#${p.id}`}
+              onClick={onClose}
+              className="flex items-start gap-3 px-4 py-2.5 hover:bg-[#111] transition-colors"
+            >
+              <Avatar src={p.author?.avatar_url} username={p.author?.username} size={32} />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-neutral-300 truncate">@{p.author?.username}</p>
+                <p className="text-xs text-neutral-500 line-clamp-2 mt-0.5">{p.preview}</p>
+              </div>
+            </Link>
+          ))}
+        </section>
+      )}
 
-        {/* FEED SELECTION (RIGHT) */}
-        <div className="lg:col-span-2 space-y-8">
-            <div className="flex items-center gap-4 px-4">
-                <Signal size={18} className="text-v-emerald" />
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-white">Intelligence_Signals</h3>
+      {/* Tags */}
+      {results.tags.length > 0 && (
+        <section>
+          <div className="px-4 pt-3 pb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">Tags</span>
+          </div>
+          {results.tags.map((t: any) => (
+            <div
+              key={t.tag}
+              className="flex items-center justify-between px-4 py-2.5 hover:bg-[#111] transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Hash size={14} className="text-neutral-600" />
+                <span className="text-sm text-white">{t.tag}</span>
+              </div>
+              <span className="text-xs text-neutral-500">{t.count} posts</span>
             </div>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
 
-            <div className="space-y-8">
-                {loading ? (
-                    <div className="grid grid-cols-2 gap-8 opacity-20">
-                         {[1,2,3,4].map(i => <div key={i} className="aspect-video bg-white/5 rounded-[40px] animate-pulse" />)}
-                    </div>
-                ) : signals.length === 0 ? (
-                    <div className="py-40 text-center opacity-30 italic glass-card border-none bg-surface-lowest/10 rounded-[60px]">
-                        <Compass size={40} className="mx-auto mb-6 text-on-surface-variant/20" />
-                        <p className="text-[11px] font-black uppercase tracking-[0.5em] leading-none">Mapping Unknown Space</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {signals.map((p, index) => (
-                            <motion.div 
-                                key={p.id}
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="group relative"
-                            >
-                                <div className="absolute -inset-1 bg-primary-gradient rounded-[50px] blur-2xl opacity-0 group-hover:opacity-10 transition-opacity" />
-                                <div className="glass-card bg-surface-lowest/40 border-none rounded-[50px] overflow-hidden shadow-2xl relative z-10 transition-transform duration-700 group-hover:translate-y-[-8px]">
-                                    {p.mediaUrls?.[0] ? (
-                                        <div className="aspect-[16/10] overflow-hidden">
-                                            <img src={p.mediaUrls[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="signal" />
-                                        </div>
-                                    ) : (
-                                        <div className="aspect-[16/10] bg-white/[0.02] flex items-center justify-center p-10">
-                                            <p className="text-sm font-black text-center italic text-on-surface opacity-60 uppercase tracking-tighter leading-relaxed">
-                                                {p.content.slice(0, 120)}{p.content.length > 120 ? '...' : ''}
-                                            </p>
-                                        </div>
-                                    )}
-                                     <div className="p-8 space-y-4">
-                                         <div className="flex items-center justify-between">
-                                             <Link href={`/profile/${p.author?.username}`} className="flex items-center gap-3">
-                                                 <img src={p.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.author?.username}`} className="w-8 h-8 rounded-xl border border-white/10" alt="node" />
-                                                 <span className="text-[11px] font-black uppercase tracking-widest text-white italic group-hover:text-v-cyan transition-colors">@{p.author?.username}</span>
-                                             </Link>
-                                             <div className="flex items-center gap-4 text-on-surface-variant opacity-40">
-                                                  <div className="flex items-center gap-1.5"><KineticIcon icon={Eye} size={12} color="currentColor" /> <span className="text-[10px] font-mono">{fmt(p.likeCount * 5)}</span></div>
-                                                  <div className="flex items-center gap-1.5"><KineticIcon icon={MessageCircle} size={12} color="currentColor" /> <span className="text-[10px] font-mono">{p.commentCount}</span></div>
-                                             </div>
-                                         </div>
-                                     </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                )}
-            </div>
-            
-            <button className="w-full py-8 border-2 border-white/5 rounded-[40px] text-[11px] font-black uppercase tracking-[0.6em] text-on-surface-variant hover:text-white hover:bg-white/5 transition-all text-center">
-                Expand_Matrix_Deep_Scan
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function ExplorePage() {
+  const [query, setQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof searchAll>> | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  const [activeTab, setActiveTab] = useState<TabId>('all');
+  const [trending, setTrending] = useState<any[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [people, setPeople] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const supabase = useMemo(() => createClient(), []);
+
+  // ── Load page data ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const [trendingData, postsData, peopleData] = await Promise.all([
+        getTrendingHashtags(),
+        getDiscoveryPosts(),
+        getSuggestedPeople(),
+      ]);
+      if (cancelled) return;
+      setTrending(trendingData);
+      if (postsData.success) setPosts(postsData.posts);
+      setPeople(peopleData);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Load recent searches from localStorage ──────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('explore_recent') || '[]');
+      if (Array.isArray(saved)) setRecentSearches(saved.slice(0, 5));
+    } catch { /* ignore */ }
+  }, []);
+
+  // ── Live search with debounce ───────────────────────────────────────────────
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSearchResults(null);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      const results = await searchAll(query);
+      setSearchResults(results);
+      setIsSearching(false);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // ── Close dropdown on outside click ────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current && !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setQuery('');
+    setSearchResults(null);
+    setShowDropdown(false);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    if (!query.trim()) return;
+    setRecentSearches(prev => {
+      const next = [query.trim(), ...prev.filter(s => s !== query.trim())].slice(0, 5);
+      localStorage.setItem('explore_recent', JSON.stringify(next));
+      return next;
+    });
+  }, [query]);
+
+  const handleRecentClick = useCallback((s: string) => {
+    setQuery(s);
+    setShowDropdown(true);
+    inputRef.current?.focus();
+  }, []);
+
+  const clearRecent = useCallback(() => {
+    setRecentSearches([]);
+    localStorage.removeItem('explore_recent');
+  }, []);
+
+  // ── Filter posts for media tab ──────────────────────────────────────────────
+  const mediaPosts = useMemo(() => posts.filter(p => p.mediaUrls?.length > 0), [posts]);
+
+  const isSearchActive = query.trim().length >= 2;
+
+  return (
+    <div className="max-w-3xl mx-auto pb-20 space-y-0">
+
+      {/* ─── Search Core ───────────────────────────────────────────────────── */}
+      <motion.div layout className="relative pt-4 pb-3 z-30" style={{ position: 'sticky', top: 0, background: '#050505' }}>
+        <motion.div 
+           layout
+           animate={{ scale: showDropdown ? 1.02 : 1 }}
+           transition={{ type: "spring", stiffness: 400, damping: 30 }}
+           className="relative"
+        >
+          <Search
+            size={16}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
+          />
+          <input
+            ref={inputRef}
+            id="explore-search-input"
+            type="text"
+            value={query}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={e => { setQuery(e.target.value); setShowDropdown(true); }}
+            onFocus={() => setShowDropdown(true)}
+            onKeyDown={e => e.key === 'Enter' && handleSearchSubmit()}
+            placeholder="Search users, posts, communities..."
+            className="w-full h-11 bg-[#111] border border-[#222] rounded-lg pl-10 pr-10 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-[#3b82f6] transition-colors"
+          />
+          {query && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 hover:text-neutral-400 transition-colors p-0.5"
+            >
+              <X size={14} />
             </button>
+          )}
+        </motion.div>
+
+        {/* ─── Search Dropdown ───────────────────────────────────────────── */}
+        <AnimatePresence>
+          {showDropdown && (
+            <motion.div
+              ref={dropdownRef}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="absolute top-full left-0 right-0 mt-1 bg-[#0a0a0a] border border-[#1f1f1f] rounded-xl overflow-hidden lux-shadow z-50"
+            >
+            {isSearchActive ? (
+              isSearching ? (
+                /* Skeleton while loading */
+                <div className="px-4 py-2 space-y-0">
+                  <div className="px-0 pt-3 pb-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-700">Searching...</span>
+                  </div>
+                  {[1, 2, 3].map(i => <SkeletonRow key={i} />)}
+                </div>
+              ) : searchResults ? (
+                <SearchResults results={searchResults} onClose={() => setShowDropdown(false)} />
+              ) : null
+            ) : (
+              /* Recent searches fallback */
+              recentSearches.length > 0 ? (
+                <div>
+                  <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">Recent</span>
+                    <button onClick={clearRecent} className="text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors">
+                      Clear
+                    </button>
+                  </div>
+                  {recentSearches.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => handleRecentClick(s)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#111] transition-colors"
+                    >
+                      <Search size={13} className="text-neutral-700 flex-shrink-0" />
+                      <span className="text-sm text-neutral-400">{s}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-5 text-center">
+                  <p className="text-xs text-neutral-600">Start typing to search</p>
+                </div>
+              )
+            )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* ─── Tab chips ─────────────────────────────────────────────────────── */}
+      {!isSearchActive && (
+        <>
+          <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1 pt-1">
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                id={`explore-tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  'flex-shrink-0 text-xs font-medium px-4 h-8 rounded-full transition-colors',
+                  activeTab === tab.id
+                    ? 'bg-white text-black'
+                    : 'bg-[#141414] text-neutral-400 border border-[#222] hover:bg-[#1a1a1a] hover:text-white'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ─── Content sections ─────────────────────────────────────────── */}
+
+          {/* TRENDING TAB */}
+          {activeTab === 'all' && (
+            <div className="space-y-6 pt-4">
+
+              {/* Trending hashtags */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={14} className="text-neutral-500" />
+                  <h2 className="text-sm font-semibold text-white">Trending</h2>
+                </div>
+
+                <div className="rounded-xl border border-[#1f1f1f] overflow-hidden divide-y divide-[#1a1a1a]">
+                  {loading
+                    ? [1, 2, 3, 4, 5].map(i => <div key={i} className="px-4"><SkeletonTag /></div>)
+                    : trending.length === 0
+                    ? (
+                      <div className="px-4 py-8 text-center">
+                        <p className="text-sm text-neutral-600">No trending topics yet</p>
+                      </div>
+                    )
+                    : trending.map((t, i) => (
+                      <div
+                        key={t.tag}
+                        className="flex items-center justify-between px-4 py-3 hover:bg-[#111] transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-xs text-neutral-700 w-4 flex-shrink-0 font-mono">{i + 1}</span>
+                          <Hash size={12} className="text-neutral-600 flex-shrink-0" />
+                          <span className="text-sm text-white font-medium truncate">{t.tag.replace('#', '')}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                          <span className="text-xs text-neutral-500">{t.countFmt} posts</span>
+                          <TrendIcon trend={t.trend} />
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </section>
+
+              {/* Discovery posts grid */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <ImageIcon size={14} className="text-neutral-500" />
+                  <h2 className="text-sm font-semibold text-white">Discover</h2>
+                </div>
+
+                {loading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="rounded-xl border border-[#1f1f1f] py-12 text-center">
+                    <p className="text-sm text-neutral-600">Nothing to discover yet</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {posts.slice(0, 12).map(p => (
+                      <PostTile key={p.id} post={p} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* PEOPLE TAB */}
+          {activeTab === 'people' && (
+            <div className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Users size={14} className="text-neutral-500" />
+                <h2 className="text-sm font-semibold text-white">People</h2>
+              </div>
+              <div className="rounded-xl border border-[#1f1f1f] overflow-hidden divide-y divide-[#1a1a1a]">
+                {loading
+                  ? [1,2,3,4,5].map(i => <div key={i} className="px-4"><SkeletonRow /></div>)
+                  : people.length === 0
+                  ? (
+                    <div className="px-4 py-12 text-center">
+                      <p className="text-sm text-neutral-600">No users found</p>
+                    </div>
+                  )
+                  : people.map((u: any) => (
+                    <Link
+                      key={u.id}
+                      href={`/${u.username}`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-[#111] transition-colors"
+                    >
+                      <Avatar src={u.avatar_url} username={u.username} size={40} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white truncate">{u.display_name || u.username}</p>
+                        <p className="text-xs text-neutral-500 truncate">@{u.username}</p>
+                        {u.bio && <p className="text-xs text-neutral-600 truncate mt-0.5">{u.bio}</p>}
+                      </div>
+                      <ChevronRight size={14} className="text-neutral-700 flex-shrink-0" />
+                    </Link>
+                  ))
+                }
+              </div>
+            </div>
+          )}
+
+          {/* COMMUNITIES TAB */}
+          {activeTab === 'communities' && (
+            <CommunitiesTab />
+          )}
+
+          {/* MEDIA TAB */}
+          {activeTab === 'media' && (
+            <div className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ImageIcon size={14} className="text-neutral-500" />
+                <h2 className="text-sm font-semibold text-white">Media</h2>
+              </div>
+              {loading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
+                </div>
+              ) : mediaPosts.length === 0 ? (
+                <div className="rounded-xl border border-[#1f1f1f] py-12 text-center">
+                  <p className="text-sm text-neutral-600">No media posts yet</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {mediaPosts.map(p => (
+                    <PostTile key={p.id} post={p} forceImage />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Post tile for grid view ──────────────────────────────────────────────────
+
+function PostTile({ post, forceImage }: { post: any; forceImage?: boolean }) {
+  const hasImage = post.mediaUrls?.length > 0;
+
+  return (
+    <Link
+      href={`/feed#${post.id}`}
+      className="relative group rounded-xl overflow-hidden border border-[#1f1f1f] bg-[#141414] hover:border-[#2a2a2a] transition-colors"
+      style={{ aspectRatio: '1/1' }}
+    >
+      {hasImage ? (
+        <img
+          src={post.mediaUrls[0]}
+          alt="post"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center p-3">
+          <p className="text-xs text-neutral-500 line-clamp-4 text-center leading-relaxed">
+            {post.content?.slice(0, 120)}
+          </p>
         </div>
+      )}
+
+      {/* Hover overlay with stats */}
+      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+        <div className="flex items-center gap-3 text-white text-xs">
+          <span className="flex items-center gap-1">
+            <Heart size={11} />
+            {fmt(post.like_count || 0)}
+          </span>
+          <span className="flex items-center gap-1">
+            <MessageCircle size={11} />
+            {fmt(post.comment_count || 0)}
+          </span>
+        </div>
+      </div>
+
+      {/* Author micro-chip */}
+      <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1.5 bg-black/80 rounded-full px-2 py-1 backdrop-blur-sm">
+          <img
+            src={post.author?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author?.username}`}
+            className="w-4 h-4 rounded-full"
+            alt={post.author?.username}
+          />
+          <span className="text-[10px] text-white font-medium">@{post.author?.username}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// ─── Communities tab (client-side data fetch) ─────────────────────────────────
+
+function CommunitiesTab() {
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('communities')
+      .select('id, name, display_name, description, icon_url, member_count')
+      .order('member_count', { ascending: false })
+      .limit(20)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setCommunities(data || []);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  return (
+    <div className="pt-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Globe size={14} className="text-neutral-500" />
+        <h2 className="text-sm font-semibold text-white">Communities</h2>
+      </div>
+      <div className="rounded-xl border border-[#1f1f1f] overflow-hidden divide-y divide-[#1a1a1a]">
+        {loading
+          ? [1,2,3,4,5].map(i => <div key={i} className="px-4"><SkeletonRow /></div>)
+          : communities.length === 0
+          ? (
+            <div className="px-4 py-12 text-center">
+              <p className="text-sm text-neutral-600">No communities yet</p>
+            </div>
+          )
+          : communities.map((c: any) => (
+            <Link
+              key={c.id}
+              href={`/communities/${c.id}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-[#111] transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-[#1a1a1a] flex-shrink-0">
+                {c.icon_url ? (
+                  <img src={c.icon_url} className="w-full h-full object-cover" alt={c.name} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-sm font-bold text-neutral-500">
+                    {c.display_name?.[0]?.toUpperCase() || '#'}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white truncate">{c.display_name || c.name}</p>
+                <p className="text-xs text-neutral-500">{fmt(c.member_count || 0)} members</p>
+                {c.description && (
+                  <p className="text-xs text-neutral-600 truncate mt-0.5">{c.description}</p>
+                )}
+              </div>
+              <ChevronRight size={14} className="text-neutral-700 flex-shrink-0" />
+            </Link>
+          ))
+        }
       </div>
     </div>
   );

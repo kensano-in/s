@@ -1,0 +1,483 @@
+"use client";
+
+import { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface ThemeBackgroundProps {
+  themeId?: string;
+}
+
+// ── Components for specific effects ─────────────────────────────────────
+
+/**
+ * Animated ripples for water themes
+ */
+function ZenRipples() {
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const id = Date.now();
+      const x = Math.random() * 100;
+      const y = Math.random() * 100;
+      setRipples((prev) => [...prev.slice(-5), { id, x, y }]);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      <AnimatePresence>
+        {ripples.map((r) => (
+          <motion.div
+            key={r.id}
+            initial={{ scale: 0, opacity: 0.8 }}
+            animate={{ 
+              scale: 6, 
+              opacity: [0, 0.3, 0],
+              borderWidth: ["1px", "4px", "1px"]
+            }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 8, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute rounded-full border border-white/30"
+            style={{
+              left: `${r.x}%`,
+              top: `${r.y}%`,
+              width: "150px",
+              height: "150px",
+              marginLeft: "-75px",
+              marginTop: "-75px",
+              filter: "blur(4px)",
+            }}
+          />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * Floating particles like petals, dust, or fireflies
+ */
+function FloatingParticles({ type }: { type: "petals" | "dust" | "fireflies" | "motes" }) {
+  const particleCount = 15;
+  const particles = useMemo(() => {
+    return Array.from({ length: particleCount }).map((_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * (type === "petals" ? 15 : 4) + 2,
+      duration: Math.random() * 20 + 10,
+      delay: Math.random() * 10,
+    }));
+  }, [type]);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          initial={{ 
+            x: `${p.x}%`, 
+            y: "110%", 
+            opacity: 0, 
+            rotate: 0 
+          }}
+          animate={{
+            y: ["110%", "-20%"],
+            x: [`${p.x}%`, `${p.x + (Math.random() * 30 - 15)}%`, `${p.x}%`],
+            opacity: [0, 0.6, 0.6, 0],
+            rotate: type === "petals" ? [0, 180, 360, 540] : 0,
+            scale: type === "fireflies" ? [1, 1.5, 1] : 1,
+          }}
+          transition={{
+            duration: p.duration,
+            repeat: Infinity,
+            delay: p.delay,
+            ease: "linear",
+          }}
+          className={clsx(
+            "absolute rounded-full",
+            type === "petals" ? "bg-white/40" : 
+            type === "fireflies" ? "bg-yellow-400/60 shadow-[0_0_10px_rgba(250,204,21,0.6)]" : 
+            "bg-white/20"
+          )}
+          style={{
+            width: p.size,
+            height: type === "petals" ? p.size * 0.7 : p.size,
+            borderRadius: type === "petals" ? "40% 60% 50% 50%" : "50%",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Shimmering light rays (God rays)
+ */
+function GodRays({ color = "rgba(255,255,255,0.05)" }: { color?: string }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute top-[-50%] left-[-20%] w-[150%] h-[200%] origin-top rotate-[25deg]"
+          style={{
+            background: `linear-gradient(90deg, transparent 0%, ${color} 50%, transparent 100%)`,
+            filter: "blur(40px)",
+          }}
+          animate={{
+            x: ["-15%", "15%", "-15%"],
+            opacity: [0.2, 0.5, 0.2],
+            skewX: [0, 5, 0],
+          }}
+          transition={{
+            duration: 8 + i * 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Swaying lanterns logic
+ */
+function SwayingLanterns() {
+  return (
+    <div className="absolute inset-x-0 top-0 h-1/2 pointer-events-none z-10 flex justify-around px-10">
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={i}
+          animate={{ rotate: [-2, 2, -2] }}
+          transition={{ duration: 4 + i, repeat: Infinity, ease: "easeInOut" }}
+          className="relative flex flex-col items-center origin-top pt-4"
+        >
+          <div className="w-[1px] h-10 bg-white/20" />
+          <div className="w-8 h-12 bg-orange-500/30 border border-orange-500/50 rounded-xl relative">
+            <motion.div 
+              animate={{ opacity: [0.4, 0.8, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute inset-1 rounded-lg bg-orange-400 blur-sm" 
+            />
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Optimized Rainfall
+ */
+function Rainfall({ intensity = "medium" }: { intensity?: "light" | "medium" | "heavy" }) {
+  const drops = useMemo(() => {
+    const count = intensity === "light" ? 20 : intensity === "medium" ? 40 : 60;
+    return Array.from({ length: count }).map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      duration: 0.5 + Math.random() * 0.5,
+      delay: Math.random() * 2,
+      opacity: 0.1 + Math.random() * 0.2,
+    }));
+  }, [intensity]);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
+      {drops.map((d) => (
+        <motion.div
+          key={d.id}
+          initial={{ y: "-10%" }}
+          animate={{ y: "110%" }}
+          transition={{ duration: d.duration, repeat: Infinity, delay: d.delay, ease: "linear" }}
+          className="absolute w-[1px] h-8 bg-white"
+          style={{ left: `${d.left}%`, opacity: d.opacity }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * TV / Neon Flicker
+ */
+function FlickerGlow({ color }: { color: string }) {
+  return (
+    <motion.div
+      animate={{ opacity: [0.1, 0.3, 0.2, 0.4, 0.1] }}
+      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+      className="absolute inset-0 blur-3xl pointer-events-none"
+      style={{ background: `radial-gradient(circle at 50% 50%, ${color}, transparent 70%)` }}
+    />
+  );
+}
+
+/**
+ * Swirling Van Gogh sky logic
+ */
+function SkySwirls() {
+  return (
+    <div className="absolute inset-x-0 top-0 h-3/4 overflow-hidden pointer-events-none z-0 opacity-30">
+      {[...Array(4)].map((_, i) => (
+        <motion.div
+          key={i}
+          animate={{ rotate: [0, 360], scale: [1, 1.2, 1] }}
+          transition={{ duration: 20 + i * 5, repeat: Infinity, ease: "linear" }}
+          className="absolute w-64 h-64 border-[30px] border-white/10 rounded-full blur-3xl shadow-[0_0_100px_rgba(255,255,255,0.1)]"
+          style={{
+            top: `${Math.random() * 60}%`,
+            left: `${Math.random() * 80}%`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Pixelated twinkling stars
+ */
+function TwinklingStars() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      {[...Array(20)].map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 0.4, 1, 0] }}
+          transition={{ duration: 3 + Math.random() * 3, repeat: Infinity, delay: Math.random() * 5 }}
+          className="absolute w-1 h-1 bg-white shadow-[0_0_5px_white]"
+          style={{ top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Warm Lantern Sway
+ */
+function LanternSway({ color }: { color: string }) {
+  return (
+    <motion.div
+      animate={{ rotate: [-2, 2, -2], opacity: [0.6, 0.9, 0.6] }}
+      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+      className="absolute w-32 h-32 blur-2xl"
+      style={{ background: `radial-gradient(circle, ${color}, transparent 70%)` }}
+    />
+  );
+}
+
+/**
+ * Rapid forest light streaks - Fixed 'Glitch' edition
+ */
+function SunStreaks() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{ x: "-150%" }}
+          animate={{ x: "250%" }}
+          transition={{ 
+            duration: 1.5 + Math.random() * 2, 
+            repeat: Infinity, 
+            delay: Math.random() * 5,
+            ease: "easeInOut" 
+          }}
+          className="absolute w-64 h-[200%] blur-[120px] transform skew-x-12"
+          style={{ 
+            top: "-50%", 
+            left: `${i * 30}%`,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)'
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Main Engine ──────────────────────────────────────────────────────────
+
+import { clsx } from "clsx";
+
+export default function ThemeBackground({ themeId }: ThemeBackgroundProps) {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleMouse = (e: MouseEvent) => {
+      setMousePos({
+        x: (e.clientX / window.innerWidth - 0.5) * 20,
+        y: (e.clientY / window.innerHeight - 0.5) * 20,
+      });
+    };
+    window.addEventListener("mousemove", handleMouse);
+    return () => window.removeEventListener("mousemove", handleMouse);
+  }, []);
+
+  if (!themeId) return null;
+
+  return (
+    <motion.div 
+      animate={{ x: -mousePos.x, y: -mousePos.y }}
+      transition={{ type: "spring", stiffness: 50, damping: 20 }}
+      className="absolute inset-[-20px] z-0 overflow-hidden pointer-events-none"
+    >
+      {/* Dynamic Effects based on Theme ID */}
+      
+      {themeId === "cozy-lanterns" && (
+        <>
+          <GodRays color="rgba(255, 100, 0, 0.05)" />
+          <LanternSway color="rgba(255, 150, 50, 0.08)" />
+          <FloatingParticles type="fireflies" />
+          <FloatingParticles type="motes" />
+        </>
+      )}
+
+      {themeId === "spirit-path" && (
+        <>
+          <GodRays color="rgba(100, 255, 100, 0.03)" />
+          <FloatingParticles type="motes" />
+          <FloatingParticles type="petals" />
+          <Rainfall intensity="light" />
+        </>
+      )}
+
+      {themeId === "cloud-view" && (
+        <>
+          <GodRays color="rgba(255, 255, 255, 0.1)" />
+          <FloatingParticles type="motes" />
+          <motion.div 
+            animate={{ x: ["-5%", "5%", "-5%"] }}
+            transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0 bg-[url('/themes/ethereal_sky.png')] bg-cover opacity-20 scale-110 blur-xl"
+          />
+        </>
+      )}
+
+      {themeId === "cat-shop" && (
+        <>
+          <GodRays color="rgba(255, 243, 208, 0.1)" />
+          <FloatingParticles type="fireflies" />
+          <FlickerGlow color="rgba(255, 200, 100, 0.1)" />
+        </>
+      )}
+
+      {themeId === "zen-ripples" && (
+        <>
+          <ZenRipples />
+          <GodRays color="rgba(100, 200, 255, 0.05)" />
+          <FloatingParticles type="petals" />
+        </>
+      )}
+
+      {themeId === "sunset-train" && (
+        <>
+          <ZenRipples />
+          <SunStreaks />
+          <FloatingParticles type="motes" />
+        </>
+      )}
+
+      {themeId === "rainy-bus-stop" && (
+        <>
+          <Rainfall intensity="medium" />
+          <GodRays color="rgba(200, 220, 255, 0.05)" />
+          <FloatingParticles type="dust" />
+        </>
+      )}
+
+      {themeId === "midnight-room" && (
+        <>
+          <FlickerGlow color="rgba(59, 130, 246, 0.15)" />
+          <TwinklingStars />
+          <FloatingParticles type="dust" />
+        </>
+      )}
+
+      {themeId === "signal-beams" && (
+        <>
+          <GodRays color="rgba(255, 255, 255, 0.15)" />
+          <FloatingParticles type="petals" />
+          <SkySwirls />
+        </>
+      )}
+
+      {themeId === "rainy-courtyard" && (
+        <>
+          <Rainfall intensity="light" />
+          <ZenRipples />
+          <GodRays color="rgba(255, 200, 100, 0.05)" />
+        </>
+      )}
+
+      {themeId === "jacaranda-breeze" && (
+        <>
+          <GodRays color="rgba(196, 181, 253, 0.1)" />
+          <FloatingParticles type="petals" />
+        </>
+      )}
+
+      {themeId === "golden-canal" && (
+        <>
+          <ZenRipples />
+          <GodRays color="rgba(253, 224, 71, 0.1)" />
+        </>
+      )}
+
+      {themeId === "galactic-pixel" && (
+        <>
+          <TwinklingStars />
+          <FloatingParticles type="dust" />
+        </>
+      )}
+
+      {themeId === "lemon-study" && (
+        <>
+          <GodRays color="rgba(253, 224, 71, 0.12)" />
+          <Rainfall intensity="light" />
+        </>
+      )}
+
+      {themeId === "starry-climber" && (
+        <>
+          <SkySwirls />
+          <FloatingParticles type="dust" />
+        </>
+      )}
+
+      {themeId === "starry-cabin" && (
+        <>
+          <GodRays color="rgba(255, 230, 150, 0.1)" />
+          <LanternSway color="rgba(255, 200, 50, 0.15)" />
+          <FloatingParticles type="fireflies" />
+        </>
+      )}
+
+      {themeId === "forest-train" && (
+        <>
+          <SunStreaks />
+          <FloatingParticles type="motes" />
+        </>
+      )}
+
+      {themeId === "watercolor-shore" && (
+        <>
+          <ZenRipples />
+          <FloatingParticles type="dust" />
+        </>
+      )}
+
+      {themeId === "hilly-night" && (
+        <>
+          <FlickerGlow color="rgba(255, 255, 255, 0.05)" />
+          <FloatingParticles type="dust" />
+        </>
+      )}
+    </motion.div>
+  );
+}

@@ -4,112 +4,249 @@
 
 @layer base {
   :root {
-    --background: #0A0A0C; /* Deep OLED Obsidian */
-    --foreground: #F5F5F7;
-    --primary-glow: rgba(108, 99, 255, 0.5); /* Violet */
-    --secondary-glow: rgba(0, 229, 160, 0.4); /* Cyan */
+    /* ─── Luxury Motion Palette ────────────────────────────────────── */
+    --background: #050505;
+    --surface: #0a0a0a;
+    --surface-elevated: #121212;
+    --surface-border: #1c1c1c;
+    
+    --foreground: #FFFFFF;
+    --foreground-muted: #888888;
+    
+    /* ─── Premium Accent ────────────────────────────────────────────── */
+    --primary: 217 91% 60%; /* #3b82f6 */
+    --primary-foreground: 0 0% 100%;
+    
+    --selection: rgba(59, 130, 246, 0.25);
+    
+    /* ─── Luxury Glows ─────────────────────────────────────────── */
+    --glow-subtle: 0 0 15px 0px rgba(255, 255, 255, 0.03);
+    --glow-primary: 0 0 25px 0px rgba(59, 130, 246, 0.15);
+
+    /* ─── Motion Timing ─────────────────────────────────────────────── */
+    --duration-micro: 100ms;
+    --duration-primary: 190ms;
+    --duration-page: 280ms;
+    --ease-spring: cubic-bezier(0.23, 1, 0.32, 1);
   }
 
   body {
     background-color: var(--background);
     color: var(--foreground);
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    selection-background-color: var(--selection);
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Manrope', sans-serif;
     font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
-  /* ─── WCAG AA Focus Rings ──────────────────────────────────────────────── */
   *:focus-visible {
-    outline: 2px solid rgba(108, 99, 255, 0.8);
-    outline-offset: 3px;
-    border-radius: 6px;
-  }
-  *:focus:not(:focus-visible) {
-    outline: none;
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 4px;
   }
 }
 
 @layer components {
-  /* No 1px strict borders. Boundaries use tonal shifts via background colors */
-  .glass-card {
-    @apply bg-surface-highest/60 backdrop-blur-2xl rounded-3xl shadow-ambient border border-outline-variant/15;
-    will-change: transform;
-    transform: translateZ(0); /* GPU layer promotion */
+  /* Simple Surfaces */
+  .surface-card {
+    background-color: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
   }
 
-  .primary-btn {
-    @apply bg-primary-gradient text-white rounded-full px-6 py-3 font-semibold transition-all duration-200 hover:scale-[0.98] hover:opacity-90 min-h-[44px];
+  /* Clean Chat Bubbles (WhatsApp/Instagram Level) */
+  .chat-bubble {
+    @apply px-4 py-2.5 rounded-2xl max-w-[85%] text-[15px] leading-relaxed;
   }
 
-  /* Structural UI Resets */
-  .hide-scrollbar::-webkit-scrollbar {
-    display: none !important;
+  .chat-bubble-sent {
+    background-color: #3b82f6;
+    color: white;
+    border-bottom-right-radius: 4px;
   }
+
+  .chat-bubble-received {
+    background-color: #262626;
+    color: #FFFFFF;
+    border-bottom-left-radius: 4px;
+  }
+
+  /* Clean Buttons */
+  .btn-primary {
+    @apply flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition-all
+           bg-blue-600 text-white hover:bg-blue-500 active:scale-95 disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition-all
+           bg-neutral-800 text-white hover:bg-neutral-700 active:scale-95;
+  }
+
   .hide-scrollbar {
-    -ms-overflow-style: none !important;
-    scrollbar-width: none !important;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
-  
-  .icon-btn {
-    @apply p-2 rounded-xl transition-all duration-300 hover:bg-surface-high flex items-center justify-center min-w-[44px] min-h-[44px];
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 
-  /* High fidelity effects */
-  .icon-burst {
-    @apply transition-transform duration-300 hover:scale-125 hover:rotate-[15deg] hover:text-cyan-400;
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
-  
-  .gradient-flow {
-    background-size: 200% 200%;
-    animation: flow 4s ease infinite;
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #444;
+  }
+
+  /* ─── Depth Layers (Axiom 17 — isolation prevents z-index bleed) ─── */
+  .depth-0 { z-index: 0; background-color: var(--background); isolation: isolate; }
+  .depth-1 { z-index: 10; background-color: var(--surface); isolation: isolate; }
+  .depth-2 { z-index: 20; background-color: var(--surface-elevated); box-shadow: var(--glow-subtle); isolation: isolate; }
+
+  .ease-spring {
+    transition-timing-function: var(--ease-spring);
+  }
+
+  /* ─── Touch Ripple (Axiom 14 — Interaction Field) ─────────────────── */
+  .touch-ripple-container {
+    position: relative;
+    overflow: hidden;
+  }
+  .touch-ripple-wave {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    background: rgba(255, 255, 255, 0.18);
+    pointer-events: none;
+    animation: ripple-expand 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
   }
 }
 
-/* ─── Keyframes ────────────────────────────────────────────────────────────── */
-@keyframes float-up {
-  0% { transform: translateY(0) scale(1); opacity: 1; filter: hue-rotate(0deg); }
-  50% { transform: translateY(-30px) scale(1.4); opacity: 0.8; filter: hue-rotate(30deg); }
-  100% { transform: translateY(-80px) scale(0.8); opacity: 0; filter: hue-rotate(60deg); }
+/* ─── Refined Transitions ─────────────────────────────────────────── */
+.fade-in {
+  animation: fadeIn var(--duration-normal, 250ms) cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
-@keyframes flow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeOut {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
+.lux-shadow {
+  box-shadow: 0 4px 24px -4px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.05);
 }
 
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(16px); }
+.lux-glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+  backdrop-filter: blur(12px);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #1A1A1A 25%, #262626 50%, #1A1A1A 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* ─── Ripple Expand (Axiom 14) ──────────────────────────────────── */
+@keyframes ripple-expand {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ─── Conversation Switch (Axiom 5 — Motion Continuity) ─────────── */
+@keyframes conv-enter {
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes conv-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+.conv-enter { animation: conv-enter 190ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.conv-exit  { animation: conv-exit  100ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+@keyframes dot-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
-/* ─── Shake — for invalid form submission ──────────────────────────────────── */
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  15%       { transform: translateX(-8px); }
-  30%       { transform: translateX(8px); }
-  45%       { transform: translateX(-6px); }
-  60%       { transform: translateX(6px); }
-  75%       { transform: translateX(-3px); }
-  90%       { transform: translateX(3px); }
+@keyframes check-draw {
+  from { stroke-dashoffset: 48; }
+  to { stroke-dashoffset: 0; }
 }
 
-.animate-slide-up  { animation: slide-up  0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-fade-in   { animation: fade-in   0.25s ease both; }
-.animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-.animate-shake     { animation: shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+/* ─── Social System Utilities ─────────────────────────────────────── */
+.live-dot {
+  position: relative;
+  display: inline-block;
+}
+
+.live-dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: currentColor;
+  animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  opacity: 0.5;
+  z-index: -1;
+}
+
+@keyframes livePulse {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
+.community-card {
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.community-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.stagger-item {
+  animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Add custom delays based on index dynamically via React style or predefine a few */
+.stagger-item:nth-child(1) { animation-delay: 0.05s; }
+.stagger-item:nth-child(2) { animation-delay: 0.10s; }
+.stagger-item:nth-child(3) { animation-delay: 0.15s; }
+.stagger-item:nth-child(4) { animation-delay: 0.20s; }
+.stagger-item:nth-child(5) { animation-delay: 0.25s; }
+.stagger-item:nth-child(6) { animation-delay: 0.30s; }
+.stagger-item:nth-child(7) { animation-delay: 0.35s; }
+.stagger-item:nth-child(8) { animation-delay: 0.40s; }
+.stagger-item:nth-child(9) { animation-delay: 0.45s; }
+.stagger-item:nth-child(10) { animation-delay: 0.50s; }
+
