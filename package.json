@@ -11,6 +11,6 @@
     "lint": "npm run lint --workspaces --if-present"
   },
   "dependencies": {
-    "next": "15.1.0"
+    "next": "15.1.11"
   }
 }
