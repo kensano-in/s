@@ -490,8 +490,15 @@ function MessagesContent() {
           throw new Error(result?.error || "Failed to send message via DB");
         }
 
-        // We don't reconcile ID here because the Server Action triggers a Realtime INSERT event via RLS bypass,
-        // which useRealtimeMessages handles automatically to apply the final `id` and set it to 'sent'.
+        // We MUST manually reconcile the ID here because the RLS infinite recursion bug in the DB
+        // is crashing the Supabase Realtime engine, meaning the Websocket 'INSERT' echo never arrives!
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.client_temp_id === tempId
+              ? { ...m, id: result.data?.id, status: "sent" as const, created_at: result.data?.created_at || new Date().toISOString() }
+              : m
+          )
+        );
       } catch (err: any) {
         console.error("[MessagesPage] sendMessageDB failed:", err);
         // Mark optimistic message as failed so user can see and retry
