@@ -33,6 +33,7 @@ import { ChatMessage } from "@/components/Chat/MessageItem";
 // ── Actions ──────────────────────────────────────────────────────────────────
 import {
   getConversationsDB,
+  sendMessageDB,
   getMessagesDB,
   clearChatDB,
   blockUserDB,
@@ -470,50 +471,33 @@ function MessagesContent() {
       setReplyTo(null);
 
       try {
-        // PERF: Direct Supabase client insert — no Server Action, no cold start
-        // Latency: ~50-120ms vs 500-3000ms through a serverless function
-        const supabase = createClient();
-        const payload: Record<string, unknown> = {
-          sender_id: currentUser.id,
-          content: type === "text" ? content : `[${type.toUpperCase()}] ${mediaUrl || content}`,
+        const result = await sendMessageDB(
+          currentUser.id,
+          isGroup ? currentUser.id : activeConvId,
+          content,
           type,
-          media_url: mediaUrl ?? null,
-          file_name: fileName ?? null,
-          mime_type: mimeType ?? null,
-          reply_to_id: replyTo?.id ?? null,
-          status: "sent",
-          client_temp_id: tempId,
-          view_once: viewOnce,
-        };
+          mediaUrl,
+          fileName,
+          mimeType,
+          replyTo?.id,
+          undefined,
+          isGroup ? activeConvId : undefined,
+          tempId,
+          viewOnce
+        );
 
-        if (isGroup) {
-          payload.conversation_id = activeConvId;
-          payload.recipient_id = currentUser.id; // bypass NOT NULL constraint
-        } else {
-          payload.recipient_id = activeConvId;
+        if (!result || !result.success) {
+          throw new Error(result?.error || "Failed to send message via DB");
         }
 
-        const { data, error } = await supabase
-          .from("messages")
-          .insert(payload)
-          .select("id")
-          .single();
-
-        if (error) throw error;
-
-        // Reconcile optimistic bubble with real DB id
+        // We don't reconcile ID here because the Server Action triggers a Realtime INSERT event via RLS bypass,
+        // which useRealtimeMessages handles automatically to apply the final `id` and set it to 'sent'.
+      } catch (err: any) {
+        console.error("[MessagesPage] sendMessageDB failed:", err);
+        // Mark optimistic message as failed so user can see and retry
         setMessages((prev) =>
           prev.map((m) =>
-            m.client_temp_id === tempId
-              ? { ...m, id: data.id, status: "sent" as const }
-              : m
-          )
-        );
-      } catch (err) {
-        console.error("[MessagesPage] message insert failed:", err);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.client_temp_id === tempId ? { ...m, status: "failed" as const } : m
+            m.client_temp_id === tempId ? { ...m, status: "failed" as const, content: m.content + " ✓" } : m
           )
         );
       }
