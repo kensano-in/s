@@ -8,21 +8,30 @@ import clsx from 'clsx';
 import { useAppStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 
-import { getCommunityChannels, getCommunityMessages, sendCommunityMessage } from '../actions';
+import { getCommunityChannels, getCommunityMessages, sendCommunityMessage, getCommunityMembers, deleteCommunityMessageDB, reactCommunityMessageDB } from '../actions';
 import MessageList from '@/components/Chat/MessageList';
 import ChatInput from '@/components/Chat/ChatInput';
 import { ChatMessage } from '@/components/Chat/MessageItem';
+import TypingIndicator from '@/components/Chat/TypingIndicator';
 
-function SimulatedMembersPanel({ baseCount }: { baseCount: number }) {
-   const [online, setOnline] = useState(Math.max(1, Math.floor(baseCount * 0.3)));
-   
-   useEffect(() => {
-     const interval = setInterval(() => {
-        const diff = Math.floor(Math.random() * 3) - 1; 
-        setOnline(prev => Math.max(1, Math.min(baseCount, prev + diff)));
-     }, 8000);
-     return () => clearInterval(interval);
-   }, [baseCount]);
+function groupReactions(rawReactions: any[], currentUserId?: string) {
+   const map: Record<string, { emoji: string; count: number; reacted: boolean; userIds: string[] }> = {};
+   rawReactions.forEach(r => {
+      if (!map[r.emoji]) {
+         map[r.emoji] = { emoji: r.emoji, count: 0, reacted: false, userIds: [] };
+      }
+      map[r.emoji].count++;
+      map[r.emoji].userIds.push(r.user_id);
+      if (r.user_id === currentUserId) {
+         map[r.emoji].reacted = true;
+      }
+   });
+   return Object.values(map);
+}
+
+function MembersPanel({ members, onlineUsers }: { members: any[]; onlineUsers: Set<string> }) {
+   const onlineMembers = members.filter(m => onlineUsers.has(m.user_id));
+   const offlineMembers = members.filter(m => !onlineUsers.has(m.user_id));
 
    return (
       <div className="w-60 flex-shrink-0 bg-[#050505] border-l border-white/5 flex flex-col h-full hidden xl:flex">
@@ -33,30 +42,30 @@ function SimulatedMembersPanel({ baseCount }: { baseCount: number }) {
          </div>
          <div className="p-4 overflow-y-auto custom-scrollbar flex-1 space-y-6">
             <div>
-               <h4 className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-3 px-1">Online — {online}</h4>
+               <h4 className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-3 px-1">Online — {onlineMembers.length}</h4>
                <div className="space-y-2">
-                  {Array.from({ length: Math.min(15, online) }).map((_, i) => (
-                     <div key={i} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
+                  {onlineMembers.map((m) => (
+                     <div key={m.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
                         <div className="relative">
-                           <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user${i}`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
+                           <img src={m.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${m.display_name}`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
                            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-[#050505]" />
                         </div>
-                        <span className="text-xs font-bold text-neutral-300 group-hover:text-white truncate">User {Math.floor(Math.random() * 9000) + 1000}</span>
+                        <span className="text-xs font-bold text-neutral-300 group-hover:text-white truncate">{m.display_name}</span>
                      </div>
                   ))}
                </div>
             </div>
             
-            {baseCount > online && (
+            {offlineMembers.length > 0 && (
                <div>
-                  <h4 className="text-[9px] font-black uppercase tracking-widest text-neutral-600 mb-3 px-1">Offline — {baseCount - online}</h4>
+                  <h4 className="text-[9px] font-black uppercase tracking-widest text-neutral-600 mb-3 px-1">Offline — {offlineMembers.length}</h4>
                   <div className="space-y-2 opacity-50">
-                     {Array.from({ length: Math.min(10, baseCount - online) }).map((_, i) => (
-                        <div key={`off${i}`} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
+                     {offlineMembers.map((m) => (
+                        <div key={`off${m.id}`} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
                            <div className="relative">
-                              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=off${i}`} className="w-8 h-8 rounded-full border border-white/10 grayscale opacity-50" alt="" />
+                              <img src={m.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${m.display_name}`} className="w-8 h-8 rounded-full border border-white/10 grayscale opacity-50" alt="" />
                            </div>
-                           <span className="text-xs font-bold text-neutral-500 group-hover:text-neutral-400 truncate">OfflineUser {Math.floor(Math.random() * 90) + 10}</span>
+                           <span className="text-xs font-bold text-neutral-500 group-hover:text-neutral-400 truncate">{m.display_name}</span>
                         </div>
                      ))}
                   </div>
@@ -78,11 +87,19 @@ export default function CommunityPage() {
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [loadingChannels, setLoadingChannels] = useState(true);
 
+  // Members + Presence
+  const [communityMembers, setCommunityMembers] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(true);
+  const presenceChannelRef = useRef<any>(null);
+  const typingChannelRef = useRef<any>(null);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
 
   const activeChannel = channels.find(c => c.id === activeChannelId);
 
+  // ── Load Data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadData() {
       setLoadingChannels(true);
@@ -96,11 +113,90 @@ export default function CommunityPage() {
           setActiveChannelId(res.channels[0].id);
         }
       }
+
+      const memRes = await getCommunityMembers(id);
+      if (memRes.success && memRes.members) {
+        setCommunityMembers(memRes.members);
+      }
+
       setLoadingChannels(false);
     }
     loadData();
   }, [id, supabase]);
 
+  // ── Realtime Presence ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser?.id || !id) return;
+    if (presenceChannelRef.current) return;
+
+    const channel = supabase.channel(`community_presence:${id}`, {
+      config: { presence: { key: currentUser.id } },
+    });
+
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const onlineSet = new Set<string>();
+      for (const [key] of Object.entries(state)) {
+        onlineSet.add(key);
+      }
+      setOnlineUsers(onlineSet);
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ online_at: new Date().toISOString() });
+      }
+    });
+
+    presenceChannelRef.current = channel;
+
+    return () => {
+      if (presenceChannelRef.current) {
+        supabase.removeChannel(presenceChannelRef.current);
+        presenceChannelRef.current = null;
+      }
+    };
+  }, [id, currentUser?.id, supabase]);
+
+  // ── Typing Indicators ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeChannelId || !currentUser?.id) return;
+
+    const channel = supabase.channel(`community_typing:${activeChannelId}`);
+    
+    channel
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const { userId, typing } = payload;
+        if (userId === currentUser.id) return;
+        
+        setTypingUsers(prev => {
+          const next = new Set(prev);
+          if (typing) next.add(userId);
+          else next.delete(userId);
+          return next;
+        });
+      })
+      .subscribe();
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+    };
+  }, [activeChannelId, currentUser?.id, supabase]);
+
+  const handleTyping = (isTyping: boolean = true) => {
+    if (typingChannelRef.current && currentUser?.id) {
+      typingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId: currentUser.id, typing: isTyping }
+      });
+    }
+  };
+
+  // ── Messages Loader ───────────────────────────────────────────────────────
   const fetchMessages = useCallback(async (chanId: string) => {
     setLoadingMsgs(true);
     const res = await getCommunityMessages(chanId);
@@ -114,6 +210,12 @@ export default function CommunityPage() {
         status: 'sent',
         type: m.type as any,
         media_url: m.media_url,
+        reactions: groupReactions(m.reactions || [], currentUser?.id),
+        sender: {
+          display_name: m.sender_display || 'User',
+          username: 'user',
+          avatar_url: null, // fallback to dicebear in MessageItem via component defaults if null
+        }
       })));
     } else {
       setMessages([]);
@@ -129,7 +231,8 @@ export default function CommunityPage() {
 
   useEffect(() => {
     if (!activeChannelId) return;
-    const channel = supabase.channel(`community_messages:${activeChannelId}`)
+    
+    const msgChannel = supabase.channel(`community_messages:${activeChannelId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'community_messages', filter: `channel_id=eq.${activeChannelId}` },
@@ -145,13 +248,77 @@ export default function CommunityPage() {
             status: 'sent',
             type: payload.new.type,
             media_url: payload.new.media_url,
+            reactions: [],
           } as ChatMessage]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'community_messages', filter: `channel_id=eq.${activeChannelId}` },
+        (payload) => {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    const reactChannel = supabase.channel(`community_reactions:${activeChannelId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'community_message_reactions' },
+        (payload) => {
+          // Simplified: just refetch or update state
+          // For now, let's update state manually to avoid full refetch
+          if (payload.eventType === 'INSERT') {
+            setMessages(prev => prev.map(m => {
+              if (m.id === payload.new.message_id) {
+                // Since ChatMessage.reactions is the grouped format, we'd need to regroups or just refetch.
+                // Re-calculating correctly requires all raw reactions.
+                // For optimal performance, let's do a quick local update of the grouped structure.
+                const currentReactions = m.reactions || [];
+                const existingGroup = currentReactions.find(r => r.emoji === payload.new.emoji);
+                let nextReactions;
+                if (existingGroup) {
+                  nextReactions = currentReactions.map(r => 
+                    r.emoji === payload.new.emoji 
+                      ? { ...r, count: r.count + 1, reacted: r.reacted || payload.new.user_id === currentUser?.id, userIds: [...(r.userIds || []), payload.new.user_id] }
+                      : r
+                  );
+                } else {
+                  nextReactions = [...currentReactions, { 
+                    emoji: payload.new.emoji, 
+                    count: 1, 
+                    reacted: payload.new.user_id === currentUser?.id, 
+                    userIds: [payload.new.user_id] 
+                  }];
+                }
+                return { ...m, reactions: nextReactions };
+              }
+              return m;
+            }));
+          } else if (payload.eventType === 'DELETE') {
+            setMessages(prev => prev.map(m => {
+              if (m.id === payload.old.message_id) {
+                const currentReactions = m.reactions || [];
+                const nextReactions = currentReactions.map(r => {
+                  if (r.emoji === payload.old.emoji) {
+                    const nextCount = Math.max(0, r.count - 1);
+                    const newUserIds = (r.userIds || []).filter(uid => uid !== payload.old.user_id);
+                    return { ...r, count: nextCount, reacted: newUserIds.includes(currentUser?.id || ''), userIds: newUserIds };
+                  }
+                  return r;
+                }).filter(r => r.count > 0);
+                return { ...m, reactions: nextReactions };
+              }
+              return m;
+            }));
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(msgChannel);
+      supabase.removeChannel(reactChannel);
     };
   }, [activeChannelId, currentUser?.id, supabase]);
 
@@ -166,7 +333,12 @@ export default function CommunityPage() {
       sent_at: new Date().toISOString(),
       is_mine: true,
       status: 'sending',
-      type: 'text'
+      type: 'text',
+      sender: {
+        display_name: currentUser.displayName,
+        username: currentUser.username,
+        avatar_url: currentUser.avatar,
+      }
     };
 
     setMessages(prev => [...prev, optimistic]);
@@ -207,7 +379,18 @@ export default function CommunityPage() {
     }
   };
 
-  const simulatedLiveCount = Math.max(1, Math.floor((community?.member_count || 1) * 0.3));
+  const handleDeleteMessage = useCallback(async (id: string) => {
+    if (!currentUser?.id) return;
+    setMessages(prev => prev.filter(m => m.id !== id));
+    await deleteCommunityMessageDB(currentUser.id, id);
+  }, [currentUser?.id]);
+
+  const handleReactMessage = useCallback(async (id: string, emoji: string) => {
+    if (!currentUser?.id) return;
+    await reactCommunityMessageDB(currentUser.id, id, emoji);
+  }, [currentUser?.id]);
+
+  const onlineCount = onlineUsers.size;
 
   return (
     <div className="flex h-[calc(100vh-80px)] overflow-hidden w-full mx-auto italic bg-[#0A0A0A] md:pb-0 relative text-white">
@@ -259,10 +442,10 @@ export default function CommunityPage() {
                 <Hash size={16} className="text-neutral-500" />
                 <h3 className="text-sm font-black uppercase tracking-tight text-white">{activeChannel.name}</h3>
               </div>
-              <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
                  <div className="flex items-center gap-2">
                     <span className="live-dot w-2 h-2 bg-emerald-500 rounded-full" />
-                    <span className="text-emerald-400">{simulatedLiveCount} Online</span>
+                    <span className="text-emerald-400">{onlineCount} Online</span>
                  </div>
               </div>
             </div>
@@ -276,15 +459,24 @@ export default function CommunityPage() {
                  hasMore={false}
                  loadingMore={false}
                  onRetry={() => {}}
-                 onDelete={async (id) => {}}
+                 onDelete={handleDeleteMessage}
+                 onReact={handleReactMessage}
+                 currentUserId={currentUser?.id}
                />
             </div>
 
-            <div className="p-4 bg-[#0A0A0A]">
+            <div className="p-4 bg-[#0A0A0A] relative">
+              <AnimatePresence>
+                {typingUsers.size > 0 && (
+                  <div className="absolute bottom-full left-0 z-10">
+                    <TypingIndicator />
+                  </div>
+                )}
+              </AnimatePresence>
               <ChatInput
                 onSendText={handleSendText}
                 onSendFile={handleSendFile}
-                onTyping={() => {}}
+                onTyping={handleTyping}
                 disabled={false}
                 placeholder={`Message #${activeChannel.name}...`}
               />
@@ -301,7 +493,7 @@ export default function CommunityPage() {
       </div>
 
       {/* 3. Members Panel (Desktop) */}
-      <SimulatedMembersPanel baseCount={community?.member_count || 1} />
+      <MembersPanel members={communityMembers} onlineUsers={onlineUsers} />
 
     </div>
   );

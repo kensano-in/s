@@ -314,7 +314,12 @@ export const useAppStore = create<AppState>()(
         settingPushNotifs: state.settingPushNotifs,
         settingEmailDigest: state.settingEmailDigest,
         settingPrivateAccount: state.settingPrivateAccount,
-        dmSettingsCache: state.dmSettingsCache,
+        // ST-01: Persist theme manifest so custom themes survive page refresh
+        customThemeManifest: state.customThemeManifest,
+        // ST-02: Cap dmSettingsCache to last 50 partners to avoid unbounded storage growth
+        dmSettingsCache: Object.fromEntries(
+          Object.entries(state.dmSettingsCache).slice(-50)
+        ),
       }),
     }
   )

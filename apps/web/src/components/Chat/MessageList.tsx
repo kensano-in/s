@@ -32,10 +32,13 @@ interface MessageListProps {
   onEdit?: (m: ChatMessage) => void;
   onReact?: (id: string, emoji: string) => void;
   onForward?: (m: ChatMessage) => void;
+  onReveal?: (messageId: string) => void;
+  onOpenThread?: (m: ChatMessage) => void;
   currentUserId?: string;
   bubbleStyle?: string;
   /** Used as AnimatePresence key for motion continuity on switch (Axiom 5) */
   conversationId?: string | null;
+  partnerNickname?: string | null;
 }
 
 const MessageListInner = memo(function MessageListInner({
@@ -51,8 +54,12 @@ const MessageListInner = memo(function MessageListInner({
   onEdit,
   onReact,
   onForward,
+  onReveal,
+  onOpenThread,
+  currentUserId,
   bubbleStyle,
   conversationId,
+  partnerNickname,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -85,6 +92,7 @@ const MessageListInner = memo(function MessageListInner({
     const reversed = [...messages].reverse();
     return reversed.map((msg, i, arr) => {
       const prev = arr[i - 1];
+      const next = arr[i + 1];
 
       const currDate = new Date(msg.sent_at).toDateString();
       const prevDate = prev ? new Date(prev.sent_at).toDateString() : null;
@@ -99,7 +107,21 @@ const MessageListInner = memo(function MessageListInner({
 
       const showSenderName = !msg.is_mine && (!prev || prev.sender_id !== msg.sender_id || showSeparator);
 
-      return { ...msg, showSeparator, separatorLabel, showSenderName };
+      // Smart Grouping (Axiom: Luxury Flow)
+      const sameAsPrev = prev && prev.sender_id === msg.sender_id && !showSeparator;
+      const sameAsNext = next && next.sender_id === msg.sender_id && (new Date(next.sent_at).toDateString() === currDate);
+      
+      const isFirstInGroup = !sameAsPrev;
+      const isLastInGroup = !sameAsNext;
+
+      return { 
+        ...msg, 
+        showSeparator, 
+        separatorLabel, 
+        showSenderName,
+        isFirstInGroup,
+        isLastInGroup
+      };
     });
   }, [messages]);
 
@@ -143,11 +165,13 @@ const MessageListInner = memo(function MessageListInner({
   }, []);
 
   useEffect(() => {
-    if (loading || messages.length === 0) return;
+    // UI-05: Don't auto-scroll when loading older messages (loadingMore=true)
+    // Only scroll to bottom for NEW messages when user is near the bottom
+    if (loading || loadingMore || messages.length === 0) return;
     if (isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, loading]);
+  }, [messages, loading, loadingMore]);
 
   // ── Infinite Scroll Observer ───────────────────────────────────────────────
   useEffect(() => {
@@ -199,14 +223,20 @@ const MessageListInner = memo(function MessageListInner({
           )}
           <MessageItem
             message={msg}
+            currentUserId={currentUserId}
             onRetry={onRetry}
             onDelete={onDelete}
             onReply={onReply}
             onEdit={onEdit}
             onReact={onReact}
             onForward={onForward}
+            onReveal={onReveal}
+            onOpenThread={onOpenThread}
             showSenderName={msg.showSenderName}
+            isFirstInGroup={msg.isFirstInGroup}
+            isLastInGroup={msg.isLastInGroup}
             bubbleStyle={bubbleStyle}
+            partnerNickname={partnerNickname}
           />
         </div>
       ))}

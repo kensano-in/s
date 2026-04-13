@@ -37,6 +37,10 @@ import {
   getGroupMembersDB,
   getAllUsersForInviteDB,
   addUsersToGroupDB,
+  setMemberRoleDB,
+  muteMemberDB,
+  unmuteMemberDB,
+  removeMemberDB,
 } from "@/app/(main)/messages/actions";
 
 interface ChatSettingsModalProps {
@@ -634,6 +638,8 @@ export default function ChatSettingsModal({
   const [invitees, setInvitees] = useState<any[]>([]);
   const [selectedInvitees, setSelectedInvitees] = useState<string[]>([]);
   const [isMutatingGroup, setIsMutatingGroup] = useState(false);
+  const [myRole, setMyRole] = useState<'admin' | 'moderator' | 'member' | null>(null);
+  const [memberAction, setMemberAction] = useState<{ member: any; type: 'mute' | 'remove' | 'role' } | null>(null);
 
   // Group nick aliases from local settings store
   const [groupNicks, setGroupNicks] = useState<Record<string, string>>(
@@ -657,8 +663,18 @@ export default function ChatSettingsModal({
       // Fetch members if it's a group
       if (!partnerUsername && activeConvId) {
         getGroupMembersDB(activeConvId).then((res) => {
-          if (res.success && res.data) setMembers(res.data);
-          else console.error("[Modal] Failed to fetch members:", res.error);
+          if (res.success && res.data) {
+            const membersData = res.data as any[];
+            setMembers(membersData);
+            // Detect current user's role using supabase client
+            const supabase = createClient();
+            supabase.auth.getUser().then(({ data }) => {
+              if (data?.user) {
+                const me = membersData.find((m: any) => m.id === data.user.id);
+                setMyRole(me?.role || 'member');
+              }
+            });
+          } else console.error("[Modal] Failed to fetch members:", res.error);
         });
         getAllUsersForInviteDB([]).then((res) => {
           if (res.success && res.data) setInvitees(res.data);
@@ -1373,65 +1389,214 @@ export default function ChatSettingsModal({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="flex-1 p-5 overflow-y-auto custom-scrollbar space-y-6"
+                    className="flex-1 p-5 overflow-y-auto custom-scrollbar"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[15px] text-white">
-                        Require approval to join
-                      </span>
-                      <div className="w-11 h-6 bg-white/10 rounded-full cursor-pointer relative">
-                        <div className="w-5 h-5 bg-white/40 rounded-full absolute left-0.5 top-0.5" />
-                      </div>
+                    {/* ── Mute Action Sheet ── */}
+                    <AnimatePresence>
+                      {memberAction && (
+                        <>
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/70 z-[80]"
+                            onClick={() => setMemberAction(null)}
+                          />
+                          <motion.div
+                            initial={{ y: '100%', opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: '100%', opacity: 0 }}
+                            transition={{ type: 'spring', damping: 28, stiffness: 250 }}
+                            className="fixed bottom-0 left-0 right-0 bg-[#0c0c12] border-t border-white/10 rounded-t-3xl z-[90] pb-10 pt-4 shadow-2xl"
+                          >
+                            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6" />
+                            <div className="px-5 mb-4 flex items-center gap-3">
+                              <img
+                                src={memberAction.member.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${memberAction.member.displayName}`}
+                                className="w-10 h-10 rounded-full"
+                              />
+                              <div>
+                                <p className="font-bold text-white">{memberAction.member.displayName}</p>
+                                <p className="text-xs text-white/40 capitalize">{memberAction.member.role}</p>
+                              </div>
+                            </div>
+                            {memberAction.type === 'mute' && (
+                              <div className="px-5 space-y-1">
+                                <p className="text-xs font-bold text-white/30 uppercase mb-3">Mute Duration</p>
+                                {[
+                                  { label: '5 minutes', ms: 5 * 60 * 1000 },
+                                  { label: '30 minutes', ms: 30 * 60 * 1000 },
+                                  { label: '1 hour', ms: 60 * 60 * 1000 },
+                                  { label: '6 hours', ms: 6 * 60 * 60 * 1000 },
+                                  { label: '12 hours', ms: 12 * 60 * 60 * 1000 },
+                                ].map(opt => (
+                                  <button
+                                    key={opt.ms}
+                                    onClick={async () => {
+                                      if (!activeConvId) return;
+                                      const supabase = createClient();
+                                      const { data } = await supabase.auth.getUser();
+                                      if (data?.user) {
+                                        await muteMemberDB(data.user.id, activeConvId, memberAction.member.id, opt.ms);
+                                        setMemberAction(null);
+                                      }
+                                    }}
+                                    className="w-full text-left py-3 px-4 hover:bg-white/5 rounded-xl text-white font-medium transition-colors"
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {memberAction.type === 'role' && (
+                              <div className="px-5 space-y-1">
+                                <p className="text-xs font-bold text-white/30 uppercase mb-3">Change Role</p>
+                                {memberAction.member.role !== 'moderator' && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!activeConvId) return;
+                                      const supabase = createClient();
+                                      const { data } = await supabase.auth.getUser();
+                                      if (data?.user) {
+                                        await setMemberRoleDB(data.user.id, activeConvId, memberAction.member.id, 'moderator');
+                                        setMembers(prev => prev.map(mm => mm.id === memberAction.member.id ? { ...mm, role: 'moderator' } : mm));
+                                        setMemberAction(null);
+                                      }
+                                    }}
+                                    className="w-full text-left py-3 px-4 hover:bg-white/5 rounded-xl text-white font-medium transition-colors"
+                                  >
+                                    Promote to Moderator
+                                  </button>
+                                )}
+                                {memberAction.member.role !== 'member' && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!activeConvId) return;
+                                      const supabase = createClient();
+                                      const { data } = await supabase.auth.getUser();
+                                      if (data?.user) {
+                                        await setMemberRoleDB(data.user.id, activeConvId, memberAction.member.id, 'member');
+                                        setMembers(prev => prev.map(mm => mm.id === memberAction.member.id ? { ...mm, role: 'member' } : mm));
+                                        setMemberAction(null);
+                                      }
+                                    }}
+                                    className="w-full text-left py-3 px-4 hover:bg-white/5 rounded-xl text-white font-medium transition-colors"
+                                  >
+                                    Demote to Member
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {memberAction.type === 'remove' && (
+                              <div className="px-5">
+                                <p className="text-white/60 text-sm mb-4">Remove <span className="font-bold text-white">{memberAction.member.displayName}</span> from this group?</p>
+                                <button
+                                  onClick={async () => {
+                                    if (!activeConvId) return;
+                                    const supabase = createClient();
+                                    const { data } = await supabase.auth.getUser();
+                                    if (data?.user) {
+                                      await removeMemberDB(data.user.id, activeConvId, memberAction.member.id);
+                                      setMembers(prev => prev.filter(mm => mm.id !== memberAction.member.id));
+                                      setMemberAction(null);
+                                    }
+                                  }}
+                                  className="w-full py-3.5 rounded-2xl font-bold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                                >
+                                  Remove from Group
+                                </button>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => setMemberAction(null)}
+                              className="w-full px-5 mt-2 py-3 text-white/40 text-sm font-medium"
+                            >
+                              Cancel
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Member Count Header */}
+                    <div className="flex items-center justify-between mb-5">
+                      <p className="font-bold text-[15px] text-white">
+                        Members <span className="text-white/30">({members?.length || 0})</span>
+                      </p>
+                      {myRole && (
+                        <span className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-full ${
+                          myRole === 'admin' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                          myRole === 'moderator' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                          'bg-white/10 text-white/40'
+                        }`}>
+                          You: {myRole}
+                        </span>
+                      )}
                     </div>
 
-                    <div>
-                      <p className="font-bold text-[15px] text-white mb-4">
-                        You
-                      </p>
-                      <p className="text-sm text-white/50 mb-6 px-2">
-                        Current session user.
-                      </p>
-                    </div>
+                    {/* Members List */}
+                    <div className="space-y-2">
+                      {(members || []).map((m) => {
+                        const isAdmin = m.role === 'admin';
+                        const isMod = m.role === 'moderator';
+                        const canManage = (myRole === 'admin' || myRole === 'moderator') && !isAdmin;
 
-                    <div>
-                      <p className="font-bold text-[15px] text-white mb-4">
-                        Members ({members?.length || 0})
-                      </p>
-                      <div className="space-y-4">
-                        {(members || []).map((m) => (
+                        return (
                           <div
                             key={m.id}
-                            className="flex items-center justify-between group"
+                            className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/[0.03] group transition-colors"
                           >
                             <div className="flex items-center gap-3">
                               <img
-                                src={
-                                  m.avatarUrl ||
-                                  `https://api.dicebear.com/7.x/notionists/svg?seed=${m.displayName}&backgroundColor=e5e7eb`
-                                }
-                                className="w-12 h-12 rounded-full"
+                                src={m.avatarUrl || `https://api.dicebear.com/7.x/notionists/svg?seed=${m.displayName}&backgroundColor=e5e7eb`}
+                                className="w-11 h-11 rounded-full object-cover"
                               />
                               <div>
-                                <p className="font-bold text-white text-[15px]">
-                                  {groupNicks[m.id] || m.displayName}
-                                </p>
-                                <p className="text-xs text-white/50">
-                                  {m.role === "admin" ? "Admin • " : ""}@
-                                  {m.username}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold text-white text-[14px]">
+                                    {groupNicks[m.id] || m.displayName}
+                                  </p>
+                                  {isAdmin && (
+                                    <span className="text-[9px] font-black text-indigo-400 bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Admin</span>
+                                  )}
+                                  {isMod && (
+                                    <span className="text-[9px] font-black text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Mod</span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-white/35">@{m.username}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-colors">
-                                <MoreHorizontal size={18} />
-                              </button>
-                              <button className="px-4 py-1.5 bg-white/10 rounded-xl text-[13px] font-bold text-white hover:bg-white/20 transition-colors">
-                                Message
-                              </button>
-                            </div>
+
+                            {canManage && (
+                              <div className="flex items-center gap-1">
+                                {myRole === 'admin' && (
+                                  <button
+                                    onClick={() => setMemberAction({ member: m, type: 'role' })}
+                                    className="p-2 rounded-xl hover:bg-white/10 text-white/30 hover:text-white/80 transition-colors text-xs font-bold"
+                                    title="Change role"
+                                  >
+                                    <Star size={15} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setMemberAction({ member: m, type: 'mute' })}
+                                  className="p-2 rounded-xl hover:bg-amber-500/10 text-white/30 hover:text-amber-400 transition-colors"
+                                  title="Mute member"
+                                >
+                                  <VolumeX size={15} />
+                                </button>
+                                <button
+                                  onClick={() => setMemberAction({ member: m, type: 'remove' })}
+                                  className="p-2 rounded-xl hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-colors"
+                                  title="Remove member"
+                                >
+                                  <UserMinus size={15} />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 ) : screen === "disappearing" ? (

@@ -5,59 +5,46 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, MessageSquare, TrendingUp, Users } from 'lucide-react';
 import clsx from 'clsx';
 import Link from 'next/link';
+import { getPulseSignalsDB } from '@/app/(main)/communities/actions';
 
 interface PulseEvent {
   id: string;
-  type: 'users' | 'message' | 'trending';
+  type: 'users' | 'message' | 'trending' | 'activity';
   text: string;
   count: number;
-  icon: React.ElementType;
+  icon: any;
   color: string;
   href: string;
 }
 
-const TEMPLATES = [
-  { text: 'users active in Global', type: 'users', base: 120, icon: Users, color: 'text-blue-500', href: '/communities' },
-  { text: 'chatting in #Design', type: 'users', base: 85, icon: Users, color: 'text-purple-500', href: '/communities' },
-  { text: 'New messages in System', type: 'message', base: 12, icon: MessageSquare, color: 'text-green-500', href: '/messages' },
-  { text: 'Topic #UX rising fast', type: 'trending', base: 45, icon: TrendingUp, color: 'text-yellow-500', href: '/trending' },
-  { text: 'Peak activity detected', type: 'activity', base: 100, icon: Activity, color: 'text-red-500', href: '/feed' },
-];
-
-function generatePulse(): PulseEvent {
-  const t = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)];
-  // Add some randomness to the count to simulate live data
-  const dynamicCount = t.base + Math.floor(Math.random() * 20);
-  return {
-    id: Math.random().toString(36).substr(2, 9),
-    type: t.type as any,
-    text: t.text,
-    count: dynamicCount,
-    icon: t.icon,
-    color: t.color,
-    href: t.href
-  };
-}
+const ICON_MAP = {
+  users: Users,
+  message: MessageSquare,
+  trending: TrendingUp,
+  activity: Activity,
+};
 
 export default function PulseFeed({ className }: { className?: string }) {
   const [events, setEvents] = useState<PulseEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Initial load
-  useEffect(() => {
-    setEvents([generatePulse(), generatePulse(), generatePulse()]);
+  const fetchSignals = useCallback(async () => {
+    const res = await getPulseSignalsDB();
+    if (res.success && res.signals) {
+      const formatted = res.signals.map((s: any) => ({
+        ...s,
+        icon: ICON_MAP[s.type as keyof typeof ICON_MAP] || Activity,
+      }));
+      setEvents(formatted);
+    }
+    setLoading(false);
   }, []);
 
-  // Simulate real-time websocket/database updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      setEvents((prev) => {
-        const newEvent = generatePulse();
-        // Keep only top 3 to prevent clutter and keep UI minimal
-        return [newEvent, ...prev].slice(0, 3);
-      });
-    }, 4000); // New event every 4 seconds
+    fetchSignals();
+    const interval = setInterval(fetchSignals, 60000); // Pulse every 60 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchSignals]);
 
   return (
     <div className={clsx('flex flex-col gap-2', className)}>

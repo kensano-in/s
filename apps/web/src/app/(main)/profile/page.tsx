@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import IdentityEditSystem from '@/components/features/profile/IdentityEditSystem';
+import AuraBackground from '@/components/features/profile/AuraBackground';
 import { createClient } from '@/lib/supabase/client';
 import { getDatabaseProfile } from './actionsCore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -113,7 +114,13 @@ export default function ProfilePage() {
   const postCount = userPosts.length;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white pb-32">
+    <div className="min-h-screen text-white pb-32 relative">
+      <AuraBackground 
+        securityScore={dbUser?.security_score}
+        karmaScore={dbUser?.karma_score}
+        isVerified={isVerified}
+      />
+      
       <IdentityEditSystem
         isOpen={isEditing}
         onClose={() => {

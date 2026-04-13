@@ -13,7 +13,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   logWsSubscribe,
   logWsEventReceived,
@@ -58,8 +58,11 @@ export function useRealtimeMessages({
   const loadMessagesRef = useRef(loadMessages);
   const loadConversationsRef = useRef(loadConversations);
 
-  // Deduplication set — tracks real message IDs seen this session
   const seenIdsRef = useRef<Set<string>>(new Set());
+  // Ref to the active channel — prevents collision on re-render
+  const channelRef = useRef<any>(null);
+  // RT-01: Single timer ref for typing indicator — prevents accumulation
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { convsRef.current = conversations; }, [conversations]);
   useEffect(() => { activeIdRef.current = activeConvId; }, [activeConvId]);
@@ -70,232 +73,309 @@ export function useRealtimeMessages({
     if (!currentUser?.id) return;
 
     const channelName = `chat:global:${currentUser.id}`;
+    let isMounted = true;
 
     logWsSubscribe({ channel: channelName, convId: activeConvId ?? 'none' });
 
-    const channel = supabase
-      .channel(channelName)
+    // KEY FIX: use async IIFE so we can AWAIT the old channel removal before
+    // building the new .on() chain. Without this, React StrictMode double-fires
+    // the effect and Supabase throws "cannot add callbacks after subscribe()".
+    const setup = async () => {
+      // Step 1: fully remove previous channel
+      if (channelRef.current) {
+        try { await supabase.removeChannel(channelRef.current); } catch (_) {}
+        channelRef.current = null;
+      }
 
-      // ── Message INSERT ────────────────────────────────────────────────────
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-      }, (payload: any) => {
-        const newMsg = payload.new;
-        const currentConvs = convsRef.current;
-        const currentActiveId = activeIdRef.current;
+      // Step 2: bail if cleanup already ran (StrictMode unmounted before we got here)
+      if (!isMounted) return;
 
-        logWsEventReceived({ messageId: newMsg.id, convId: newMsg.conversation_id || newMsg.sender_id });
+      // Step 3: build the entire channel chain THEN call .subscribe()
+      const channel = supabase
+        .channel(channelName)
 
-        // Duplicate guard
-        if (seenIdsRef.current.has(newMsg.id)) {
-          return;
-        }
-        seenIdsRef.current.add(newMsg.id);
+        // ── Message INSERT ────────────────────────────────────────────────────
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        }, (payload: any) => {
+          const newMsg = payload.new;
+          const currentConvs = convsRef.current;
+          const currentActiveId = activeIdRef.current;
 
-        const isTargeted = newMsg.recipient_id === currentUser.id || newMsg.sender_id === currentUser.id;
-        const isGroupMsg = newMsg.conversation_id
-          && !!currentConvs.find(c => c.id === newMsg.conversation_id);
+          logWsEventReceived({ messageId: newMsg.id, convId: newMsg.conversation_id || newMsg.sender_id });
 
-        if (!isTargeted && !isGroupMsg) return;
+          // Duplicate guard
+          if (seenIdsRef.current.has(newMsg.id)) return;
+          seenIdsRef.current.add(newMsg.id);
 
-        // For DMs: relevantId = the OTHER person in the conversation (not us)
-        // If we sent it: other person = recipient_id
-        // If they sent it: other person = sender_id
-        const relevantId = isGroupMsg
-          ? newMsg.conversation_id
-          : newMsg.sender_id === currentUser.id
-            ? newMsg.recipient_id   // We sent it — other person is recipient
-            : newMsg.sender_id;     // They sent it — other person is sender
+          const isTargeted = newMsg.recipient_id === currentUser.id || newMsg.sender_id === currentUser.id;
+          const isGroupMsg = newMsg.conversation_id
+            && !!currentConvs.find((c: any) => c.id === newMsg.conversation_id);
 
-        // ── Active conversation: inject into message list ─────────────────
-        if (relevantId === currentActiveId) {
-          if (newMsg.sender_id !== currentUser.id) {
-            // Other user's message: need display info
-            supabase
-              .from('users')
-              .select('display_name, username, avatar_url')
-              .eq('id', newMsg.sender_id)
-              .single()
-              .then(({ data }: any) => {
-                const fullMsg = { ...newMsg, is_mine: false, sender: data };
-                setMessages((old: any[]) => {
-                  if (old.find(m => m.id === newMsg.id || (newMsg.client_temp_id && m.client_temp_id === newMsg.client_temp_id))) {
-                    return old;
-                  }
-                  logStateUpdate('realtime', { messageId: newMsg.id });
-                  // Compute E2E latency if we can find matching tempId
-                  if (newMsg.client_temp_id) {
-                    computeE2E(newMsg.client_temp_id, 'ws_receive');
-                  }
-                  return [fullMsg, ...old];
+          if (!isTargeted && !isGroupMsg) return;
+
+          const relevantId = isGroupMsg
+            ? newMsg.conversation_id
+            : newMsg.sender_id === currentUser.id
+              ? newMsg.recipient_id
+              : newMsg.sender_id;
+
+          // ── Active conversation: inject into message list ─────────────────
+          if (relevantId === currentActiveId) {
+            if (newMsg.thread_root_id) {
+              // Thread reply — increment parent's reply_count badge only
+              setMessages((prev: any[]) => prev.map((m: any) =>
+                m.id === newMsg.thread_root_id
+                  ? { ...m, reply_count: (m.reply_count || 0) + 1 }
+                  : m
+              ));
+              return;
+            }
+
+            if (newMsg.sender_id !== currentUser.id) {
+              supabase
+                .from('users')
+                .select('display_name, username, avatar_url')
+                .eq('id', newMsg.sender_id)
+                .single()
+                .then(({ data }: any) => {
+                  const fullMsg = { ...newMsg, is_mine: false, sender: data };
+                  setMessages((old: any[]) => {
+                    if (old.find((m: any) => m.id === newMsg.id || (newMsg.client_temp_id && m.client_temp_id === newMsg.client_temp_id))) {
+                      return old;
+                    }
+                    logStateUpdate('realtime', { messageId: newMsg.id });
+                    if (newMsg.client_temp_id) computeE2E(newMsg.client_temp_id, 'ws_receive');
+                    
+                    // Mark as seen or delivered instantly (Whatsapp/Signal latency)
+                    const targetStatus = relevantId === currentActiveId ? 'seen' : 'delivered';
+                    if (newMsg.status !== targetStatus) {
+                    // Fire-and-forget server action (must use fetch since this is a client hook, or RPC)
+                      void supabase.rpc('update_message_status', { p_message_ids: [newMsg.id], p_status: targetStatus });
+                    }
+                    
+                    return [fullMsg, ...old];
+                  });
                 });
-              });
-          } else {
-            // Our own INSERT from another tab/window — reconcile with temp if needed
-            setMessages((prev: any[]) => {
-              // Try to replace temp by client_temp_id first
-              if (newMsg.client_temp_id) {
-                const hasTemp = prev.find(m => m.id === newMsg.client_temp_id);
-                if (hasTemp) {
-                  logStateUpdate('realtime', { reconcile: 'client_temp_id', messageId: newMsg.id });
-                  return prev.map(m =>
-                    m.id === newMsg.client_temp_id
-                      ? { ...newMsg, is_mine: true, sender: hasTemp.sender, status: 'sent' }
-                      : m
+            } else {
+              // This is our OWN message echoing back from the DB
+              setMessages((prev: any[]) => {
+                // Case 1: real id already applied by PostgREST .then() → skip (no-op)
+                if (prev.find((m: any) => m.id === newMsg.id && m.status === 'sent')) return prev;
+
+                // Case 2: temp_id still in list → reconcile (WS echo won the race)
+                if (newMsg.client_temp_id) {
+                  const tempEntry = prev.find((m: any) =>
+                    m.id === newMsg.client_temp_id ||
+                    m.client_temp_id === newMsg.client_temp_id
                   );
+                  if (tempEntry) {
+                    logStateUpdate('realtime', { reconcile: 'client_temp_id', messageId: newMsg.id });
+                    return prev.map((m: any) =>
+                      (m.id === newMsg.client_temp_id || m.client_temp_id === newMsg.client_temp_id)
+                        ? { ...newMsg, is_mine: true, sender: tempEntry.sender, status: 'sent' }
+                        : m
+                    );
+                  }
                 }
-              }
-              // Already exists as real id → skip
-              if (prev.find(m => m.id === newMsg.id)) return prev;
-              // New message from another tab
-              const fullMsg = {
-                ...newMsg,
-                is_mine: true,
-                sender: {
-                  display_name: currentUser.display_name || currentUser.displayName,
-                  username: currentUser.username,
-                  avatar_url: currentUser.avatar_url || currentUser.avatarUrl,
-                },
-              };
-              return [fullMsg, ...prev];
-            });
-          }
-        }
 
-        // ── Sidebar sync: move conversation to top ────────────────────────
-        setConversations((prev: any[]) => {
-          const index = prev.findIndex(c => c.id === relevantId);
-          if (index === -1) {
-            loadConversationsRef.current(true);
-            return prev;
+                // Case 3: no temp entry and no real entry → add (e.g. multi-device echo)
+                if (!prev.find((m: any) => m.id === newMsg.id)) {
+                  return [{ ...newMsg, is_mine: true, sender: {
+                    display_name: currentUser.display_name || currentUser.displayName,
+                    username: currentUser.username,
+                    avatar_url: currentUser.avatar_url || currentUser.avatarUrl,
+                  } }, ...prev];
+                }
+
+                return prev;
+              });
+            }
           }
-          const updatedConv = {
-            ...prev[index],
-            lastMessage: newMsg.content,
-            updatedAt: newMsg.sent_at || new Date().toISOString(),
-          };
-          const others = prev.filter((_, i) => i !== index);
-          return [updatedConv, ...others];
+
+          // ── Sidebar sync ──────────────────────────────────────────────────
+          setConversations((prev: any[]) => {
+            const index = prev.findIndex((c: any) => c.id === relevantId);
+            if (index === -1) { loadConversationsRef.current(true); return prev; }
+            const updatedConv = { ...prev[index], lastMessage: newMsg.content, updatedAt: newMsg.sent_at || new Date().toISOString() };
+            return [updatedConv, ...prev.filter((_: any, i: number) => i !== index)];
+          });
+        })
+
+        // ── Message UPDATE (edits, view-once shatters) ────────────────────
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        }, (payload: any) => {
+          const updatedMsg = payload.new;
+          setMessages((prev: any[]) => prev.map((m: any) =>
+            m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m
+          ));
+        })
+
+        // ── Message DELETE (unsends) ──────────────────────────────────────
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+        }, (payload: any) => {
+          const deletedId = payload.old.id;
+          setMessages((prev: any[]) => prev.filter((m: any) => m.id !== deletedId));
+        })
+
+        // ── Participant changes ───────────────────────────────────────────
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'conversation_participants',
+          filter: `user_id=eq.${currentUser.id}`,
+        }, () => { loadConversationsRef.current(true); })
+
+        // ── Group metadata changes ────────────────────────────────────────
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+        }, (payload: any) => {
+          const updated = payload.new;
+          setConversations((prev: any[]) =>
+            prev.map((c: any) =>
+              c.id === updated.id
+                ? { ...c, theme_id: updated.theme_id, theme_blur: updated.theme_blur, name: updated.name, avatarUrl: updated.icon_url }
+                : c
+            )
+          );
+        })
+
+        // ── DM settings changes ───────────────────────────────────────────
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'dm_settings',
+          filter: `user_id=eq.${currentUser.id}`,
+        }, (payload: any) => {
+          const updated = payload.new;
+          if (updated.partner_id === activeIdRef.current) setSettingsVersion(v => v + 1);
+          loadConversationsRef.current(true);
+        })
+
+        // ── Typing broadcast ──────────────────────────────────────────────
+        .on('broadcast', { event: 'typing' }, (payload: any) => {
+          // RT-04: Guard against malformed payload
+          const data = payload?.payload ?? {};
+          const { userId, convId, typing } = data;
+          if (userId !== currentUser.id && convId === activeIdRef.current) {
+            setIsOtherTyping(!!typing);
+            // RT-01: Clear any existing timer before setting a new one
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+            if (typing) {
+              typingTimerRef.current = setTimeout(() => {
+                setIsOtherTyping(false);
+                typingTimerRef.current = null;
+              }, 3000);
+            }
+          }
+        })
+
+        // ── Theme Apply broadcast ─────────────────────────────────────────
+        .on('broadcast', { event: 'theme:apply' }, (payload: any) => {
+          const { convId, theme_id, theme_blur } = payload.payload ?? {};
+          if (convId === activeIdRef.current) {
+            // Signal a setting refresh, simulating the DB `postgres_changes` effect instantly
+            setSettingsVersion(v => v + 1);
+          }
+        })
+
+        // ── Presence (online status) ──────────────────────────────────────
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState<{ user_id: string }>();
+          const ids = new Set(
+            Object.values(state).flat().map((p: any) => p.user_id).filter(Boolean)
+          );
+          setOnlineUsers(() => ids);
+        })
+
+        // ── System events (reconnect) ─────────────────────────────────────
+        .on('system' as any, {}, (payload: any) => {
+          if (payload?.extension === 'postgres_changes' && payload?.status === 'ok') {
+            logWsReconnect({ channel: channelName });
+            const activeId = activeIdRef.current;
+            if (activeId) loadMessagesRef.current(activeId, undefined, true);
+          }
+        })
+
+        // ── Reactions INSERT ──────────────────────────────────────────────
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'message_reactions',
+        }, (payload: any) => {
+          const { message_id, user_id, emoji } = payload.new;
+          setMessages((prev: any[]) => prev.map((m: any) => {
+            if (m.id !== message_id) return m;
+            const existing: any[] = m.reactions || [];
+            const match = existing.find((r: any) => r.emoji === emoji);
+            const isMe = user_id === currentUser.id;
+            if (match) return { ...m, reactions: existing.map((r: any) => r.emoji === emoji ? { ...r, count: r.count + 1, reacted: r.reacted || isMe } : r) };
+            return { ...m, reactions: [...existing, { emoji, count: 1, reacted: isMe }] };
+          }));
+        })
+
+        // ── Reactions DELETE ──────────────────────────────────────────────
+        .on('postgres_changes', {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'message_reactions',
+        }, (payload: any) => {
+          const { message_id, user_id, emoji } = payload.old;
+          setMessages((prev: any[]) => prev.map((m: any) => {
+            if (m.id !== message_id) return m;
+            const existing: any[] = m.reactions || [];
+            const isMe = user_id === currentUser.id;
+            const updated = existing
+              .map((r: any) => r.emoji === emoji ? { ...r, count: Math.max(0, r.count - 1), reacted: isMe ? false : r.reacted } : r)
+              .filter((r: any) => r.count > 0);
+            return { ...m, reactions: updated };
+          }));
+        })
+
+        // ── Subscribe ─────────────────────────────────────────────────────
+        .subscribe(async (status: string) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({ user_id: currentUser.id, online_at: new Date().toISOString() });
+          }
         });
-      })
 
-      // ── Participant changes (added/removed from group) ─────────────────
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'conversation_participants',
-        filter: `user_id=eq.${currentUser.id}`,
-      }, () => {
-        loadConversationsRef.current(true);
-      })
+      channelRef.current = channel;
+    };
 
-      // ── Group metadata changes (theme, name, etc.) ────────────────────
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'conversations',
-      }, (payload: any) => {
-        const updated = payload.new;
-        setConversations((prev: any[]) =>
-          prev.map(c =>
-            c.id === updated.id
-              ? { ...c, theme_id: updated.theme_id, theme_blur: updated.theme_blur, name: updated.name, avatarUrl: updated.icon_url }
-              : c
-          )
-        );
-      })
-
-      // ── DM settings changes ───────────────────────────────────────────
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'dm_settings',
-        filter: `user_id=eq.${currentUser.id}`,
-      }, (payload: any) => {
-        const updated = payload.new;
-        if (updated.partner_id === activeIdRef.current) {
-          setSettingsVersion(v => v + 1);
-        }
-        loadConversationsRef.current(true);
-      })
-
-      // ── Typing broadcast ──────────────────────────────────────────────
-      .on('broadcast', { event: 'typing' }, (payload: any) => {
-        const { userId, convId, typing } = payload.payload ?? {};
-        if (userId !== currentUser.id && convId === activeIdRef.current) {
-          setIsOtherTyping(typing);
-          if (typing) {
-            // Auto-clear typing indicator after 3s (safety net)
-            setTimeout(() => setIsOtherTyping(false), 3000);
-          }
-        }
-      })
-
-      // ── Presence (online status) ──────────────────────────────────────
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ user_id: string }>();
-        const ids = new Set(
-          Object.values(state)
-            .flat()
-            .map((p: any) => p.user_id)
-            .filter(Boolean)
-        );
-        setOnlineUsers(() => ids);
-      })
-
-      // ── System events (reconnect detection) ───────────────────────────
-      .on('system' as any, {}, (payload: any) => {
-        if (payload?.extension === 'postgres_changes' && payload?.status === 'ok') {
-          // Supabase re-established realtime connection — catch up on missed msgs
-          logWsReconnect({ channel: channelName });
-          const activeId = activeIdRef.current;
-          if (activeId) {
-            loadMessagesRef.current(activeId, undefined, true);
-          }
-        }
-      })
-
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ user_id: currentUser.id, online_at: new Date().toISOString() });
-        }
-      });
+    setup();
 
     return () => {
-      supabase.removeChannel(channel);
+      isMounted = false;
+      // Async cleanup — fire-and-forget is fine here
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current).catch(() => {});
+        channelRef.current = null;
+      }
     };
-  }, [
-    currentUser?.id,
-    supabase,
-    setMessages,
-    setConversations,
-    setIsOtherTyping,
-    setSettingsVersion,
-    setOnlineUsers,
-    // activeConvId intentionally OMITTED — channel is global per-user, not per-conv.
-    // Conversation switching is handled via activeIdRef WITHOUT tearing down the socket.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ]);
+  }, [currentUser?.id, supabase]);
 
-  // ── Axiom 15: Self-Healing on tab focus ───────────────────────────────────
-  // The sync-engine emits 'verlyn:reconnect' on visibilitychange.
-  // We catch that here and trigger a catch-up fetch for the active conversation.
+  // ── Self-Healing on tab focus ─────────────────────────────────────────────
   useEffect(() => {
-
     const handleReconnect = () => {
       const activeId = activeIdRef.current;
       if (activeId) {
         logWsReconnect({ channel: 'visibility:reconnect' });
         loadMessagesRef.current(activeId, undefined, true);
       }
-      // Also drain any pending messages from the SyncQueue
       processSyncQueue();
     };
-
     window.addEventListener('verlyn:reconnect', handleReconnect);
     return () => window.removeEventListener('verlyn:reconnect', handleReconnect);
-  }, []); // Stable refs — no deps needed
-
+  }, []);
 }

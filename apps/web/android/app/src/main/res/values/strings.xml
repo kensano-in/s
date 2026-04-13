@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Verlyn</string>
+    <string name="title_activity_main">Verlyn</string>
+    <string name="package_name">com.verlyn.app</string>
+    <string name="custom_url_scheme">com.verlyn.app</string>
+</resources>

@@ -58,7 +58,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         </div>
         <main className={clsx('flex-1 min-h-0', !isMessages && 'overflow-y-auto')}>
           <div className={clsx(
-            isMessages ? 'h-full flex flex-col pb-14 md:pb-0' : 'max-w-[1200px] mx-auto px-4 py-0 md:py-6',
+            isMessages ? 'h-full flex flex-col' : 'max-w-[1200px] mx-auto px-4 py-0 md:py-6',
             !isMessages && 'pb-16 md:pb-0'  /* space for mobile bottom nav */
           )}>
             {children}

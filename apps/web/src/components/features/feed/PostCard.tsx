@@ -26,7 +26,7 @@ function renderParsedContent(rawText: string) {
           const isImage = inner.includes('📸');
           const isVideo = inner.includes('🎬');
           const isLocation = inner.includes('📍');
-          const label = inner.replace('📸', '').replace('🎬', '').replace('📍', '').trim();
+          const label = inner.replace('📸', '').replace('🎬', '').replace('📍', '').replace(/</g, "&lt;").replace(/>/g, "&gt;").trim();
           
           if (isImage || isVideo) {
             return (
@@ -171,14 +171,15 @@ export default function PostCard({ post, currentUserId }: Props) {
 
   const handleComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!commentText.trim() || isLoadingComments) return;
+    setIsLoadingComments(true);
     setCommentCount((c) => c + 1);
     const tempId = `opt-${Date.now()}`;
     const newCommentPayload = { id: tempId, content: commentText.trim(), created_at: new Date().toISOString(), author: { id: currentUserId, display_name: 'You', username: 'you' } };
     setCommentsStream(prev => [...prev, newCommentPayload]);
     const submittedText = commentText;
     setCommentText('');
-    if (currentUserId) submitCommentDB(post.id, currentUserId, submittedText);
+    if (currentUserId) submitCommentDB(post.id, currentUserId, submittedText).finally(() => setIsLoadingComments(false));
   };
 
   if (isDeleted) return null;

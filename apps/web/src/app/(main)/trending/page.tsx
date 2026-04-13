@@ -24,6 +24,7 @@ function AnimatedNumber({ value }: { value: number }) {
     let start = 0;
     const duration = 1000;
     const increment = value / (duration / 16);
+    let reqId: number;
     
     // reset start on new value if we want to animate again, but usually just up
     
@@ -31,13 +32,14 @@ function AnimatedNumber({ value }: { value: number }) {
       start += increment;
       if (start < value) {
         setDisplayValue(Math.floor(start));
-        requestAnimationFrame(animate);
+        reqId = requestAnimationFrame(animate);
       } else {
         setDisplayValue(value);
       }
     };
     
-    requestAnimationFrame(animate);
+    reqId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(reqId);
   }, [value]);
 
   return <span>{displayValue.toLocaleString()}</span>;
@@ -158,15 +160,19 @@ export default function TrendingPage() {
             { tag: '#Community', posts: 3450, change: '-5%', trend: 'down' },
          ]);
       }
-    } catch {}
-
-    setLoading(false);
-    if (isAuto) setIsRefreshing(false);
+    } catch {
+      console.error("Signal Engine offline");
+    } finally {
+      setLoading(false);
+      if (isAuto) setIsRefreshing(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
     loadTrendingData();
-    const interval = setInterval(() => loadTrendingData(true), 30000); // 30s live refresh
+    const interval = setInterval(() => {
+      if (!document.hidden) loadTrendingData(true);
+    }, 30000); // 30s live refresh
     return () => clearInterval(interval);
   }, [loadTrendingData]);
 

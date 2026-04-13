@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
+import IdentitySwitcher from '../security/IdentitySwitcher';
 import {
   Home, MessageCircle, Users, Search, Zap, Bell,
-  Settings, ChevronLeft, TrendingUp, Radio, User, Orbit
+  Settings, ChevronLeft, TrendingUp, Radio, User, Orbit, ArrowRightLeft
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -66,6 +68,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar, unreadNotifCount, currentUser } = useAppStore();
+  const [showSwitcher, setShowSwitcher] = useState(false);
 
   const isActive = (href: string) => {
     if (href === '/feed') return pathname === '/feed' || pathname === '/';
@@ -73,37 +76,38 @@ export default function Sidebar() {
   };
 
   return (
-    <motion.aside
-      layout
-      transition={SPRING}
-      className={clsx(
-        'flex flex-col h-full flex-shrink-0 relative z-40 border-r border-[#1f1f1f] bg-[#050505]',
-        sidebarCollapsed ? 'w-20' : 'w-64'
-      )}
-    >
-      <div className="flex flex-col h-full py-6">
-        
-        {/* Header Logo */}
-        <div className={clsx('px-6 mb-8 flex items-center gap-3', sidebarCollapsed && 'justify-center px-0')}>
-            <motion.div 
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              className="w-8 h-8 rounded-lg bg-blue-600 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg shadow-glow-primary"
-            >
-                V
-            </motion.div>
-            {!sidebarCollapsed && (
-              <motion.span 
-                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                 className="text-lg font-bold tracking-tight text-white whitespace-nowrap"
+    <>
+      <motion.aside
+        layout
+        transition={SPRING}
+        className={clsx(
+          'flex flex-col h-full flex-shrink-0 relative z-40 border-r border-[#1f1f1f] bg-[#050505]',
+          sidebarCollapsed ? 'w-20' : 'w-64'
+        )}
+      >
+        <div className="flex flex-col h-full py-6">
+          
+          {/* Header Logo */}
+          <div className={clsx('px-6 mb-8 flex items-center gap-3', sidebarCollapsed && 'justify-center px-0')}>
+              <motion.div 
+                whileHover={{ scale: 1.05, rotate: 5 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+                className="w-8 h-8 rounded-lg bg-blue-600 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg shadow-glow-primary"
               >
-                 Verlyn
-              </motion.span>
-            )}
-        </div>
+                  V
+              </motion.div>
+              {!sidebarCollapsed && (
+                <motion.span 
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="text-lg font-bold tracking-tight text-white whitespace-nowrap"
+                >
+                  Verlyn
+                </motion.span>
+              )}
+          </div>
 
-        {/* Navigation sections */}
+          {/* Navigation sections */}
         <motion.nav 
             variants={navVariants}
             initial="hidden"
@@ -167,38 +171,53 @@ export default function Sidebar() {
         </motion.nav>
 
         {/* Profile Card Mini */}
-        <div className="px-3 mt-auto pt-4 border-t border-[#1f1f1f]">
+        <div className="px-3 mt-auto py-5 border-t border-[#1f1f1f] flex items-center gap-1 min-h-[80px]">
           <Link href="/profile" className={clsx(
-            'flex items-center gap-3 p-2 rounded-xl hover:bg-[#121212] transition-colors group relative overflow-hidden',
+            'flex-1 flex items-center gap-3 p-2 rounded-xl hover:bg-[#121212] transition-colors group relative overflow-hidden',
             sidebarCollapsed && 'justify-center'
           )}>
-            <motion.img 
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring" }}
-              src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.username || 'user'}`} 
-              className="w-9 h-9 rounded-full object-cover border border-[#262626] shadow-sm relative z-10" 
-              alt="me" 
-            />
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-[#262626] shadow-sm relative z-10 flex-shrink-0 bg-[#121212]">
+              <motion.img 
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring" }}
+                src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.username || 'user'}`} 
+                className="w-full h-full object-cover" 
+                alt="me" 
+              />
+            </div>
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0 relative z-10">
                 <p className="text-sm font-bold text-white truncate leading-none mb-1 group-hover:text-blue-400 transition-colors">{currentUser?.displayName}</p>
-                <p className="text-xs text-neutral-500 truncate">@{currentUser?.username}</p>
+                <p className="text-xs text-neutral-500 truncate font-medium">@{currentUser?.username}</p>
               </div>
             )}
           </Link>
+          
+          {!sidebarCollapsed && (
+            <button 
+              onClick={() => setShowSwitcher(true)}
+              className="p-2.5 text-neutral-500 hover:text-v-cyan hover:bg-white/5 rounded-xl transition-all active:scale-90"
+              title="Switch Identity"
+            >
+              <ArrowRightLeft size={18} />
+            </button>
+          )}
         </div>
 
-      </div>
+        </div>
 
-      {/* Collapse Toggle */}
-      <button
-        onClick={toggleSidebar}
-        className="absolute -right-3 top-12 w-6 h-6 rounded-full bg-[#121212] border border-[#262626] flex items-center justify-center text-neutral-400 hover:text-white hover:shadow-glow hover:bg-[#1a1a1a] transition-all duration-normal active:scale-95 z-50"
-      >
-        <motion.div animate={{ rotate: sidebarCollapsed ? 180 : 0 }} transition={SPRING}>
-          <ChevronLeft size={14} />
-        </motion.div>
-      </button>
-    </motion.aside>
+        {/* Collapse Toggle */}
+        <button
+          onClick={toggleSidebar}
+          className="absolute -right-3 top-12 w-6 h-6 rounded-full bg-[#121212] border border-[#262626] flex items-center justify-center text-neutral-400 hover:text-white hover:shadow-glow hover:bg-[#1a1a1a] transition-all duration-normal active:scale-95 z-50"
+        >
+          <motion.div animate={{ rotate: sidebarCollapsed ? 180 : 0 }} transition={SPRING}>
+            <ChevronLeft size={14} />
+          </motion.div>
+        </button>
+      </motion.aside>
+
+      <IdentitySwitcher isOpen={showSwitcher} onClose={() => setShowSwitcher(false)} />
+    </>
   );
 }

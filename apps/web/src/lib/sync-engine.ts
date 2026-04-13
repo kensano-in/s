@@ -170,14 +170,20 @@ export function initSelfHealingLoop(): void {
   if (selfHealingInitialized || typeof document === 'undefined') return;
   selfHealingInitialized = true;
 
+  // Tab focus → drain queue + WS catch-up
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       console.debug('[SelfHeal] Tab focused — draining sync queue and triggering reconnect');
-      // Drain any queued messages (Axiom 8)
       processSyncQueue();
-      // Signal WS hook to catch up on missed messages (Axiom 15)
       window.dispatchEvent(new CustomEvent('verlyn:reconnect'));
     }
+  });
+
+  // Network restored → auto-drain queued messages immediately
+  window.addEventListener('online', () => {
+    console.debug('[SelfHeal] Network restored — auto-draining queued messages');
+    processSyncQueue();
+    window.dispatchEvent(new CustomEvent('verlyn:reconnect'));
   });
 
   console.debug('[SelfHeal] Self-healing loop initialized');

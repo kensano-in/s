@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAppStore } from '@/lib/store';
@@ -8,7 +8,7 @@ import { useAppStore } from '@/lib/store';
 export default function AuthProvider() {
   const { updateProfile, setUser, setAuthLoading } = useAppStore();
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function loadIdentity() {

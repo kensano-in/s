@@ -73,16 +73,22 @@ export default function NewMessageOverlay({
     setIsSubmitting(true);
     setError(null);
 
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const res = await createGroupDB(currentUser.id, groupName, code);
-    
-    if (res.success) {
-      onCreated?.(res.data.id);
-      onClose();
-    } else {
-      setError(res.error || "Failed to create group.");
+    try {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const res = await createGroupDB(currentUser.id, groupName, code);
+      
+      if (res.success) {
+        onCreated?.(res.data.id);
+        onClose();
+      } else {
+        setError(res.error || "Failed to create group.");
+      }
+    } catch (err: any) {
+      console.error("[Overlay] Group creation error:", err);
+      setError("An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const handleJoinByCode = async () => {
@@ -90,14 +96,20 @@ export default function NewMessageOverlay({
     setIsSubmitting(true);
     setError(null);
 
-    const res = await joinGroupByCodeDB(currentUser.id, joinCodeInput);
-    if (res.success) {
-      onCreated?.(res.data.id);
-      onClose();
-    } else {
-      setError(res.error || "Invalid or full group.");
+    try {
+      const res = await joinGroupByCodeDB(currentUser.id, joinCodeInput);
+      if (res.success) {
+        onCreated?.(res.data.id);
+        onClose();
+      } else {
+        setError(res.error || "Invalid or full group.");
+      }
+    } catch (err: any) {
+      console.error("[Overlay] Join code error:", err);
+      setError("Failed to join group.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const filteredUsers = users.filter(u => 

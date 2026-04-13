@@ -13,10 +13,12 @@ module.exports = {
         background: '#131315',
         surface: {
           lowest: '#0E0E10',
-          low: '#1C1B1E',
-          DEFAULT: '#201F22',
-          high: '#2A2A2C',
-          highest: '#353437',
+          low: '#1B1B1E',
+          DEFAULT: '#222224',
+          high: '#2C2C2F',
+          highest: '#37373A',
+          elevated: 'var(--surface-elevated, #121212)',
+          border: 'var(--surface-border, #1c1c1c)',
         },
         primary: {
           DEFAULT: '#6200EE',

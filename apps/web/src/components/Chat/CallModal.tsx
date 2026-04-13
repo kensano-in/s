@@ -5,7 +5,7 @@ import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAvatarUrl } from '@/lib/utils';
 
-export type CallState = 'calling' | 'ringing' | 'connected' | 'ended';
+export type CallState = 'calling' | 'ringing' | 'connected' | 'ended' | 'unavailable';
 
 interface CallModalProps {
   isOpen: boolean;
@@ -65,8 +65,9 @@ export default function CallModal({
 
   const toggleMute = () => {
     if (localStream) {
-      localStream.getAudioTracks().forEach(t => { t.enabled = isMuted; });
-      setIsMuted(m => !m);
+      const nextMuted = !isMuted;
+      localStream.getAudioTracks().forEach(t => { t.enabled = !nextMuted; });
+      setIsMuted(nextMuted);
     }
   };
 
@@ -83,12 +84,13 @@ export default function CallModal({
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
-  const statusLabel = {
+  const statusLabel: Record<string, string> = {
     calling: 'Calling...',
-    ringing: 'Ringing...',
+    ringing: 'Incoming call',
     connected: formatDuration(duration),
     ended: 'Call Ended',
-  }[callState];
+    unavailable: 'User unavailable',
+  };
 
   return (
     <AnimatePresence>
@@ -97,7 +99,7 @@ export default function CallModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-between p-8"
+          className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-between p-8"
         >
           {/* Remote video (background) */}
           {callType === 'video' && remoteStream ? (
@@ -130,8 +132,8 @@ export default function CallModal({
               className="w-24 h-24 rounded-[28px] object-cover border-2 border-white/20 shadow-2xl mb-4"
             />
             <h2 className="text-2xl font-bold text-white mb-1">{participant.name}</h2>
-            <p className="text-sm text-white/60">
-              {callType === 'video' ? 'Video Call' : 'Audio Call'} · {statusLabel}
+            <p className={`text-sm font-medium ${callState === 'unavailable' ? 'text-red-400' : 'text-white/60'}`}>
+              {callType === 'video' ? 'Video Call' : 'Audio Call'} · {statusLabel[callState]}
             </p>
             {callState === 'calling' && (
               <div className="flex gap-1 mt-4">
@@ -145,7 +147,17 @@ export default function CallModal({
                 ))}
               </div>
             )}
+            {callState === 'unavailable' && (
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-white/40 text-xs mt-2"
+              >
+                This person is not available right now.
+              </motion.p>
+            )}
           </div>
+
 
           {/* Local video (picture-in-picture) */}
           {callType === 'video' && localStream && !isCamOff && (

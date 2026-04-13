@@ -6,7 +6,7 @@ import { User, Shield, Bell, Palette, Lock, Database, LifeBuoy, AlertTriangle } 
 import clsx from 'clsx';
 import { SettingsRow } from './components';
 
-export const SETTINGS_SECTIONS = [
+const SETTINGS_SECTIONS = [
     { id: 'account', label: 'Account', icon: User, href: '/settings/account' },
     { id: 'privacy', label: 'Privacy', icon: Shield, href: '/settings/privacy' },
     { id: 'notifications', label: 'Notifications', icon: Bell, href: '/settings/notifications' },

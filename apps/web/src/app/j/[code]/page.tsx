@@ -3,20 +3,22 @@ import { createClient } from "@/lib/supabase/server";
 import { getGroupByJoinCodeDB } from "@/app/(main)/messages/actions";
 import JoinGroupClient from "./JoinGroupClient";
 
-export async function generateMetadata({ params }: { params: { code: string } }) {
-  const { data: group } = await getGroupByJoinCodeDB(params.code);
+export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params;
+  const { data: group } = await getGroupByJoinCodeDB(code);
   return {
     title: group ? `Join ${group.name} on Verlyn` : "Invalid Invite - Verlyn",
     description: "You've been invited to a sanctuary on Verlyn.",
   };
 }
 
-export default async function JoinGroupPage({ params }: { params: { code: string } }) {
+export default async function JoinGroupPage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   // Fetch the group data
-  const { success, data: group, error } = await getGroupByJoinCodeDB(params.code);
+  const { success, data: group, error } = await getGroupByJoinCodeDB(code);
 
   if (!success || !group) {
     return (
@@ -36,7 +38,7 @@ export default async function JoinGroupPage({ params }: { params: { code: string
   // Pass it all to the interactive client component
   return (
     <JoinGroupClient 
-      code={params.code} 
+      code={code} 
       group={group} 
       userId={user?.id || null} 
     />

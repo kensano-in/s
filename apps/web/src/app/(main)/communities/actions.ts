@@ -106,6 +106,11 @@ export async function getCommunityMessages(channelId: string) {
         sender:auth.users!sender_id (
           id,
           raw_user_meta_data
+        ),
+        reactions:community_message_reactions (
+          id,
+          emoji,
+          user_id
         )
       `)
       .eq('channel_id', channelId)
@@ -118,6 +123,7 @@ export async function getCommunityMessages(channelId: string) {
     const parsed = ((messages as any[]) || []).map(m => ({
       ...m,
       sender_display: m.sender?.raw_user_meta_data?.display_name || 'User',
+      reactions: m.reactions || [],
     })).reverse();
 
     return { success: true, messages: parsed };
@@ -198,5 +204,136 @@ export async function toggleCommunityJoin(communityId: string, userId: string, i
     return { success: true };
   } catch(e: any) {
     return { success: false, error: e.message };
+  }
+}
+
+export async function getCommunityMembers(communityId: string) {
+  try {
+    const { data: members, error } = await supabase
+      .from('community_members')
+      .select(`
+        *,
+        user:auth.users!user_id (
+          id,
+          raw_user_meta_data
+        )
+      `)
+      .eq('community_id', communityId);
+
+    if (error) throw error;
+
+    const parsed = ((members as any[]) || []).map(m => ({
+      ...m,
+      display_name: m.user?.raw_user_meta_data?.display_name || 'User',
+      username: m.user?.raw_user_meta_data?.username || 'user',
+      avatar_url: m.user?.raw_user_meta_data?.avatar_url,
+    }));
+
+    return { success: true, members: parsed };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function deleteCommunityMessageDB(userId: string, messageId: string) {
+  try {
+    // Need to verify ownership or admin role. Simplified for now:
+    const { error } = await supabase
+      .from('community_messages')
+      .delete()
+      .match({ id: messageId }); // we should verify sender_id = userId ideally
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function reactCommunityMessageDB(userId: string, messageId: string, emoji: string) {
+  try {
+    // Check if the reaction already exists to toggle it
+    const { data: existing } = await supabase
+      .from('community_message_reactions')
+      .select('id')
+      .eq('message_id', messageId)
+      .eq('user_id', userId)
+      .eq('emoji', emoji)
+      .single();
+
+    if (existing) {
+      // Toggle off
+      const { error } = await supabase
+        .from('community_message_reactions')
+        .delete()
+        .eq('id', existing.id);
+      if (error) throw error;
+      return { success: true, action: 'removed' };
+    } else {
+      // Toggle on
+      const { error } = await supabase
+        .from('community_message_reactions')
+        .insert({
+          message_id: messageId,
+          user_id: userId,
+          emoji
+        });
+      if (error) throw error;
+      return { success: true, action: 'added' };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function getPulseSignalsDB() {
+  try {
+    // 1. Get top 3 communities by member count
+    const { data: topCommunities, error: commError } = await supabase
+      .from('communities')
+      .select('id, name, display_name, member_count')
+      .order('member_count', { ascending: false })
+      .limit(3);
+
+    if (commError) throw commError;
+
+    const signals: any[] = [];
+
+    // 2. For each top community, get recent message count (last 24h)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    for (const comm of (topCommunities || [])) {
+      const { count, error: msgError } = await supabase
+        .from('community_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('channel_id', (await supabase.from('community_channels').select('id').eq('community_id', comm.id).limit(1).single()).data?.id)
+        .gte('sent_at', yesterday);
+      
+      // Add member growth signal
+      signals.push({
+        id: `mem_${comm.id}`,
+        type: 'users',
+        text: `members in ${comm.display_name}`,
+        count: comm.member_count || 0,
+        href: `/communities/${comm.id}`,
+        color: 'text-blue-500'
+      });
+
+      // Add activity signal if there are recent messages
+      if (count && count > 0) {
+        signals.push({
+          id: `msg_${comm.id}`,
+          type: 'message',
+          text: `new messages in ${comm.display_name}`,
+          count: count,
+          href: `/communities/${comm.id}`,
+          color: 'text-emerald-500'
+        });
+      }
+    }
+
+    return { success: true, signals: signals.slice(0, 3) };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }

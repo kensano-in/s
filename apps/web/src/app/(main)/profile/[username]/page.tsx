@@ -203,7 +203,7 @@ export default function PublicProfilePage() {
 
           <ActionButton
             id="message-btn"
-            onClick={() => router.push(`/messages?user_id=${profileUser.id}`)}
+            onClick={() => router.push(`/messages/${profileUser.id}`)}
             icon={MessageCircle}
             label="Message"
           />

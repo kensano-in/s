@@ -114,7 +114,7 @@ function SearchResults({
           {results.users.map((u: any) => (
             <Link
               key={u.id}
-              href={`/${u.username}`}
+              href={`/profile/${u.username}`}
               onClick={onClose}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#111] transition-colors"
             >
@@ -519,7 +519,7 @@ export default function ExplorePage() {
                   : people.map((u: any) => (
                     <Link
                       key={u.id}
-                      href={`/${u.username}`}
+                      href={`/profile/${u.username}`}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-[#111] transition-colors"
                     >
                       <Avatar src={u.avatar_url} username={u.username} size={40} />
