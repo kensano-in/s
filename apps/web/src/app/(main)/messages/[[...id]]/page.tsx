@@ -263,33 +263,37 @@ function MessagesContent() {
   useEffect(() => {
     if (!currentUser?.id || !activeConvId) return;
 
-    // 🔴 STEP 1: JOIN SHARED ROOM
+    const myId = currentUser.id;
     const channelName = `room-${activeConvId}`;
     console.log("DEBUG: [Realtime] Initializing sync engine for room:", channelName);
     
-    const channel = supabase
-      .channel(channelName)
+    const channel = supabase.channel(channelName);
+    channelRef.current = channel;
+    
+    channel
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: undefined, // 🔴 ALL traffic for this channel hook
+          // No server-side filter: DMs route via sender_id/recipient_id (not conversation_id).
+          // We filter client-side to handle both group and DM topologies.
         },
         (payload: any) => {
-          console.log("DEBUG: [Realtime] Message Packet Received:", payload);
+          console.log("DEBUG: [Realtime] postgres_changes INSERT:", payload);
           const raw = payload.new;
 
-          // 🔴 STEP 2: IMMORTAL RECONCILIATION
-          // Accepting EITHER Group ID match OR DM ID match. No state dependencies.
-          const isRelevant = 
-            (raw.conversation_id === activeConvId) || 
-            (raw.sender_id === activeConvId) || 
-            (raw.recipient_id === activeConvId);
+          // HYBRID IDENTIFICATION:
+          // Group → raw.conversation_id matches activeConvId
+          // DM → partner sent to me, or I sent (another tab)
+          const isRelevant =
+            raw.conversation_id === activeConvId ||
+            (raw.sender_id === activeConvId && raw.recipient_id === myId) ||
+            (raw.sender_id === myId && raw.recipient_id === activeConvId);
 
           if (!isRelevant) {
-            console.log("DEBUG: [Realtime] Packet Ignored (Not for this screen)", { raw_conv: raw.conversation_id, raw_sender: raw.sender_id });
+            console.log("DEBUG: [Realtime] Ignored (not relevant):", raw.id);
             return;
           }
 
@@ -308,7 +312,7 @@ function MessagesContent() {
             status: "sent",
             sent_at: raw.sent_at || raw.created_at || new Date().toISOString(),
             created_at: raw.created_at,
-            is_mine: raw.sender_id === currentUser.id,
+            is_mine: raw.sender_id === myId,
             client_temp_id: raw.client_temp_id,
             reactions: [],
             sender: raw.sender,
@@ -318,7 +322,9 @@ function MessagesContent() {
           };
 
           setMessages((prev) => {
+            // Deduplicate by real id
             if (prev.some((m) => m.id === incoming.id)) return prev;
+            // Replace optimistic placeholder
             if (raw.client_temp_id) {
               const hasOpt = prev.some((m) => m.client_temp_id === raw.client_temp_id);
               if (hasOpt) {
@@ -328,24 +334,37 @@ function MessagesContent() {
             return [incoming, ...prev];
           });
 
-          // Trigger refresh of list (Side-effect)
           void loadConversations();
         }
-      );
-
-    // 🔴 STEP 3: HEALTH MONITORING
-    channel.subscribe((status) => {
-      console.log(`DEBUG: [Realtime] Connection Status: ${status} for channel ${channelName}`);
-      if (status === 'CHANNEL_ERROR') {
-        console.error("CRITICAL: Realtime failed to connect. Check Publication / RLS / Network.");
-      }
-    });
+      )
+      // BROADCAST LISTENER — instant delivery, bypasses DB replication lag
+      .on('broadcast', { event: 'message' }, (payload: any) => {
+        const msg = payload.payload;
+        if (!msg || msg.sender_id === myId) return; // ignore own broadcasts
+        
+        console.log("DEBUG: [Realtime] Broadcast Received:", msg.id);
+        setMessages((prev) => {
+          if (prev.some(m => m.id === msg.id || (msg.client_temp_id && m.client_temp_id === msg.client_temp_id))) return prev;
+          return [msg, ...prev];
+        });
+      })
+      // .subscribe() MUST be called — without it the channel never activates and NO events fire
+      .subscribe((status) => {
+        console.log("DEBUG: [Realtime] Channel", channelName, "→", status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error("CRITICAL: Realtime channel error. Verify: messages in supabase_realtime publication, RLS SELECT policy, REPLICA IDENTITY FULL.");
+        }
+      });
 
     return () => {
       console.log("DEBUG: [Realtime] Destroying sync engine for room:", channelName);
       supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, activeConvId, supabase, loadConversations]);
+  // ⚠️ loadConversations excluded from deps intentionally — it would cause the channel to
+  // teardown+rebuild on every convo list refresh. It only changes when currentUser.id changes,
+  // which is already a dep. The closure remains valid.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, activeConvId, supabase]);
 
   // ── Realtime — typing ──────────────────────────────────────────────────────
   const setupTypingChannel = useCallback(
@@ -452,21 +471,48 @@ function MessagesContent() {
       setMessages((prev) => [optimistic, ...prev]);
       setReplyTo(null);
 
-      const dbPayload = {
-        sender_id: currentUser.id,
-        // The DB requires recipient_id to be NOT NULL even for group chats
-        // The original Server Action bypassed this by passing senderId
-        recipient_id: isGroup ? currentUser.id : activeConvId,
-        conversation_id: isGroup ? activeConvId : null,
-        content,
-        type,
-        media_url: mediaUrl,
-        file_name: fileName,
-        mime_type: mimeType,
-        reply_to_id: replyTo?.id,
-        client_temp_id: tempId,
-        view_once: viewOnce,
-      };
+      // 🔴 STEP 3: DUAL-TRACK DELIVERY
+      // 1. Broadcast Pulse (Instant, bypasses DB replication lag)
+      void channelRef.current?.send({
+        type: 'broadcast',
+        event: 'message',
+        payload: { ...optimistic, status: 'sent' }
+      });
+
+      // 2. Database Anchoring (Persistent)
+      // CRITICAL: DMs use sender_id/recipient_id with conversation_id=NULL.
+      // Groups use conversation_id with recipient_id=NULL.
+      // The RLS msg_insert policy enforces this split — setting conversation_id to
+      // a non-group UUID (e.g., a user ID) will FAIL the RLS check silently.
+      const dbPayload = isGroup
+        ? {
+            sender_id: currentUser.id,
+            conversation_id: activeConvId,
+            // DB has NOT NULL on recipient_id. Use sender's own ID as sentinel value
+            // for group messages — same pattern as sendMessageDB server action.
+            recipient_id: currentUser.id,
+            content,
+            type,
+            media_url: mediaUrl ?? null,
+            file_name: fileName ?? null,
+            mime_type: mimeType ?? null,
+            reply_to_id: replyTo?.id ?? null,
+            client_temp_id: tempId,
+            view_once: viewOnce,
+          }
+        : {
+            sender_id: currentUser.id,
+            recipient_id: activeConvId,
+            conversation_id: null,
+            content,
+            type,
+            media_url: mediaUrl ?? null,
+            file_name: fileName ?? null,
+            mime_type: mimeType ?? null,
+            reply_to_id: replyTo?.id ?? null,
+            client_temp_id: tempId,
+            view_once: viewOnce,
+          };
 
       const { data, error } = await supabase
         .from('messages')
