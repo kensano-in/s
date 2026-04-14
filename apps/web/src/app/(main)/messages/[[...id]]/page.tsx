@@ -458,7 +458,7 @@ function MessagesContent() {
         console.error("[MessagesPage] db insert error:", error);
         setMessages((prev) =>
           prev.map((m) =>
-            m.client_temp_id === tempId ? { ...m, status: "failed" as const, content: m.content + " ✓" } : m
+            m.client_temp_id === tempId ? { ...m, status: "failed" as const, content: m.content + " (Error: " + error.message + ")" } : m
           )
         );
         return;
