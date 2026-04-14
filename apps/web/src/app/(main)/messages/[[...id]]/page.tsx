@@ -263,6 +263,11 @@ function MessagesContent() {
   useEffect(() => {
     if (!currentUser?.id || !activeConvId) return;
 
+    // 🔴 STEP 2 — VERIFY CHAT_ID CONSISTENCY
+    console.log("CHAT ID (activeConvId):", activeConvId);
+    console.log("IS GROUP:", isGroup);
+    console.log("SUB FILTER:", isGroup ? `conversation_id=eq.${activeConvId}` : "DM (no filter)");
+
     const channelName = `chat-${activeConvId}-${currentUser.id}`;
     
     const channel = supabase
@@ -274,10 +279,13 @@ function MessagesContent() {
           schema: 'public',
           table: 'messages',
           // If group, filter by conversation. If DM, filter by messages sent to THIS user.
+          // 🔴 STEP 6 — VERIFY SUBSCRIPTION FILTER
           filter: isGroup ? `conversation_id=eq.${activeConvId}` : undefined,
         },
-        (payload: any) => {
-          console.log("REALTIME EVENT:", payload);
+          // 🔴 STEP 3 & 6 — REALTIME EVENT & FILTER VERIFICATION
+          console.log("REALTIME EVENT RECEIVED:", payload);
+          console.timeEnd("message_flow"); // 🔴 STEP 9 — LATENCY CHECK
+          
           const raw = payload.new;
           
           // For DMs, ensure the message belongs to this conversation
@@ -430,6 +438,10 @@ function MessagesContent() {
         },
         reply_to_id: replyTo?.id,
       };
+
+      // 🔴 STEP 9 — MEASURE LATENCY
+      console.time("message_flow");
+      console.log("SENDING MESSAGE WITH CHAT ID:", activeConvId);
 
       setMessages((prev) => [optimistic, ...prev]);
       setReplyTo(null);
