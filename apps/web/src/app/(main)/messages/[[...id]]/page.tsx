@@ -436,7 +436,8 @@ function MessagesContent() {
 
       const dbPayload = {
         sender_id: currentUser.id,
-        recipient_id: isGroup ? null : activeConvId,
+        // The DB requires recipient_id to be NOT NULL even for group chats
+        recipient_id: activeConvId,
         conversation_id: isGroup ? activeConvId : null,
         content,
         type,
