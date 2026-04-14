@@ -281,20 +281,28 @@ function MessagesContent() {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: undefined, // VORTEX: Catch everything on the table
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          // 🔴 REMOVE DB FILTER — LISTEN TO ALL INSERTS FOR THIS CHANNEL
+          filter: undefined,
         },
         (payload: any) => {
-          console.log("🔴 VORTEX: RAW EVENT ARRIVED:", payload);
+          console.log("DEBUG: RAW REALTIME PAYLOAD RECEIVED (UNFILTERED):", payload);
           const raw = payload.new;
-          
-          console.log("DEBUG ID CHECK:", {
-            incoming_conv_id: raw.conversation_id,
-            active_conv_id: activeConvId,
-            match: raw.conversation_id === activeConvId
-          });
+
+          // 🔴 MANUAL JS FILTERING
+          const isFromCurrentChat = isGroup 
+            ? (raw.conversation_id === activeConvId)
+            : ((raw.sender_id === currentUser.id && raw.recipient_id === activeConvId) ||
+               (raw.sender_id === activeConvId && raw.recipient_id === currentUser.id));
+
+          if (!isFromCurrentChat) {
+            console.log("DEBUG: Event ignored (Not for this chat):", raw.id);
+            return;
+          }
+
+          console.log("DEBUG: ACCEPTED MESSAGE:", raw.id);
 
           const incoming: ChatMessage = {
             id: raw.id,
@@ -319,7 +327,10 @@ function MessagesContent() {
           };
 
           setMessages((prev) => {
+            // Duplicate guard
             if (prev.some((m) => m.id === incoming.id)) return prev;
+
+            // Optimistic resolution
             if (raw.client_temp_id) {
               const hasOpt = prev.some((m) => m.client_temp_id === raw.client_temp_id);
               if (hasOpt) {
