@@ -261,14 +261,20 @@ function MessagesContent() {
 
   // ── Realtime — messages ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!currentUser?.id || !activeConvId) return;
+    console.log("DEBUG: Realtime hook status check:", { 
+      currentUserId: currentUser?.id, 
+      activeConvId, 
+      isGroup 
+    });
 
-    // 🔴 STEP 2 — VERIFY CHAT_ID CONSISTENCY
-    console.log("CHAT ID (activeConvId):", activeConvId);
-    console.log("IS GROUP:", isGroup);
-    console.log("SUB FILTER:", isGroup ? `conversation_id=eq.${activeConvId}` : "DM (no filter)");
+    if (!currentUser?.id || !activeConvId) {
+      console.warn("DEBUG: Realtime hook blocked - Missing Auth or ConvID");
+      return;
+    }
 
-    const channelName = `chat-${activeConvId}-${currentUser.id}`;
+    // 🔴 STEP 7 — FORCE UNIFIED CHANNEL NAME
+    const channelName = `room-${activeConvId}`;
+    console.log("DEBUG: Joining Channel:", channelName);
     
     const channel = supabase
       .channel(channelName)
@@ -283,8 +289,8 @@ function MessagesContent() {
           filter: isGroup ? `conversation_id=eq.${activeConvId}` : undefined,
         },
           // 🔴 STEP 3 & 6 — REALTIME EVENT & FILTER VERIFICATION
-          console.log("REALTIME EVENT RECEIVED:", payload);
-          console.timeEnd("message_flow"); // 🔴 STEP 9 — LATENCY CHECK
+          console.log("DEBUG: RAW REALTIME PAYLOAD RECEIVED:", payload);
+          console.timeEnd("message_flow");
           
           const raw = payload.new;
           
@@ -292,7 +298,15 @@ function MessagesContent() {
           if (!isGroup) {
             const isRelevant = (raw.sender_id === currentUser.id && raw.recipient_id === activeConvId) ||
                                (raw.sender_id === activeConvId && raw.recipient_id === currentUser.id);
-            if (!isRelevant) return;
+            if (!isRelevant) {
+              console.log("DEBUG: Event ignored (Not relevant to this DM)");
+              return;
+            }
+          }
+          
+          if (isGroup && raw.conversation_id !== activeConvId) {
+             console.log("DEBUG: Event ignored (Wrong conversation_id)");
+             return;
           }
 
           const incoming: ChatMessage = {
