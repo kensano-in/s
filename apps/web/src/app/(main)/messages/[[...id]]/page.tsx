@@ -261,48 +261,39 @@ function MessagesContent() {
 
   // ── Realtime — messages ────────────────────────────────────────────────────
   useEffect(() => {
-    console.log("DEBUG: Realtime hook status check:", { 
-      currentUserId: currentUser?.id, 
-      activeConvId, 
-      isGroup 
-    });
+    if (!currentUser?.id || !activeConvId) return;
 
-    if (!currentUser?.id || !activeConvId) {
-      console.warn("DEBUG: Realtime hook blocked - Missing Auth or ConvID");
-      return;
-    }
-
-    // 🔴 STEP 7 — FORCE UNIFIED CHANNEL NAME
+    // 🔴 STEP 1: JOIN SHARED ROOM
     const channelName = `room-${activeConvId}`;
-    console.log("DEBUG: Joining Channel:", channelName);
+    console.log("DEBUG: [Realtime] Initializing sync engine for room:", channelName);
     
     const channel = supabase
       .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          // 🔴 REMOVE DB FILTER — LISTEN TO ALL INSERTS FOR THIS CHANNEL
-          filter: undefined,
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: undefined, // 🔴 ALL traffic for this channel hook
         },
         (payload: any) => {
-          console.log("DEBUG: RAW REALTIME PAYLOAD RECEIVED (UNFILTERED):", payload);
+          console.log("DEBUG: [Realtime] Message Packet Received:", payload);
           const raw = payload.new;
 
-          // 🔴 MANUAL JS FILTERING
-          const isFromCurrentChat = isGroup 
-            ? (raw.conversation_id === activeConvId)
-            : ((raw.sender_id === currentUser.id && raw.recipient_id === activeConvId) ||
-               (raw.sender_id === activeConvId && raw.recipient_id === currentUser.id));
+          // 🔴 STEP 2: IMMORTAL RECONCILIATION
+          // Accepting EITHER Group ID match OR DM ID match. No state dependencies.
+          const isRelevant = 
+            (raw.conversation_id === activeConvId) || 
+            (raw.sender_id === activeConvId) || 
+            (raw.recipient_id === activeConvId);
 
-          if (!isFromCurrentChat) {
-            console.log("DEBUG: Event ignored (Not for this chat):", raw.id);
+          if (!isRelevant) {
+            console.log("DEBUG: [Realtime] Packet Ignored (Not for this screen)", { raw_conv: raw.conversation_id, raw_sender: raw.sender_id });
             return;
           }
 
-          console.log("DEBUG: ACCEPTED MESSAGE:", raw.id);
+          console.log("DEBUG: [Realtime] Packet Accepted:", raw.id);
 
           const incoming: ChatMessage = {
             id: raw.id,
@@ -327,28 +318,34 @@ function MessagesContent() {
           };
 
           setMessages((prev) => {
-            // Duplicate guard
             if (prev.some((m) => m.id === incoming.id)) return prev;
-
-            // Optimistic resolution
             if (raw.client_temp_id) {
               const hasOpt = prev.some((m) => m.client_temp_id === raw.client_temp_id);
               if (hasOpt) {
-                return prev.map((m) =>
-                  m.client_temp_id === raw.client_temp_id ? incoming : m
-                );
+                return prev.map((m) => m.client_temp_id === raw.client_temp_id ? incoming : m);
               }
             }
             return [incoming, ...prev];
           });
+
+          // Trigger refresh of list (Side-effect)
+          void loadConversations();
         }
-      )
-      .subscribe();
+      );
+
+    // 🔴 STEP 3: HEALTH MONITORING
+    channel.subscribe((status) => {
+      console.log(`DEBUG: [Realtime] Connection Status: ${status} for channel ${channelName}`);
+      if (status === 'CHANNEL_ERROR') {
+        console.error("CRITICAL: Realtime failed to connect. Check Publication / RLS / Network.");
+      }
+    });
 
     return () => {
+      console.log("DEBUG: [Realtime] Destroying sync engine for room:", channelName);
       supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, activeConvId, isGroup, supabase]);
+  }, [currentUser?.id, activeConvId, supabase, loadConversations]);
 
   // ── Realtime — typing ──────────────────────────────────────────────────────
   const setupTypingChannel = useCallback(
