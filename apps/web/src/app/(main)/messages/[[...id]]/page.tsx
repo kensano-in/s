@@ -284,30 +284,17 @@ function MessagesContent() {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          // If group, filter by conversation. If DM, filter by messages sent to THIS user.
-          // 🔴 STEP 6 — VERIFY SUBSCRIPTION FILTER
-          filter: isGroup ? `conversation_id=eq.${activeConvId}` : undefined,
+          filter: undefined, // VORTEX: Catch everything on the table
         },
-          // 🔴 STEP 3 & 6 — REALTIME EVENT & FILTER VERIFICATION
-          console.log("DEBUG: RAW REALTIME PAYLOAD RECEIVED:", payload);
-          console.timeEnd("message_flow");
-          
+        (payload: any) => {
+          console.log("🔴 VORTEX: RAW EVENT ARRIVED:", payload);
           const raw = payload.new;
           
-          // For DMs, ensure the message belongs to this conversation
-          if (!isGroup) {
-            const isRelevant = (raw.sender_id === currentUser.id && raw.recipient_id === activeConvId) ||
-                               (raw.sender_id === activeConvId && raw.recipient_id === currentUser.id);
-            if (!isRelevant) {
-              console.log("DEBUG: Event ignored (Not relevant to this DM)");
-              return;
-            }
-          }
-          
-          if (isGroup && raw.conversation_id !== activeConvId) {
-             console.log("DEBUG: Event ignored (Wrong conversation_id)");
-             return;
-          }
+          console.log("DEBUG ID CHECK:", {
+            incoming_conv_id: raw.conversation_id,
+            active_conv_id: activeConvId,
+            match: raw.conversation_id === activeConvId
+          });
 
           const incoming: ChatMessage = {
             id: raw.id,
@@ -332,10 +319,7 @@ function MessagesContent() {
           };
 
           setMessages((prev) => {
-            // Duplicate guard
             if (prev.some((m) => m.id === incoming.id)) return prev;
-
-            // Optimistic resolution
             if (raw.client_temp_id) {
               const hasOpt = prev.some((m) => m.client_temp_id === raw.client_temp_id);
               if (hasOpt) {
