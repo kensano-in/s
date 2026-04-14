@@ -260,113 +260,78 @@ function MessagesContent() {
   );
 
   // ── Realtime — messages ────────────────────────────────────────────────────
-  const setupRealtime = useCallback(
-    (convId: string, group: boolean) => {
-      if (!currentUser?.id) return;
+  useEffect(() => {
+    if (!currentUser?.id || !activeConvId) return;
 
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-
-      const channelName = group
-        ? `rt:group:${convId}:${currentUser.id}`
-        : `rt:dm:${currentUser.id}:${convId}`;
-
-      const handleInsert = (payload: any) => {
-        const raw = payload.new as any;
-        if (!raw?.id) return;
-        if (raw.thread_root_id) return;
-
-        // BUG-11 FIX: Exclude group messages that bleed into DM subscriptions.
-        // Group messages have conversation_id set; DM messages do not.
-        if (!group && raw.conversation_id) return;
-
-        if (!group) {
-          const between =
-            (raw.sender_id === currentUser!.id && raw.recipient_id === convId) ||
-            (raw.sender_id === convId && raw.recipient_id === currentUser!.id);
-          if (!between) return;
-        }
-
-        if (seenIdsRef.current.has(raw.id)) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.client_temp_id && m.client_temp_id === raw.client_temp_id
-                ? { ...m, id: raw.id, status: "sent" as const, client_temp_id: null }
-                : m
-            )
-          );
-          return;
-        }
-        seenIdsRef.current.add(raw.id);
-
-        const incoming: ChatMessage = {
-          id: raw.id,
-          sender_id: raw.sender_id,
-          recipient_id: raw.recipient_id,
-          conversation_id: raw.conversation_id,
-          content: raw.content,
-          type: raw.type ?? "text",
-          media_url: raw.media_url,
-          file_name: raw.file_name,
-          mime_type: raw.mime_type,
-          status: "sent",
-          sent_at: raw.sent_at || raw.created_at || new Date().toISOString(),
-          created_at: raw.created_at,
-          is_mine: raw.sender_id === currentUser!.id,
-          client_temp_id: raw.client_temp_id,
-          reactions: [],
-          sender: raw.sender,
-          reply_to_id: raw.reply_to_id,
-          view_once: raw.view_once,
-          is_viewed: raw.is_viewed,
-        };
-
-        setMessages((prev) => {
-          if (raw.client_temp_id) {
-            const hasOpt = prev.some(
-              (m) => m.client_temp_id === raw.client_temp_id && m.id !== raw.id
-            );
-            if (hasOpt) {
-              return prev.map((m) =>
-                m.client_temp_id === raw.client_temp_id ? { ...incoming } : m
-              );
-            }
+    const channelName = `chat-${activeConvId}-${currentUser.id}`;
+    
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          // If group, filter by conversation. If DM, filter by messages sent to THIS user.
+          filter: isGroup ? `conversation_id=eq.${activeConvId}` : undefined,
+        },
+        (payload: any) => {
+          console.log("REALTIME EVENT:", payload);
+          const raw = payload.new;
+          
+          // For DMs, ensure the message belongs to this conversation
+          if (!isGroup) {
+            const isRelevant = (raw.sender_id === currentUser.id && raw.recipient_id === activeConvId) ||
+                               (raw.sender_id === activeConvId && raw.recipient_id === currentUser.id);
+            if (!isRelevant) return;
           }
-          return [incoming, ...prev];
-        });
 
-        void loadConversations();
-      };
+          const incoming: ChatMessage = {
+            id: raw.id,
+            sender_id: raw.sender_id,
+            recipient_id: raw.recipient_id,
+            conversation_id: raw.conversation_id,
+            content: raw.content,
+            type: raw.type ?? "text",
+            media_url: raw.media_url,
+            file_name: raw.file_name,
+            mime_type: raw.mime_type,
+            status: "sent",
+            sent_at: raw.sent_at || raw.created_at || new Date().toISOString(),
+            created_at: raw.created_at,
+            is_mine: raw.sender_id === currentUser.id,
+            client_temp_id: raw.client_temp_id,
+            reactions: [],
+            sender: raw.sender,
+            reply_to_id: raw.reply_to_id,
+            view_once: raw.view_once,
+            is_viewed: raw.is_viewed,
+          };
 
-      let channel: ReturnType<typeof supabase.channel>;
+          setMessages((prev) => {
+            // Duplicate guard
+            if (prev.some((m) => m.id === incoming.id)) return prev;
 
-      if (group) {
-        channel = supabase
-          .channel(channelName)
-          .on("postgres_changes", {
-            event: "INSERT", schema: "public", table: "messages",
-            filter: `conversation_id=eq.${convId}`,
-          }, handleInsert)
-          .subscribe();
-      } else {
-        // BUG-03 FIX: Subscribe only to recipient_id filter.
-        // Sent messages are handled optimistically + reconciled via client_temp_id.
-        // Subscribing to sender_id caused every outgoing message to appear twice.
-        channel = supabase
-          .channel(channelName)
-          .on("postgres_changes", {
-            event: "INSERT", schema: "public", table: "messages",
-            filter: `recipient_id=eq.${currentUser.id}`,
-          }, handleInsert)
-          .subscribe();
-      }
+            // Optimistic resolution
+            if (raw.client_temp_id) {
+              const hasOpt = prev.some((m) => m.client_temp_id === raw.client_temp_id);
+              if (hasOpt) {
+                return prev.map((m) =>
+                  m.client_temp_id === raw.client_temp_id ? incoming : m
+                );
+              }
+            }
+            return [incoming, ...prev];
+          });
+        }
+      )
+      .subscribe();
 
-      channelRef.current = channel;
-    },
-    [currentUser?.id, supabase, loadConversations]
-  );
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id, activeConvId, isGroup, supabase]);
 
   // ── Realtime — typing ──────────────────────────────────────────────────────
   const setupTypingChannel = useCallback(
@@ -401,7 +366,6 @@ function MessagesContent() {
       setIsOtherTyping(false);
       setMobileView("chat");
       loadMessages(convId, group);
-      setupRealtime(convId, group);
       setupTypingChannel(convId);
       // ST-03: Pass the conv object directly to avoid stale closure in loadDMSettings
       const conv = conversations.find((c) => c.id === convId);
@@ -425,7 +389,7 @@ function MessagesContent() {
 
       router.replace(`/messages/${convId}`, { scroll: false });
     },
-    [conversations, loadMessages, setupRealtime, setupTypingChannel, loadDMSettings, markSeen, router, currentUser?.id]
+    [conversations, loadMessages, setupTypingChannel, loadDMSettings, markSeen, router, currentUser?.id]
   );
 
   // ── Send message ───────────────────────────────────────────────────────────
@@ -441,7 +405,7 @@ function MessagesContent() {
       if (!activeConvId || !currentUser?.id) return;
       if (!content.trim() && !mediaUrl) return;
 
-      const tempId = makeTempId();
+      const tempId = `temp_${Date.now()}`;
 
       const optimistic: ChatMessage = {
         id: tempId,
@@ -470,46 +434,45 @@ function MessagesContent() {
       setMessages((prev) => [optimistic, ...prev]);
       setReplyTo(null);
 
-      try {
-        const result = await sendMessageDB(
-          currentUser.id,
-          isGroup ? currentUser.id : activeConvId,
-          content,
-          type,
-          mediaUrl,
-          fileName,
-          mimeType,
-          replyTo?.id,
-          undefined,
-          isGroup ? activeConvId : undefined,
-          tempId,
-          viewOnce
-        );
+      const dbPayload = {
+        sender_id: currentUser.id,
+        recipient_id: isGroup ? null : activeConvId,
+        conversation_id: isGroup ? activeConvId : null,
+        content,
+        type,
+        media_url: mediaUrl,
+        file_name: fileName,
+        mime_type: mimeType,
+        reply_to_id: replyTo?.id,
+        client_temp_id: tempId,
+        view_once: viewOnce,
+      };
 
-        if (!result || !result.success) {
-          throw new Error(result?.error || "Failed to send message via DB");
-        }
+      const { data, error } = await supabase
+        .from('messages')
+        .insert(dbPayload)
+        .select()
+        .single();
 
-        // We MUST manually reconcile the ID here because the RLS infinite recursion bug in the DB
-        // is crashing the Supabase Realtime engine, meaning the Websocket 'INSERT' echo never arrives!
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.client_temp_id === tempId
-              ? { ...m, id: result.data?.id, status: "sent" as const, created_at: result.data?.created_at || new Date().toISOString() }
-              : m
-          )
-        );
-      } catch (err: any) {
-        console.error("[MessagesPage] sendMessageDB failed:", err);
-        // Mark optimistic message as failed so user can see and retry
+      if (error) {
+        console.error("[MessagesPage] db insert error:", error);
         setMessages((prev) =>
           prev.map((m) =>
             m.client_temp_id === tempId ? { ...m, status: "failed" as const, content: m.content + " ✓" } : m
           )
         );
+        return;
       }
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.client_temp_id === tempId
+            ? { ...m, id: data.id, status: "sent" as const, created_at: data.created_at }
+            : m
+        )
+      );
     },
-    [activeConvId, currentUser, isGroup, replyTo]
+    [activeConvId, currentUser, isGroup, replyTo, supabase]
   );
 
   // ── Delete message ─────────────────────────────────────────────────────────
