@@ -380,6 +380,7 @@ function MessagesContent() {
         }
         if (data) {
           setMessages((prev) => prev.map((m) => m.client_temp_id === tempId ? { ...m, id: data.id, status: "sent" as const, created_at: data.created_at } : m));
+
           if (!isGroup && !mediaUrl) {
             supabase.from('notifications').insert({
               user_id: activeConvId, actor_id: currentUser.id, type: 'dm',

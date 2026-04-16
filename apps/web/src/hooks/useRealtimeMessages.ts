@@ -61,6 +61,7 @@ export function useRealtimeMessages({
   const seenIdsRef = useRef<Set<string>>(new Set());
   // Ref to the active channel — prevents collision on re-render
   const channelRef = useRef<any>(null);
+  const syncChannelRef = useRef<any>(null); // New channel for bypassing RLS stream drop
   // RT-01: Single timer ref for typing indicator — prevents accumulation
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
