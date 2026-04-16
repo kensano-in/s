@@ -38,6 +38,7 @@ export default function OnboardingPortal() {
   const [bio, setBio] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
@@ -62,6 +63,7 @@ export default function OnboardingPortal() {
   const handleComplete = async () => {
     if (!currentUser) return;
     setIsSaving(true);
+    setErrorMsg('');
 
     try {
       let finalAvatar = selectedAvatar;
@@ -115,8 +117,9 @@ export default function OnboardingPortal() {
       } as any);
 
       setIsOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Onboarding update failed:', err);
+      setErrorMsg(err?.message || String(err));
     } finally {
       setIsSaving(false);
     }
@@ -270,6 +273,12 @@ export default function OnboardingPortal() {
                     />
                   </div>
                 </div>
+
+                {errorMsg && (
+                  <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-[13px] px-4 py-3 rounded-xl font-medium">
+                    {errorMsg}
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                    <button
