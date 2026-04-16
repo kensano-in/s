@@ -7,8 +7,6 @@ import {
   Camera, 
   Check, 
   ArrowRight, 
-  Sparkles, 
-  ShieldCheck, 
   User, 
   Upload,
   Loader2
@@ -152,12 +150,12 @@ export default function OnboardingPortal() {
             {step === 1 ? (
               <div className="space-y-8">
                 <div className="space-y-2">
-                  <div className="bg-white/10 w-fit px-3 py-1 rounded-full flex items-center gap-2">
-                    <Sparkles size={14} className="text-white" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white">Identity Core</span>
+                  <div className="bg-white/5 border border-white/10 w-fit px-3 py-1.5 rounded-full flex items-center gap-2">
+                    <User size={14} className="text-white/70" />
+                    <span className="text-[10px] font-medium uppercase tracking-widest text-white/70">Step 1 of 2</span>
                   </div>
-                  <h1 className="text-3xl font-bold tracking-tighter text-white">Choose your shadow.</h1>
-                  <p className="text-white/40 text-sm">Pick a Noir token or upload a custom identity.</p>
+                  <h1 className="text-3xl font-semibold tracking-tight text-white mb-1">Set up your profile</h1>
+                  <p className="text-white/50 text-sm">Select an avatar or upload your own photo.</p>
                 </div>
 
                 {/* Avatar Scramble Selector */}
@@ -170,38 +168,40 @@ export default function OnboardingPortal() {
                         setUploadedFile(null);
                       }}
                       className={clsx(
-                        "aspect-square rounded-2xl overflow-hidden border-2 transition-all p-1",
-                        selectedAvatar === src && !uploadedFile ? "border-white bg-white/10" : "border-white/5 hover:border-white/20 bg-white/[0.02]"
+                        "aspect-square rounded-[18px] overflow-hidden transition-all",
+                        selectedAvatar === src && !uploadedFile 
+                          ? "ring-2 ring-white ring-offset-2 ring-offset-[#0D0D0D] opacity-100" 
+                          : "border border-white/10 hover:border-white/30 bg-white/[0.02] opacity-60 hover:opacity-100"
                       )}
                     >
-                      <img src={src} className="w-full h-full object-cover rounded-xl" alt="Option" />
+                      <img src={src} className="w-full h-full object-cover" alt="Option" />
                     </button>
                   ))}
                 </div>
 
                 <div className="flex items-center gap-4">
                   <div className="h-px flex-1 bg-white/5" />
-                  <span className="text-[10px] font-bold text-white/20 uppercase">Or</span>
+                  <span className="text-[10px] font-semibold text-white/30 uppercase tracking-widest">OR</span>
                   <div className="h-px flex-1 bg-white/5" />
                 </div>
 
                 {/* Upload Trigger */}
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all group"
+                  className="w-full flex items-center justify-between p-4 rounded-[18px] bg-[#141414] border border-white/10 hover:bg-[#1C1C1C] hover:border-white/20 transition-all group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/40 group-hover:text-white group-hover:bg-white/20 transition-all">
-                      <Camera size={20} />
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:text-white transition-all">
+                      <Camera size={18} />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-white/90">Upload Custom PFP</p>
-                      <p className="text-xs text-white/30 truncate max-w-[200px]">
+                      <p className="text-[14px] font-medium text-white/90">Upload Custom Photo</p>
+                      <p className="text-[12px] text-white/40 truncate max-w-[200px] mt-0.5">
                         {uploadedFile ? uploadedFile.name : 'PNG, JPG or GIF'}
                       </p>
                     </div>
                   </div>
-                  <Upload size={18} className="text-white/20" />
+                  <Upload size={16} className="text-white/20 group-hover:text-white/60 transition-colors" />
                 </button>
 
                 <input 
@@ -220,49 +220,48 @@ export default function OnboardingPortal() {
 
                 <button
                   onClick={() => setStep(2)}
-                  className="w-full py-4 bg-white text-black rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all active:scale-[0.98]"
+                  className="w-full py-4 bg-white text-black rounded-xl font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all active:scale-[0.98]"
                 >
-                  Next Step <ArrowRight size={18} />
+                  Continue <ArrowRight size={16} />
                 </button>
               </div>
             ) : (
               <div className="space-y-8">
                  <div className="space-y-2">
-                  <div className="bg-white/10 w-fit px-3 py-1 rounded-full flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-white" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white">Final Sync</span>
+                  <div className="bg-white/5 border border-white/10 w-fit px-3 py-1.5 rounded-full flex items-center gap-2">
+                    <User size={14} className="text-white/70" />
+                    <span className="text-[10px] font-medium uppercase tracking-widest text-white/70">Step 2 of 2</span>
                   </div>
-                  <h1 className="text-3xl font-bold tracking-tighter text-white">Refine your soul.</h1>
-                  <p className="text-white/40 text-sm">How should the world address you?</p>
+                  <h1 className="text-3xl font-semibold tracking-tight text-white mb-1">Profile Details</h1>
+                  <p className="text-white/50 text-sm">Add your name and a brief bio.</p>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-5">
                   {/* Display Name */}
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 px-1">
-                      <User size={14} className="text-white/30" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Display Name</span>
+                      <span className="text-[11px] font-medium text-white/50">Display Name</span>
                     </label>
                     <input 
                       type="text"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="e.g. Satoshi"
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-white/30 transition-all"
+                      placeholder="e.g. John Doe"
+                      className="w-full bg-[#141414] border border-white/10 rounded-xl px-4 py-3.5 text-white text-[15px] focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all placeholder:text-white/20"
                     />
                   </div>
 
                   {/* Bio */}
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 px-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Bio</span>
+                      <span className="text-[11px] font-medium text-white/50">Bio (Optional)</span>
                     </label>
                     <textarea 
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       rows={3}
-                      placeholder="Short and mysterious..."
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-white/30 transition-all resize-none"
+                      placeholder="Tell us a bit about yourself..."
+                      className="w-full bg-[#141414] border border-white/10 rounded-xl px-4 py-3.5 text-white text-[15px] focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all resize-none placeholder:text-white/20"
                     />
                   </div>
                 </div>
@@ -270,19 +269,19 @@ export default function OnboardingPortal() {
                 <div className="flex gap-3 pt-4">
                    <button
                     onClick={() => setStep(1)}
-                    className="flex-1 py-4 bg-white/5 text-white/60 rounded-2xl font-bold hover:bg-white/10 transition-all"
+                    className="flex-1 py-4 bg-white/5 text-white/60 rounded-xl font-medium hover:bg-white/10 transition-all border border-transparent hover:border-white/10"
                   >
                     Back
                   </button>
                   <button
                     onClick={handleComplete}
                     disabled={isSaving}
-                    className="flex-[2] py-4 bg-white text-black rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all disabled:opacity-50"
+                    className="flex-[2] py-4 bg-white text-black rounded-xl font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all disabled:opacity-50"
                   >
                     {isSaving ? (
                       <Loader2 className="animate-spin" />
                     ) : (
-                      <>Initialize Identity <Check size={18} /></>
+                      <>Complete Setup <Check size={16} /></>
                     )}
                   </button>
                 </div>
