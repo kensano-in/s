@@ -572,7 +572,7 @@ const MessageItem = memo(({
 
               {/* Footer: time + status */}
               <div className={clsx(
-                "flex items-center gap-1.5 mt-1",
+                "flex items-center gap-1.5 mt-1 select-none whitespace-nowrap shrink-0",
                 message.is_mine ? "justify-end" : "justify-start"
               )}>
                 {message.edited_at && (

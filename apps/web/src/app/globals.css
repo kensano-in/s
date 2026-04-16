@@ -310,11 +310,11 @@ select:-webkit-autofill:focus {
 /* 🔴 SURGICAL REBUILD: MESSAGE UI + RESPONSIVE SYSTEM 🔴 */
 .message-bubble {
   max-width: 85%;
+  min-width: 64px;
   word-break: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   white-space: pre-wrap;
-  hyphens: auto;
-  min-width: 0;
+  min-height: 0;
 }
 
 .message-container {
