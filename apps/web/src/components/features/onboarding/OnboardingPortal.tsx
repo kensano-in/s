@@ -58,7 +58,7 @@ export default function OnboardingPortal() {
     }
   }, [currentUser]);
 
-  const gender = (currentUser as any).metadata?.gender || 'other';
+  const gender = (currentUser as any)?.metadata?.gender || 'other';
   const avatarPool = gender === 'female' ? FEMALE_AVATARS : MALE_AVATARS;
 
   const handleComplete = async () => {

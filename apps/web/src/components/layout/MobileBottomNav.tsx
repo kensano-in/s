@@ -25,6 +25,9 @@ export default function MobileBottomNav() {
     return pathname.startsWith(href);
   };
 
+  const isDeepChat = pathname.startsWith('/messages/') && pathname.length > 10;
+  if (isDeepChat) return null;
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch bg-[#050505]/90 backdrop-blur-xl border-t border-[#1f1f1f]"
          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>

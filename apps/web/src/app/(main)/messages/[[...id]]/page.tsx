@@ -625,7 +625,7 @@ function MessagesContent() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="app flex h-[100dvh] bg-[#09090f] overflow-hidden">
+    <div className="app flex h-full flex-1 w-full bg-[#09090f] overflow-hidden">
 
       {/* ── Sidebar ── */}
       <aside className={clsx(

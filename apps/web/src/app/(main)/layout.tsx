@@ -20,6 +20,7 @@ import OnboardingPortal from '@/components/features/onboarding/OnboardingPortal'
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isMessages = pathname.startsWith('/messages');
+  const isDeepChat = isMessages && pathname.length > 10;
   const { isMobileDrawerOpen, setMobileDrawerOpen } = useAppStore();
 
   // Close drawer on route change
@@ -61,7 +62,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <main className={clsx('flex-1 min-h-0', !isMessages && 'overflow-y-auto')}>
           <div className={clsx(
             isMessages ? 'h-full flex flex-col' : 'max-w-[1200px] mx-auto px-4 py-0 md:py-6',
-            !isMessages && 'pb-16 md:pb-0'  /* space for mobile bottom nav */
+            (!isMessages || (!isDeepChat && isMessages)) && 'pb-16 md:pb-0'  /* space for mobile bottom nav */
           )}>
             {children}
           </div>
