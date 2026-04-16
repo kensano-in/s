@@ -360,18 +360,22 @@ export async function signup(formData: FormData) {
 
     const avatars = {
       male: [
-        'https://i.pinimg.com/736x/07/26/6c/07266c2fe4d3fa13f412435dc74d8ff2.jpg',
-        'https://i.pinimg.com/736x/87/18/d3/8718d35fcca245b78f4a1387d853b0ed.jpg',
-        'https://i.pinimg.com/736x/8d/4e/02/8d4e02931aabd59fc3ba4feff2031fe1.jpg',
+        '/avatars/m_hoodie.png',
+        '/avatars/m_sunglasses.png',
+        '/avatars/m_sparkles.png',
+        '/avatars/m_suit.png',
       ],
       female: [
-        'https://i.pinimg.com/736x/d4/d6/3e/d4d63e9c5ed55ed4eb2d1f6cf146bb12.jpg',
-        'https://i.pinimg.com/736x/bb/8a/65/bb8a65ba48bbdecd150cb2a477ce0691.jpg',
-        'https://i.pinimg.com/736x/af/c1/0c/afc10c144ef24deab4a54ed38af3c75d.jpg',
+        '/avatars/f_hoodie.png',
+        '/avatars/f_sunglasses.png',
+        '/avatars/f_sparkles.png',
+        '/avatars/f_office.png',
       ],
       other: [
-        'https://i.pinimg.com/736x/77/b6/2a/77b62afcb91de0ba3d00cdcb7b827e8a.jpg',
-        'https://i.pinimg.com/736x/60/0a/63/600a63edb7aebd318fcc1dfb61b2ed0c.jpg',
+        '/avatars/m_hoodie.png',
+        '/avatars/f_hoodie.png',
+        '/avatars/m_sunglasses.png',
+        '/avatars/f_sunglasses.png',
       ]
     };
     const group = avatars[gender as keyof typeof avatars] || avatars.other;
@@ -386,6 +390,7 @@ export async function signup(formData: FormData) {
       avatar_url: selectedAvatar,
       metadata: { 
         gender,
+        onboarded: false,
         birth_month: parseInt(birthMonth), 
         birth_day: parseInt(birthDay), 
         birth_year: parseInt(birthYear),

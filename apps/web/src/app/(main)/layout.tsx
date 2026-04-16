@@ -15,6 +15,7 @@ import GlobalRealtimeMonitor from '@/components/layout/GlobalRealtimeMonitor';
 import CommandPalette from '@/components/features/command/CommandPalette';
 import CommandPaletteListener from '@/components/features/command/CommandPaletteListener';
 import SystemBootstrap from '@/components/layout/SystemBootstrap';
+import OnboardingPortal from '@/components/features/onboarding/OnboardingPortal';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -31,6 +32,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <AuthProvider />
       <GlobalRealtimeMonitor />
       <SystemBootstrap />
+      <OnboardingPortal />
       <CommandPalette />
       <CommandPaletteListener />
 

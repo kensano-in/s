@@ -20,6 +20,7 @@ export interface User {
   richPresence?: string;
   trustScore?: number;
   storyHighlights?: string[];
+  metadata?: Record<string, any>;
   createdAt: string;
 }
 

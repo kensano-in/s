@@ -38,6 +38,7 @@ export default function AuthProvider() {
             karmaScore: profileData.karma_score || 0,
             followerCount: profileData.follower_count || 0,
             followingCount: profileData.following_count || 0,
+            metadata: profileData.metadata || {},
             createdAt: profileData.created_at,
           });
         }
