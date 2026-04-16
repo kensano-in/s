@@ -41,6 +41,7 @@ import {
   muteMemberDB,
   unmuteMemberDB,
   removeMemberDB,
+  updateDMSettingsDB,
 } from "@/app/(main)/messages/actions";
 
 interface ChatSettingsModalProps {
@@ -64,6 +65,10 @@ interface ChatSettingsModalProps {
   activeConvId?: string | null;
   groupJoinCode?: string;
   className?: string;
+  // currentUserId is needed to persist nickname to DB
+  currentUserId?: string;
+  isGroup?: boolean;
+  onMute?: (muted: boolean) => void;
 }
 
 type Screen =
@@ -616,6 +621,9 @@ export default function ChatSettingsModal({
   activeConvId,
   groupJoinCode,
   className,
+  currentUserId,
+  isGroup,
+  onMute,
 }: ChatSettingsModalProps) {
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -661,7 +669,7 @@ export default function ChatSettingsModal({
     if (isOpen) {
       setScreen(initialScreen);
       // Fetch members if it's a group
-      if (!partnerUsername && activeConvId) {
+      if (isGroup && activeConvId) {
         getGroupMembersDB(activeConvId).then((res) => {
           if (res.success && res.data) {
             const membersData = res.data as any[];
@@ -699,8 +707,13 @@ export default function ChatSettingsModal({
     patch(themeData);
   };
 
-  const handleSaveNicknames = () => {
-    patch({ their_nickname: theirNick.trim() });
+  const handleSaveNicknames = async () => {
+    const trimmed = theirNick.trim();
+    patch({ their_nickname: trimmed });
+    // Persist to DB if we have required IDs
+    if (currentUserId && activeConvId && partnerUsername) {
+      await updateDMSettingsDB(currentUserId, activeConvId, { their_nickname: trimmed });
+    }
     setNickSaved(true);
     setTimeout(() => setNickSaved(false), 2000);
   };

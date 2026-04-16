@@ -105,8 +105,10 @@ export async function sendMessageDB(
     if (conversationId && conversationId !== '') {
       payload.conversation_id = conversationId;
       payload.recipient_id = senderId; // Bypass strict NOT NULL for Groups
+      payload.chat_id = conversationId;
     } else {
       payload.recipient_id = recipientId;
+      payload.chat_id = [senderId, recipientId].sort().join('_');
     }
 
     if (scheduledAt) {
@@ -125,21 +127,20 @@ export async function sendMessageDB(
       return { success: false, error: 'Message failed to send: ' + error.message };
     }
 
-    // Notification (Background) - Don't await this to keep sendMessageDB near-zero latency
+    // Notification - MUST be awaited. Floating promises cause Vercel Server Actions to hang for 30s+
     if (!scheduledAt && !conversationId) {
-      void (async () => {
-        const { error } = await supabaseAdmin.from('notifications').insert({
-          user_id: recipientId,
-          actor_id: senderId,
-          type: 'dm',
-          entity_id: data.id,
-          entity_type: 'message',
-          body: type === 'text' ? content.slice(0, 80) : `Sent a ${type}`,
-          is_read: false,
-        });
-        if (error) console.error('[sendMessageDB] notification background failed:', error);
-      })();
+      const { error: notifErr } = await supabaseAdmin.from('notifications').insert({
+        user_id: recipientId,
+        actor_id: senderId,
+        type: 'dm',
+        entity_id: data.id,
+        entity_type: 'message',
+        body: type === 'text' ? content.slice(0, 80) : `Sent a ${type}`,
+        is_read: false,
+      });
+      if (notifErr) console.error('[sendMessageDB] notification failed:', notifErr);
     }
+
 
     const mappedData = data ? {
       ...data,
@@ -177,6 +178,52 @@ export async function createMessageNotificationDB(
     console.error('[createMessageNotificationDB] fatal:', err);
   }
 }
+
+// ─── Poll for New Messages (Realtime fallback – used when WebSocket is unavailable) ─
+export async function getNewMessagesDB(
+  userId: string,
+  convId: string,
+  isGroup: boolean,
+  sinceIso: string
+): Promise<ActionResult<any[]>> {
+  try {
+    const supabaseAdmin = await getAdmin();
+
+    let query = supabaseAdmin
+      .from('messages')
+      .select(`
+        id, sender_id, recipient_id, conversation_id, content, type,
+        media_url, file_name, mime_type, reply_to_id, status, sent_at,
+        client_temp_id, chat_id,
+        sender:users!sender_id(display_name, username, avatar_url)
+      `)
+      .gt('sent_at', sinceIso)
+      .order('sent_at', { ascending: true })
+      .limit(50);
+
+    if (isGroup) {
+      query = query.eq('conversation_id', convId);
+    } else {
+      query = query.or(`and(sender_id.eq.${userId},recipient_id.eq.${convId}),and(sender_id.eq.${convId},recipient_id.eq.${userId})`);
+    }
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    const mapped = (data || []).map((m: any) => ({
+      ...m,
+      created_at: m.sent_at, // alias for UI compatibility
+      is_mine: m.sender_id === userId,
+      status: m.status ?? 'sent',
+      reactions: [],
+    }));
+
+    return { success: true, data: mapped };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 
 // ─── Release Scheduled Messages ──────────────────────────────────────────────
 export async function releaseScheduledMessagesDB(
@@ -703,20 +750,27 @@ export async function getDMSettingsDB(
 ): Promise<ActionResult<any>> {
   try {
     const supabaseAdmin = await getAdmin();
-    const { data, error } = await supabaseAdmin
-      .from('dm_settings')
-      .select('*')
-      .match({ user_id: userId, partner_id: partnerId })
-      .maybeSingle();
+    const chatId = [userId, partnerId].sort().join('_');
 
-    if (error) return { success: false, error: error.message };
-    if (!data) return { success: true, data: null };
+    // Fetch personal settings, shared theme, and shared nicknames in parallel
+    const [personalRes, themeRes, nickRes] = await Promise.all([
+      supabaseAdmin.from('dm_settings').select('*').match({ user_id: userId, partner_id: partnerId }).maybeSingle(),
+      supabaseAdmin.from('chat_theme').select('*').eq('chat_id', chatId).maybeSingle(),
+      supabaseAdmin.from('chat_nicknames').select('nickname').match({ chat_id: chatId, user_id: partnerId }).maybeSingle()
+    ]);
+
+    const data = personalRes.data || {};
+    const theme = themeRes.data;
+    const nick = nickRes.data;
 
     return { 
       success: true, 
       data: {
         ...data,
-        their_nickname: data.partner_nickname
+        theme_id: theme?.theme_id || data.theme_id,
+        theme_blur: theme?.theme_blur ?? data.theme_blur,
+        bubble_style: theme?.bubble_style || data.bubble_style,
+        their_nickname: nick?.nickname || data.partner_nickname
       } 
     };
   } catch (err: any) {
@@ -731,75 +785,41 @@ export async function updateDMSettingsDB(
 ): Promise<ActionResult<any>> {
   try {
     const supabaseAdmin = await getAdmin();
-    const { data: existing, error: findErr } = await supabaseAdmin
-      .from('dm_settings')
-      .select('id')
-      .match({ user_id: userId, partner_id: partnerId })
-      .maybeSingle();
-
-    if (findErr) return { success: false, error: findErr.message };
-
+    const chatId = [userId, partnerId].sort().join('_');
+    
     const finalUpdates: any = { ...updates };
+    const nickname = updates.nickname || updates.their_nickname;
     
-    // Only map nickname if it was actually provided in this update batch
-    if (updates.nickname || updates.their_nickname) {
-      finalUpdates.partner_nickname = updates.nickname || updates.their_nickname;
-    }
-    
-    // Clean up temporary frontend keys before DB sync
-    delete finalUpdates.nickname;
-    delete finalUpdates.their_nickname;
-    delete finalUpdates.my_nickname;
+    // 1. Update personal settings (muted, disappearing_mode, etc)
+    const personalKeys = ['muted', 'disappearing_mode', 'last_seen_hidden'];
+    const personalUpdates: any = {};
+    personalKeys.forEach(k => { if (finalUpdates[k] !== undefined) personalUpdates[k] = finalUpdates[k]; });
 
-    // IMPORTANT: Remove any undefined/null keys to prevent accidental DB nullification
-    Object.keys(finalUpdates).forEach(key => {
-      if (finalUpdates[key] === undefined) delete finalUpdates[key];
-    });
-
-    let res;
-    if (existing) {
-      res = await supabaseAdmin
-        .from('dm_settings')
-        .update(finalUpdates)
-        .match({ id: existing.id })
-        .select()
-        .single();
-    } else {
-      res = await supabaseAdmin
-        .from('dm_settings')
-        .insert({ user_id: userId, partner_id: partnerId, ...finalUpdates })
-        .select()
-        .single();
-    }
-
-    if (res.error) return { success: false, error: res.error.message };
-
-    // THEME ISOLATION FIX:
-    // theme_id, theme_blur, bubble_style are PERSONAL — never echo to partner.
-    // Only disappearing_mode is shared (since it's a mutual agreement to delete messages).
-    const syncableKeys = ['disappearing_mode'];
-    const syncUpdates: any = {};
-    syncableKeys.forEach(k => { if (finalUpdates[k] !== undefined) syncUpdates[k] = finalUpdates[k]; });
-
-    if (Object.keys(syncUpdates).length > 0) {
-      try {
-        const { data: partnerExisting } = await supabaseAdmin
-          .from('dm_settings')
-          .select('id')
-          .match({ user_id: partnerId, partner_id: userId })
-          .maybeSingle();
-
-        if (partnerExisting) {
-          await supabaseAdmin.from('dm_settings').update(syncUpdates).eq('id', partnerExisting.id);
-        } else {
-          await supabaseAdmin.from('dm_settings').insert({ user_id: partnerId, partner_id: userId, ...syncUpdates });
-        }
-      } catch (echoErr) {
-        console.error('[Settings Sync Error] Failed to echo to partner:', echoErr);
+    if (Object.keys(personalUpdates).length > 0) {
+      const { data: existing } = await supabaseAdmin.from('dm_settings').select('id').match({ user_id: userId, partner_id: partnerId }).maybeSingle();
+      if (existing) {
+        await supabaseAdmin.from('dm_settings').update(personalUpdates).eq('id', existing.id);
+      } else {
+        await supabaseAdmin.from('dm_settings').insert({ user_id: userId, partner_id: partnerId, ...personalUpdates });
       }
     }
 
-    return { success: true, data: res.data };
+    // 2. Update Shared Theme
+    const themeKeys = ['theme_id', 'theme_blur', 'bubble_style'];
+    const themeUpdates: any = { updated_at: new Date().toISOString() };
+    themeKeys.forEach(k => { if (finalUpdates[k] !== undefined) themeUpdates[k] = finalUpdates[k]; });
+
+    if (Object.keys(themeUpdates).length > 1) {
+      await supabaseAdmin.from('chat_theme').upsert({ chat_id: chatId, ...themeUpdates });
+    }
+
+    // 3. Update Nickname for partner
+    if (nickname) {
+      await supabaseAdmin.from('chat_nicknames').upsert({ chat_id: chatId, user_id: partnerId, nickname }, { onConflict: 'chat_id,user_id' });
+    }
+
+    // Return the combined state
+    return getDMSettingsDB(userId, partnerId);
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -807,16 +827,27 @@ export async function updateDMSettingsDB(
 
 export async function updateGroupSettingsDB(
   groupId: string,
-  updates: { theme_id?: string; theme_blur?: number }
+  updates: any
 ): Promise<ActionResult> {
   try {
     const supabaseAdmin = await getAdmin();
-    const { error } = await supabaseAdmin
-      .from('conversations')
-      .update(updates)
-      .match({ id: groupId, is_group: true });
+    const themeKeys = ['theme_id', 'theme_blur', 'bubble_style'];
+    const themeUpdates: any = { updated_at: new Date().toISOString() };
+    themeKeys.forEach(k => { if (updates[k] !== undefined) themeUpdates[k] = updates[k]; });
 
-    if (error) return { success: false, error: error.message };
+    if (Object.keys(themeUpdates).length > 1) {
+      await supabaseAdmin.from('chat_theme').upsert({ chat_id: groupId, ...themeUpdates });
+    }
+
+    // Also update the conversation name/icon if provided
+    const convUpdates: any = {};
+    if (updates.name) convUpdates.name = updates.name;
+    if (updates.icon_url) convUpdates.icon_url = updates.icon_url;
+
+    if (Object.keys(convUpdates).length > 0) {
+      await supabaseAdmin.from('conversations').update(convUpdates).eq('id', groupId);
+    }
+
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
@@ -1068,13 +1099,15 @@ export async function getConversationsDB(userId: string): Promise<ActionResult<a
         .filter((p: any) => p.conversations?.id)
         .map(async (p: any) => {
           const conv = p.conversations;
-          const { data: lastMsgArr } = await supabaseAdmin
-            .from('messages')
-            .select('content, sent_at, type')
-            .eq('conversation_id', conv.id)
-            .order('sent_at', { ascending: false })
-            .limit(1);
-          const lastMsg = lastMsgArr?.[0];
+          
+          // Fetch last message and member count in parallel for speed
+          const [lastMsgRes, countRes] = await Promise.all([
+            supabaseAdmin.from('messages').select('content, sent_at, type').eq('conversation_id', conv.id).order('sent_at', { ascending: false }).limit(1),
+            supabaseAdmin.from('conversation_participants').select('id', { count: 'exact', head: true }).eq('conversation_id', conv.id)
+          ]);
+
+          const lastMsg = lastMsgRes.data?.[0];
+          const memberCount = countRes.count || 0;
 
           let lastMessagePreview = '';
           if (lastMsg) {
@@ -1096,6 +1129,7 @@ export async function getConversationsDB(userId: string): Promise<ActionResult<a
             unread: 0,
             theme_id: conv.theme_id,
             theme_blur: conv.theme_blur,
+            member_count: memberCount,
           };
         })
     );

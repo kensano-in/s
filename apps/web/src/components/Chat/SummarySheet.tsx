@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SummarySheet — AI Group Chat Summarization (Gemini 1.5 Flash)
+ * SummarySheet — Chat Pulse Summarization
  * Appears as a bottom sheet with staggered bullet points
  */
 
@@ -130,11 +130,11 @@ export default function SummarySheet({
                   <Sparkles size={18} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-[16px] font-bold text-white">Group Catch-Up</h2>
+                  <h2 className="text-[16px] font-bold text-white">Chat Pulse</h2>
                   <p className="text-[11px] text-white/40">
                     {timeSince !== null ? (
                       timeSince < 1 ? "Just now" : `${timeSince}m ago`
-                    ) : "Powered by Gemini AI"}
+                    ) : "Real-time AI Analysis"}
                   </p>
                 </div>
               </div>

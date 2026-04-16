@@ -169,7 +169,8 @@ const MessageListInner = memo(function MessageListInner({
     // Only scroll to bottom for NEW messages when user is near the bottom
     if (loading || loadingMore || messages.length === 0) return;
     if (isNearBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      // Use instant scroll for immediate feedback in Phase 4 rebuild
+      bottomRef.current?.scrollIntoView({ behavior: "auto" });
     }
   }, [messages, loading, loadingMore]);
 
@@ -202,7 +203,7 @@ const MessageListInner = memo(function MessageListInner({
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar flex flex-col pt-4">
+    <div ref={scrollRef} className="message-container flex-1 overflow-y-auto custom-scrollbar flex flex-col pt-4">
       <div ref={topSentinelRef} className="h-4 shrink-0" />
 
       {/* Axiom 11: Loading older messages — subtle top spinner (scroll invariant holds via useLayoutEffect) */}
@@ -259,7 +260,7 @@ export default function MessageList(props: MessageListProps) {
       <motion.div
         key={props.conversationId ?? "no-conv"}
         {...CONV_TRANSITION}
-        className="flex-1 flex flex-col min-h-0"
+        className="flex-1 flex flex-col min-h-0 relative overflow-hidden"
       >
         <MessageListInner {...props} />
       </motion.div>

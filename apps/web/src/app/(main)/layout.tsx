@@ -27,7 +27,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }, [pathname, setMobileDrawerOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0A0A0A] text-white relative z-0">
+    <div className="flex h-[100dvh] overflow-hidden bg-[#0A0A0A] text-white relative z-0">
       <AuthProvider />
       <GlobalRealtimeMonitor />
       <SystemBootstrap />

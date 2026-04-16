@@ -9,9 +9,10 @@ import {
   Suspense,
 } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import { useAppStore } from "@/lib/store";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { Plus, MessageCircle, Search } from "lucide-react";
 import clsx from "clsx";
 
@@ -33,8 +34,8 @@ import { ChatMessage } from "@/components/Chat/MessageItem";
 // ── Actions ──────────────────────────────────────────────────────────────────
 import {
   getConversationsDB,
-  sendMessageDB,
   getMessagesDB,
+  getNewMessagesDB,
   clearChatDB,
   blockUserDB,
   reportUserDB,
@@ -66,7 +67,6 @@ function MessagesContent() {
   const rawId = params?.id;
   const routeId = Array.isArray(rawId) ? rawId[0] : rawId ?? null;
 
-  const supabase = useMemo(() => createClient(), []);
   const { currentUser, isAuthLoading } = useAppStore();
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ function MessagesContent() {
 
   // ── Typing / Presence ──────────────────────────────────────────────────────
   const [isOtherTyping, setIsOtherTyping] = useState(false);
-  // onlineUsers is managed by useRealtimeMessages — not duplicated here
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
   // ── In-chat search ─────────────────────────────────────────────────────────
   const [msgSearch, setMsgSearch] = useState("");
@@ -139,10 +139,8 @@ function MessagesContent() {
     if (callState === "idle") setIsCallOpen(false);
   }, [callState]);
 
-  // ── Refs ───────────────────────────────────────────────────────────────────
+  // ── Refs (seenIds + channels managed inside useRealtimeMessages hook) ───────
   const seenIdsRef = useRef<Set<string>>(new Set());
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const activeConv = conversations.find((c) => c.id === activeConvId);
@@ -195,7 +193,6 @@ function MessagesContent() {
       } else {
         setLoadingMore(true);
       }
-
       try {
         const { success, data } = await getMessagesDB(
           currentUser.id,
@@ -232,22 +229,17 @@ function MessagesContent() {
 
   // ── Load DM settings ───────────────────────────────────────────────────────
   const loadDMSettings = useCallback(
-    async (convId: string, group: boolean, groupConv?: { theme_id?: string; theme_blur?: number }) => {
+    async (convId: string, group: boolean) => {
       if (!currentUser?.id || !convId) return;
       try {
-        if (group) {
-          // ST-03: Accept groupConv as param to avoid stale conversations closure
-          setDmSettings({ theme_id: groupConv?.theme_id, theme_blur: groupConv?.theme_blur });
-        } else {
-          const { success, data } = await getDMSettingsDB(currentUser.id, convId);
-          if (success && data) setDmSettings(data);
-          else setDmSettings({});
-        }
+        const { success, data } = await getDMSettingsDB(currentUser.id, convId);
+        if (success && data) setDmSettings(data);
+        else setDmSettings({});
       } catch (e) {
         console.error("[MessagesPage] loadDMSettings:", e);
       }
     },
-    [currentUser?.id] // ST-03: conversations removed from deps to prevent reload storm
+    [currentUser?.id]
   );
 
   // ── Mark seen ──────────────────────────────────────────────────────────────
@@ -259,134 +251,31 @@ function MessagesContent() {
     [currentUser?.id]
   );
 
-  // ── Realtime — messages ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!currentUser?.id || !activeConvId) return;
+  // ── Messaging — Realtime (useRealtimeMessages hook) ───────────────────────
+  // This hook owns the single global WebSocket channel, handles INSERT/UPDATE/DELETE,
+  // deduplicates via seenIds, fetches sender profile, and reconnects on visibility change.
+  useRealtimeMessages({
+    supabase,
+    currentUser: currentUser ? {
+      id: currentUser.id,
+      display_name: currentUser.displayName,
+      username: currentUser.username,
+      avatar_url: currentUser.avatar,
+    } : null,
+    activeConvId,
+    conversations,
+    setMessages,
+    setConversations,
+    setIsOtherTyping,
+    setSettingsVersion,
+    setOnlineUsers,
+    loadConversations,
+    loadMessages,
+  });
 
-    const myId = currentUser.id;
-    const channelName = `room-${activeConvId}`;
-    console.log("DEBUG: [Realtime] Initializing sync engine for room:", channelName);
-    
-    const channel = supabase.channel(channelName);
-    channelRef.current = channel;
-    
-    channel
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          // No server-side filter: DMs route via sender_id/recipient_id (not conversation_id).
-          // We filter client-side to handle both group and DM topologies.
-        },
-        (payload: any) => {
-          console.log("DEBUG: [Realtime] postgres_changes INSERT:", payload);
-          const raw = payload.new;
 
-          // HYBRID IDENTIFICATION:
-          // Group → raw.conversation_id matches activeConvId
-          // DM → partner sent to me, or I sent (another tab)
-          const isRelevant =
-            raw.conversation_id === activeConvId ||
-            (raw.sender_id === activeConvId && raw.recipient_id === myId) ||
-            (raw.sender_id === myId && raw.recipient_id === activeConvId);
 
-          if (!isRelevant) {
-            console.log("DEBUG: [Realtime] Ignored (not relevant):", raw.id);
-            return;
-          }
 
-          console.log("DEBUG: [Realtime] Packet Accepted:", raw.id);
-
-          const incoming: ChatMessage = {
-            id: raw.id,
-            sender_id: raw.sender_id,
-            recipient_id: raw.recipient_id,
-            conversation_id: raw.conversation_id,
-            content: raw.content,
-            type: raw.type ?? "text",
-            media_url: raw.media_url,
-            file_name: raw.file_name,
-            mime_type: raw.mime_type,
-            status: "sent",
-            sent_at: raw.sent_at || raw.created_at || new Date().toISOString(),
-            created_at: raw.created_at,
-            is_mine: raw.sender_id === myId,
-            client_temp_id: raw.client_temp_id,
-            reactions: [],
-            sender: raw.sender,
-            reply_to_id: raw.reply_to_id,
-            view_once: raw.view_once,
-            is_viewed: raw.is_viewed,
-          };
-
-          setMessages((prev) => {
-            // Deduplicate by real id
-            if (prev.some((m) => m.id === incoming.id)) return prev;
-            // Replace optimistic placeholder
-            if (raw.client_temp_id) {
-              const hasOpt = prev.some((m) => m.client_temp_id === raw.client_temp_id);
-              if (hasOpt) {
-                return prev.map((m) => m.client_temp_id === raw.client_temp_id ? incoming : m);
-              }
-            }
-            return [incoming, ...prev];
-          });
-
-          void loadConversations();
-        }
-      )
-      // BROADCAST LISTENER — instant delivery, bypasses DB replication lag
-      .on('broadcast', { event: 'message' }, (payload: any) => {
-        const msg = payload.payload;
-        if (!msg || msg.sender_id === myId) return; // ignore own broadcasts
-        
-        console.log("DEBUG: [Realtime] Broadcast Received:", msg.id);
-        setMessages((prev) => {
-          if (prev.some(m => m.id === msg.id || (msg.client_temp_id && m.client_temp_id === msg.client_temp_id))) return prev;
-          return [msg, ...prev];
-        });
-      })
-      // .subscribe() MUST be called — without it the channel never activates and NO events fire
-      .subscribe((status) => {
-        console.log("DEBUG: [Realtime] Channel", channelName, "→", status);
-        if (status === 'CHANNEL_ERROR') {
-          console.error("CRITICAL: Realtime channel error. Verify: messages in supabase_realtime publication, RLS SELECT policy, REPLICA IDENTITY FULL.");
-        }
-      });
-
-    return () => {
-      console.log("DEBUG: [Realtime] Destroying sync engine for room:", channelName);
-      supabase.removeChannel(channel);
-    };
-  // ⚠️ loadConversations excluded from deps intentionally — it would cause the channel to
-  // teardown+rebuild on every convo list refresh. It only changes when currentUser.id changes,
-  // which is already a dep. The closure remains valid.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, activeConvId, supabase]);
-
-  // ── Realtime — typing ──────────────────────────────────────────────────────
-  const setupTypingChannel = useCallback(
-    (convId: string) => {
-      if (!currentUser?.id || !convId) return;
-      if (typingChannelRef.current) {
-        supabase.removeChannel(typingChannelRef.current);
-        typingChannelRef.current = null;
-      }
-      const tc = supabase
-        .channel(`typing:${convId}`)
-        .on("broadcast", { event: "typing" }, (payload) => {
-          if (payload.payload?.userId !== currentUser.id) {
-            setIsOtherTyping(true);
-            setTimeout(() => setIsOtherTyping(false), 3000);
-          }
-        })
-        .subscribe();
-      typingChannelRef.current = tc;
-    },
-    [currentUser?.id, supabase]
-  );
 
   // ── Select conversation ────────────────────────────────────────────────────
   const selectConversation = useCallback(
@@ -399,8 +288,6 @@ function MessagesContent() {
       setIsOtherTyping(false);
       setMobileView("chat");
       loadMessages(convId, group);
-      setupTypingChannel(convId);
-      // ST-03: Pass the conv object directly to avoid stale closure in loadDMSettings
       const conv = conversations.find((c) => c.id === convId);
       loadDMSettings(convId, group, group ? conv : undefined);
       markSeen(convId, group);
@@ -422,7 +309,7 @@ function MessagesContent() {
 
       router.replace(`/messages/${convId}`, { scroll: false });
     },
-    [conversations, loadMessages, setupTypingChannel, loadDMSettings, markSeen, router, currentUser?.id]
+    [conversations, loadMessages, loadDMSettings, markSeen, router, currentUser?.id]
   );
 
   // ── Send message ───────────────────────────────────────────────────────────
@@ -450,7 +337,7 @@ function MessagesContent() {
         media_url: mediaUrl,
         file_name: fileName,
         mime_type: mimeType,
-        status: "sending",
+        status: "sent",
         sent_at: new Date().toISOString(),
         is_mine: true,
         client_temp_id: tempId,
@@ -464,81 +351,46 @@ function MessagesContent() {
         reply_to_id: replyTo?.id,
       };
 
-      // 🔴 STEP 9 — MEASURE LATENCY
-      console.time("message_flow");
-      console.log("SENDING MESSAGE WITH CHAT ID:", activeConvId);
-
       setMessages((prev) => [optimistic, ...prev]);
       setReplyTo(null);
 
-      // 🔴 STEP 3: DUAL-TRACK DELIVERY
-      // 1. Broadcast Pulse (Instant, bypasses DB replication lag)
-      void channelRef.current?.send({
-        type: 'broadcast',
-        event: 'message',
-        payload: { ...optimistic, status: 'sent' }
-      });
+      // 🔴 Bypass Vercel ENTIRELY for ALL Messages (DMs & Groups). Direct to DB.
+      const payload = {
+        sender_id: currentUser.id,
+        recipient_id: isGroup ? currentUser.id : activeConvId, // Group chats bypass recipient NOT NULL check
+        conversation_id: isGroup ? activeConvId : null,
+        content,
+        type,
+        media_url: mediaUrl || null,
+        file_name: fileName || null,
+        mime_type: mimeType || null,
+        reply_to_id: replyTo?.id || null,
+        status: 'sent',
+        chat_id: isGroup ? activeConvId : [currentUser.id, activeConvId].sort().join('_'),
+        client_temp_id: tempId,
+        view_once: viewOnce || false
+      };
 
-      // 2. Database Anchoring (Persistent)
-      // CRITICAL: DMs use sender_id/recipient_id with conversation_id=NULL.
-      // Groups use conversation_id with recipient_id=NULL.
-      // The RLS msg_insert policy enforces this split — setting conversation_id to
-      // a non-group UUID (e.g., a user ID) will FAIL the RLS check silently.
-      const dbPayload = isGroup
-        ? {
-            sender_id: currentUser.id,
-            conversation_id: activeConvId,
-            // DB has NOT NULL on recipient_id. Use sender's own ID as sentinel value
-            // for group messages — same pattern as sendMessageDB server action.
-            recipient_id: currentUser.id,
-            content,
-            type,
-            media_url: mediaUrl ?? null,
-            file_name: fileName ?? null,
-            mime_type: mimeType ?? null,
-            reply_to_id: replyTo?.id ?? null,
-            client_temp_id: tempId,
-            view_once: viewOnce,
+      // Fire-and-forget: do not await! Completely detaches UI from network.
+      supabase.from('messages').insert(payload).select().single().then(({ data, error }) => {
+        if (error) {
+          console.error("[sendMessage] failed:", error.message);
+          setMessages((prev) => prev.map((m) => m.client_temp_id === tempId ? { ...m, status: "failed" as const } : m));
+          return;
+        }
+        if (data) {
+          setMessages((prev) => prev.map((m) => m.client_temp_id === tempId ? { ...m, id: data.id, status: "sent" as const, created_at: data.created_at } : m));
+          if (!isGroup && !mediaUrl) {
+            supabase.from('notifications').insert({
+              user_id: activeConvId, actor_id: currentUser.id, type: 'dm',
+              entity_id: data.id, entity_type: 'message',
+              body: type === 'text' ? content.slice(0, 80) : `Sent a ${type}`, is_read: false
+            }).then(() => {}, () => {});
           }
-        : {
-            sender_id: currentUser.id,
-            recipient_id: activeConvId,
-            conversation_id: null,
-            content,
-            type,
-            media_url: mediaUrl ?? null,
-            file_name: fileName ?? null,
-            mime_type: mimeType ?? null,
-            reply_to_id: replyTo?.id ?? null,
-            client_temp_id: tempId,
-            view_once: viewOnce,
-          };
-
-      const { data, error } = await supabase
-        .from('messages')
-        .insert(dbPayload)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("[MessagesPage] db insert error:", error);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.client_temp_id === tempId ? { ...m, status: "failed" as const, content: m.content + " (Error: " + error.message + ")" } : m
-          )
-        );
-        return;
-      }
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.client_temp_id === tempId
-            ? { ...m, id: data.id, status: "sent" as const, created_at: data.created_at }
-            : m
-        )
-      );
+        }
+      });
     },
-    [activeConvId, currentUser, isGroup, replyTo, supabase]
+    [activeConvId, currentUser, isGroup, replyTo]
   );
 
   // ── Delete message ─────────────────────────────────────────────────────────
@@ -593,13 +445,10 @@ function MessagesContent() {
   );
 
   // ── Typing indicator ───────────────────────────────────────────────────────
+  const lastTypingRef = useRef<number>(0);
+
   const handleTyping = useCallback((isTyping: boolean = true) => {
-    if (!activeConvId || !currentUser?.id) return;
-    void typingChannelRef.current?.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { userId: currentUser.id, typing: isTyping },
-    });
+    // Realtime broadcast send removed as per emergency instructions to stabilize WebSocket
   }, [activeConvId, currentUser?.id]);
 
   // ── Export chat ────────────────────────────────────────────────────────────
@@ -753,6 +602,11 @@ function MessagesContent() {
     if (currentUser?.id) void loadConversations();
   }, [currentUser?.id, loadConversations]);
 
+  // Sync settings across clients (Axiom: Realtime Continuity)
+  useEffect(() => {
+    if (activeConvId) void loadDMSettings(activeConvId, isGroup);
+  }, [settingsVersion, activeConvId, isGroup, loadDMSettings]);
+
   useEffect(() => {
     if (routeId && currentUser?.id && conversations.length > 0 && messages.length === 0 && !loadingMsgs) {
       const conv = conversations.find((c) => c.id === routeId);
@@ -761,12 +615,7 @@ function MessagesContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations.length, routeId, currentUser?.id]);
 
-  useEffect(() => {
-    return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
-      if (typingChannelRef.current) supabase.removeChannel(typingChannelRef.current);
-    };
-  }, [supabase]);
+  // Cleanup handled by useRealtimeMessages hook on unmount
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (isAuthLoading) {
@@ -776,7 +625,7 @@ function MessagesContent() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-[100dvh] bg-[#09090f] overflow-hidden">
+    <div className="app flex h-[100dvh] bg-[#09090f] overflow-hidden">
 
       {/* ── Sidebar ── */}
       <aside className={clsx(
@@ -843,7 +692,7 @@ function MessagesContent() {
 
       {/* ── Chat panel ── */}
       <main className={clsx(
-        "flex flex-col flex-1 min-w-0 overflow-hidden relative",
+        "chat-screen flex flex-col flex-1 min-w-0 relative",
         mobileView === "list" ? "hidden md:flex" : "flex"
       )}>
         {!activeConvId || !activeConv ? (
@@ -888,6 +737,9 @@ function MessagesContent() {
                 onOpenVault={() => setIsVaultOpen(true)}
                 onCatchUp={() => setIsSummaryOpen(true)}
                 showBack
+                isGroup={isGroup}
+                isMuted={dmSettings?.muted}
+                onMute={(m) => handleUpdateSettings({ muted: m })}
               />
             </div>
 
@@ -913,8 +765,8 @@ function MessagesContent() {
               </div>
             )}
 
-            {/* Messages */}
-            <div className="relative z-10 flex-1 overflow-hidden">
+            {/* Messages — flex-1 + min-h-0 so this column shrinks properly */}
+            <div className="relative z-10 flex-1 min-h-0 flex flex-col">
               <MessageList
                 messages={displayedMessages}
                 loading={loadingMsgs}
@@ -937,7 +789,7 @@ function MessagesContent() {
             </div>
 
             {/* Input */}
-            <div className="relative z-10 shrink-0">
+            <div className="message-input relative z-10 shrink-0">
               <ChatInput
                 onSendText={(content, viewOnce) =>
                   void sendMessage(content, "text", undefined, undefined, undefined, viewOnce)
@@ -1021,7 +873,6 @@ function MessagesContent() {
         />
       )}
 
-      {/* Chat Settings */}
       {isSettingsOpen && activeConvId && activeConv && (
         <ChatSettingsModal
           key={`${activeConvId}-${settingsVersion}`}
@@ -1042,6 +893,9 @@ function MessagesContent() {
           onSearch={() => { setIsSettingsOpen(false); setMsgSearchActive(true); }}
           activeConvId={activeConvId}
           groupJoinCode={activeConv.joinCode}
+          currentUserId={currentUser?.id}
+          isGroup={isGroup}
+          onMute={(m) => handleUpdateSettings({ muted: m })}
         />
       )}
 

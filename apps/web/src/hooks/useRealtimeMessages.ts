@@ -257,9 +257,35 @@ export function useRealtimeMessages({
           table: 'dm_settings',
           filter: `user_id=eq.${currentUser.id}`,
         }, (payload: any) => {
-          const updated = payload.new;
-          if (updated.partner_id === activeIdRef.current) setSettingsVersion(v => v + 1);
+          const updated = payload.new || payload.old;
+          if (updated && (updated.partner_id === activeIdRef.current || updated.chat_id === activeIdRef.current)) {
+            setSettingsVersion(v => v + 1);
+          }
           loadConversationsRef.current(true);
+        })
+
+        // ── Chat Theme Changes ───────────────────────────────────────────
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'chat_theme',
+        }, (payload: any) => {
+          const updated = payload.new || payload.old;
+          if (updated && updated.chat_id === activeIdRef.current) {
+            setSettingsVersion(v => v + 1);
+          }
+        })
+
+        // ── Chat Nickname Changes ─────────────────────────────────────────
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'chat_nicknames',
+        }, (payload: any) => {
+          const updated = payload.new || payload.old;
+          if (updated && updated.chat_id === activeIdRef.current) {
+            setSettingsVersion(v => v + 1);
+          }
         })
 
         // ── Typing broadcast ──────────────────────────────────────────────

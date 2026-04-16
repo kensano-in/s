@@ -359,11 +359,15 @@ const MessageItem = memo(({
       transition={{ type: "spring", stiffness: 500, damping: 35 }}
       style={{ touchAction: "pan-y" }}
       className={clsx(
-        "flex flex-col w-full group px-3",
-        message.is_mine ? "items-end" : "items-start",
+        "message-row group px-3",
+        message.is_mine ? "self" : "other",
         isLastInGroup ? "mb-2" : "mb-0.5"
       )}
     >
+      <div className={clsx(
+        "flex flex-col max-w-full",
+        message.is_mine ? "items-end" : "items-start"
+      )}>
       {/* Sender name */}
       {!message.is_mine && showSenderName && isFirstInGroup && (
         <motion.span
@@ -386,7 +390,7 @@ const MessageItem = memo(({
         </div>
       )}
 
-      <div className={clsx("flex items-end gap-2 max-w-[82%]", message.is_mine ? "flex-row-reverse" : "flex-row")}>
+      <div className={clsx("flex items-end gap-2 max-w-[88%]", message.is_mine ? "flex-row-reverse" : "flex-row")}>
         {/* Context Action Button */}
         <AnimatePresence>
           {isActive && (
@@ -511,7 +515,7 @@ const MessageItem = memo(({
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
               animate={(message.status === "error" || message.status === "failed") ? { x: [0, -5, 5, -5, 5, 0] } : {}}
-              className={clsx("chat-bubble relative overflow-hidden cursor-pointer select-none", message.is_mine ? "text-white" : "text-white/90")}
+              className={clsx("chat-bubble message-bubble relative overflow-hidden cursor-pointer select-none", message.is_mine ? "text-white" : "text-white/90")}
               style={{ ...bubbleStyle_inline, touchAction: "pan-y" }}
             >
               {/* ── Image ── */}
@@ -643,6 +647,7 @@ const MessageItem = memo(({
             </motion.button>
           )}
         </div>
+      </div>
       </div>
     </motion.div>
   );

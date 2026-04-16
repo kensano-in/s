@@ -306,3 +306,91 @@ select:-webkit-autofill:focus {
   font-family: inherit !important;
 }
 
+
+/* 🔴 SURGICAL REBUILD: MESSAGE UI + RESPONSIVE SYSTEM 🔴 */
+.message-bubble {
+  max-width: 85%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  hyphens: auto;
+  min-width: 0;
+}
+
+.message-container {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  gap: 2px;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.message-row {
+  display: flex;
+  width: 100%;
+  padding: 0 12px;
+}
+
+.message-row.self {
+  justify-content: flex-end;
+}
+
+.message-row.other {
+  justify-content: flex-start;
+}
+
+/* Input bar — always visible, respects virtual keyboard + notch */
+.message-input {
+  flex-shrink: 0;
+  position: relative;
+  width: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: transparent;
+  z-index: 20;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overflow-x: hidden;
+}
+
+/* Use 100dvh — the ONLY correct unit for mobile viewports.
+   100vh freezes on iOS Safari when the keyboard opens, hiding the input.
+   100dvh dynamically adjusts as the keyboard resizes the viewport. */
+.app {
+  display: flex;
+  flex-direction: row;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+/* Chat view = full-height flex column — header + scrollable list + sticky input */
+.chat-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Mobile overrides */
+@media (max-width: 768px) {
+  .message-bubble {
+    max-width: 88%;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Prevent double-padding on iOS Safari bottom bar */
+  .message-input {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  }
+}

@@ -52,6 +52,8 @@ interface ChatHeaderProps {
   onOpenVault?: () => void;
   onCatchUp?: () => void;
   showBack?: boolean;
+  isMuted?: boolean;
+  onMute?: (muted: boolean) => void;
 }
 
 const menuItemClass =
@@ -89,6 +91,8 @@ export default function ChatHeader({
   onOpenVault,
   onCatchUp,
   showBack = true,
+  isMuted,
+  onMute,
 }: ChatHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -165,6 +169,7 @@ export default function ChatHeader({
         <div className="flex flex-col min-w-0">
           <h1 className="text-[15px] font-semibold text-white leading-none truncate mb-0.5">
             {participant.name}
+            <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" title="System: Realtime Active" />
           </h1>
           <AnimatePresence mode="popLayout" initial={false}>
             {isOtherTyping ? (
@@ -197,7 +202,7 @@ export default function ChatHeader({
           </>
         )}
         {onCatchUp && (
-          <HeaderBtn onClick={onCatchUp} icon={Sparkles} label="AI Catch Up" />
+          <HeaderBtn onClick={onCatchUp} icon={Sparkles} label="Chat Pulse" />
         )}
         {onOpenVault && (
           <HeaderBtn onClick={onOpenVault} icon={FolderOpen} label="Media Vault" />
@@ -248,9 +253,13 @@ export default function ChatHeader({
                     )}
                     <span>{copiedLink ? "Link Copied!" : "Copy Invite Link"}</span>
                   </DropdownMenu.Item>
-                  <DropdownMenu.Item className={menuItemClass}>
-                    <BellOff size={17} className="text-white/40 group-hover/item:text-white/80 transition-colors" />
-                    <span>Mute Notifications</span>
+                  <DropdownMenu.Item onClick={() => onMute?.(!isMuted)} className={menuItemClass}>
+                    {isMuted ? (
+                      <Check size={17} className="text-emerald-400" />
+                    ) : (
+                      <BellOff size={17} className="text-white/40 group-hover/item:text-white/80 transition-colors" />
+                    )}
+                    <span>{isMuted ? "Unmute" : "Mute Notifications"}</span>
                   </DropdownMenu.Item>
                   <DropdownMenu.Separator className="h-px bg-white/[0.06] my-1.5" />
                   <DropdownMenu.Item onClick={onReport} className={dangerItemClass}>
