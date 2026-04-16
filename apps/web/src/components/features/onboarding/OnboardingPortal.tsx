@@ -83,15 +83,20 @@ export default function OnboardingPortal() {
         .update({
           display_name: displayName,
           bio: bio,
-          avatar_url: finalAvatar,
-          metadata: { 
-            ...(currentUser as any).metadata, 
-            onboarded: true 
-          }
+          avatar_url: finalAvatar
         })
         .eq('id', currentUser.id);
 
       if (error) throw error;
+
+      // 2.5 Update Auth Metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          onboarded: true
+        }
+      });
+
+      if (authError) throw authError;
 
       // 3. Update Local Store
       updateProfile({

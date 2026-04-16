@@ -346,6 +346,13 @@ export async function signup(formData: FormData) {
       data: {
         username: username,
         display_name: fullName,
+        gender: gender,
+        onboarded: false,
+        birth_month: parseInt(birthMonth), 
+        birth_day: parseInt(birthDay), 
+        birth_year: parseInt(birthYear),
+        ip_registration: ip,
+        security_tier: 'mobile_secured'
       }
     }
   })
@@ -387,16 +394,7 @@ export async function signup(formData: FormData) {
       username: username,
       display_name: fullName,
       phone: phone,
-      avatar_url: selectedAvatar,
-      metadata: { 
-        gender,
-        onboarded: false,
-        birth_month: parseInt(birthMonth), 
-        birth_day: parseInt(birthDay), 
-        birth_year: parseInt(birthYear),
-        ip_registration: ip,
-        security_tier: 'mobile_secured'
-      }
+      avatar_url: selectedAvatar
     })
 
     if (dbError) {
