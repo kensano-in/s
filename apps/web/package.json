@@ -1,6 +1,6 @@
 {
   "name": "@verlyn/web",
-  "version": "0.1.0", // forced_redeploy_v1
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
