@@ -1163,9 +1163,9 @@ export async function getMessagesDB(
       .from('messages')
       .select(`
         *,
-        sender:users!sender_id (display_name, username, avatar_url),
+        sender:users (display_name, username, avatar_url),
         message_reactions (emoji, user_id),
-        reply_to:messages!reply_to_id (id, content, sender:users!sender_id (display_name, username))
+        reply_to:reply_to_id (id, content, sender:users (display_name, username))
       `);
 
     if (isGroup) {
