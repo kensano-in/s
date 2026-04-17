@@ -271,51 +271,82 @@ function MessagesContent() {
   });
 
   // ── Polling fallback (catches messages dropped by broken WebSocket) ─────────
-  // Polls DB every 3s for new messages since the most recent one we have.
-  // Deduplicates via seenIdsRef so no flicker or duplicates.
+  // Polls DB every 3s for new messages. Plain select('*') avoids 400 errors
+  // caused by invalid join hints. Sender info is fetched separately for new msgs.
   const latestMsgTimeRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeConvId || !currentUser?.id) return;
     
     const poll = async () => {
       try {
-        const since = latestMsgTimeRef.current;
-        const { data } = await supabase
+        // Build query — filter by created_at when we have a cursor to reduce load
+        let q = supabase
           .from('messages')
-          .select('*, sender:users!sender_id(display_name, username, avatar_url)')
+          .select('*')
           .eq('conversation_id', activeConvId)
           .order('created_at', { ascending: false })
           .limit(20);
         
-        if (!data || data.length === 0) return;
+        if (latestMsgTimeRef.current) {
+          q = q.gt('created_at', latestMsgTimeRef.current);
+        }
+
+        const { data, error } = await q;
+        if (error || !data || data.length === 0) return;
         
-        // Track latest for next poll
+        // Track latest timestamp for next poll cursor
         latestMsgTimeRef.current = data[0].created_at;
         
         const unseen = data.filter((m: any) => !seenIdsRef.current.has(m.id));
         if (unseen.length === 0) return;
         
         unseen.forEach((m: any) => seenIdsRef.current.add(m.id));
+
+        // Fetch sender profiles for messages not from us (batch lookup)
+        const senderIds = [...new Set(unseen.filter((m: any) => m.sender_id !== currentUser.id).map((m: any) => m.sender_id))];
+        const senderMap: Record<string, any> = {};
+        if (senderIds.length > 0) {
+          const { data: senders } = await supabase
+            .from('users')
+            .select('id, display_name, username, avatar_url')
+            .in('id', senderIds);
+          (senders || []).forEach((s: any) => { senderMap[s.id] = s; });
+        }
         
-        const mapped: ChatMessage[] = unseen.map((m: any) => ({
-          ...m,
-          is_mine: m.sender_id === currentUser.id,
-          status: m.status ?? 'sent',
-        }));
+        // Sort newest-first to match the messages list order (newest at top)
+        const mapped: ChatMessage[] = unseen
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .map((m: any) => ({
+            ...m,
+            is_mine: m.sender_id === currentUser.id,
+            status: m.status ?? 'sent',
+            sender: m.sender_id === currentUser.id
+              ? { display_name: currentUser.displayName, username: currentUser.username, avatar_url: currentUser.avatar }
+              : senderMap[m.sender_id] ?? null,
+          }));
         
         setMessages(prev => {
           const existingIds = new Set(prev.map((m: any) => m.id));
+          // Reconcile optimistic temp-ID placeholders
+          const withoutTemps = prev.filter((m: any) => {
+            if (!m.client_temp_id) return true;
+            return !mapped.find((n: any) => n.client_temp_id === m.client_temp_id);
+          });
           const newOnes = mapped.filter((m: any) => !existingIds.has(m.id));
           if (newOnes.length === 0) return prev;
-          return [...newOnes, ...prev];
+          return [...newOnes, ...withoutTemps];
         });
       } catch (_) {}
     };
 
-    poll(); // run immediately on conversation switch
+    // Initialize cursor to now so first poll only fetches genuinely new messages
+    latestMsgTimeRef.current = new Date().toISOString();
+    poll();
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
   }, [activeConvId, currentUser?.id]);
+
+
 
 
   // ── Select conversation ────────────────────────────────────────────────────
@@ -398,7 +429,10 @@ function MessagesContent() {
       // 🔴 Bypass Vercel ENTIRELY for ALL Messages (DMs & Groups). Direct to DB.
       const payload = {
         sender_id: currentUser.id,
-        recipient_id: isGroup ? currentUser.id : activeConvId, // Group chats bypass recipient NOT NULL check
+        // For groups: recipient_id MUST be null — setting it to sender's ID
+        // was causing the receiver-side isTargeted check to fail, silently
+        // dropping all group messages from everyone except the sender.
+        recipient_id: isGroup ? null : activeConvId,
         conversation_id: isGroup ? activeConvId : null,
         content,
         type,
