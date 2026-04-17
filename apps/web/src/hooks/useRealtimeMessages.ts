@@ -112,8 +112,7 @@ export function useRealtimeMessages({
           seenIdsRef.current.add(newMsg.id);
 
           const isTargeted = newMsg.recipient_id === currentUser.id || newMsg.sender_id === currentUser.id;
-          const isGroupMsg = newMsg.conversation_id
-            && !!currentConvs.find((c: any) => c.id === newMsg.conversation_id);
+          const isGroupMsg = newMsg.conversation_id;
 
           if (!isTargeted && !isGroupMsg) return;
 
