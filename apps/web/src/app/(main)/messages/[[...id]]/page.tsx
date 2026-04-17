@@ -427,7 +427,7 @@ function MessagesContent() {
       setReplyTo(null);
 
       // 🔴 Bypass Vercel ENTIRELY for ALL Messages (DMs & Groups). Direct to DB.
-      const payload = {
+      const payload: any = {
         sender_id: currentUser.id,
         // For groups: recipient_id MUST be null — setting it to sender's ID
         // was causing the receiver-side isTargeted check to fail, silently
@@ -443,13 +443,18 @@ function MessagesContent() {
         status: 'sent',
         chat_id: isGroup ? activeConvId : [currentUser.id, activeConvId].sort().join('_'),
         client_temp_id: tempId,
-        view_once: viewOnce || false
       };
+
+      // Only add view_once if explicitly true to avoid schema strictly rejecting booleans
+      // if it was recently added or altered incorrectly.
+      if (viewOnce) {
+        payload.view_once = true;
+      }
 
       // Fire-and-forget: do not await! Completely detaches UI from network.
       supabase.from('messages').insert(payload).select().single().then(({ data, error }) => {
         if (error) {
-          console.error("[sendMessage] failed:", error.message);
+          console.error("[sendMessage] failed:", JSON.stringify(error));
           setMessages((prev) => prev.map((m) => m.client_temp_id === tempId ? { ...m, status: "failed" as const } : m));
           return;
         }

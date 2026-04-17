@@ -99,8 +99,11 @@ export async function sendMessageDB(
       reply_to_id: replyToId || null,
       status: 'sent',
       client_temp_id: clientTempId || null,
-      view_once: viewOnce || false,
     };
+
+    if (viewOnce) {
+      payload.view_once = true;
+    }
 
     if (conversationId && conversationId !== '') {
       payload.conversation_id = conversationId;
