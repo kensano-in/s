@@ -251,9 +251,6 @@ function MessagesContent() {
     [currentUser?.id]
   );
 
-  // ── Messaging — Realtime (useRealtimeMessages hook) ───────────────────────
-  // This hook owns the single global WebSocket channel, handles INSERT/UPDATE/DELETE,
-  // deduplicates via seenIds, fetches sender profile, and reconnects on visibility change.
   useRealtimeMessages({
     supabase,
     currentUser: currentUser ? {
@@ -273,8 +270,52 @@ function MessagesContent() {
     loadMessages,
   });
 
+  // ── Polling fallback (catches messages dropped by broken WebSocket) ─────────
+  // Polls DB every 3s for new messages since the most recent one we have.
+  // Deduplicates via seenIdsRef so no flicker or duplicates.
+  const latestMsgTimeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeConvId || !currentUser?.id) return;
+    
+    const poll = async () => {
+      try {
+        const since = latestMsgTimeRef.current;
+        const { data } = await supabase
+          .from('messages')
+          .select('*, sender:users!sender_id(display_name, username, avatar_url)')
+          .eq('conversation_id', activeConvId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (!data || data.length === 0) return;
+        
+        // Track latest for next poll
+        latestMsgTimeRef.current = data[0].created_at;
+        
+        const unseen = data.filter((m: any) => !seenIdsRef.current.has(m.id));
+        if (unseen.length === 0) return;
+        
+        unseen.forEach((m: any) => seenIdsRef.current.add(m.id));
+        
+        const mapped: ChatMessage[] = unseen.map((m: any) => ({
+          ...m,
+          is_mine: m.sender_id === currentUser.id,
+          status: m.status ?? 'sent',
+        }));
+        
+        setMessages(prev => {
+          const existingIds = new Set(prev.map((m: any) => m.id));
+          const newOnes = mapped.filter((m: any) => !existingIds.has(m.id));
+          if (newOnes.length === 0) return prev;
+          return [...newOnes, ...prev];
+        });
+      } catch (_) {}
+    };
 
-
+    poll(); // run immediately on conversation switch
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [activeConvId, currentUser?.id]);
 
 
   // ── Select conversation ────────────────────────────────────────────────────
