@@ -361,7 +361,7 @@ function MessagesContent() {
       setMobileView("chat");
       loadMessages(convId, group);
       const conv = conversations.find((c) => c.id === convId);
-      loadDMSettings(convId, group, group ? conv : undefined);
+      loadDMSettings(convId, group);
       markSeen(convId, group);
 
       if (group && currentUser?.id) {
@@ -813,7 +813,6 @@ function MessagesContent() {
                 onOpenVault={() => setIsVaultOpen(true)}
                 onCatchUp={() => setIsSummaryOpen(true)}
                 showBack
-                isGroup={isGroup}
                 isMuted={dmSettings?.muted}
                 onMute={(m) => handleUpdateSettings({ muted: m })}
               />
