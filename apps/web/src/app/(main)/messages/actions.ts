@@ -584,9 +584,11 @@ export async function getGroupMembersDB(groupId: string): Promise<ActionResult<a
       joinedAt: row.joined_at
     }));
     
-    return { success: true, data: formatted };
+    console.log(`[getConversationsDB] DONE in ${Date.now() - start}ms. Total distinct conversations:`, conversations.length);
+    return { success: true, data: conversations };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    console.error('[getConversationsDB] FATAL:', err);
+    return { success: false, error: err.message || 'Failed to load conversations' };
   }
 }
 
@@ -1025,6 +1027,8 @@ export async function cleanupDisappearingMessagesDB(
 
 // ─── Fetch Conversations (Server Side Bypass RLS) ──────────────────────────
 export async function getConversationsDB(userId: string): Promise<ActionResult<any[]>> {
+  console.log('[getConversationsDB] CALL:', { userId });
+  const start = Date.now();
   try {
     const supabaseAdmin = await getAdmin();
     
@@ -1033,9 +1037,14 @@ export async function getConversationsDB(userId: string): Promise<ActionResult<a
       .from('messages')
       .select('id, sender_id, recipient_id, content, sent_at, type, status')
       .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
-      .order('sent_at', { ascending: false });
+      .order('sent_at', { ascending: false })
+      .limit(100); // Limit to 100 recent to prevent timeout
 
-    if (dmErr) throw dmErr;
+    if (dmErr) {
+      console.error('[getConversationsDB] DM Error:', dmErr);
+      throw dmErr;
+    }
+    console.log('[getConversationsDB] Found DMs:', dms?.length || 0);
 
     // 2. Fetch Groups via Participants
     const { data: participations, error: pErr } = await supabaseAdmin
@@ -1046,7 +1055,11 @@ export async function getConversationsDB(userId: string): Promise<ActionResult<a
       `)
       .eq('user_id', userId);
 
-    if (pErr) throw pErr;
+    if (pErr) {
+      console.error('[getConversationsDB] Participations Error:', pErr);
+      throw pErr;
+    }
+    console.log('[getConversationsDB] Found Participations:', participations?.length || 0);
 
     // 3. Transform DMs into unique conversation threads
     const threads: Map<string, any> = new Map();
@@ -1137,16 +1150,55 @@ export async function getConversationsDB(userId: string): Promise<ActionResult<a
         })
     );
 
-    // Sort all conversations by most recent message
-    const all = [...dmThreads, ...groupThreads].sort((a, b) => {
-      if (!a.updatedAt) return 1;
-      if (!b.updatedAt) return -1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+    // Final transformation to match UI expectations
+    const conversations = [...dmThreads, ...groupThreads].map((conv) => ({
+      id: conv.id,
+      name: conv.name,
+      username: conv.username,
+      avatarUrl: conv.avatarUrl,
+      lastMessage: conv.lastMessage,
+      updatedAt: conv.updatedAt,
+      isGroup: conv.isGroup,
+      isOnline: conv.isOnline,
+      joinCode: conv.joinCode,
+      unread: conv.unread,
+      theme_id: conv.theme_id,
+      theme_blur: conv.theme_blur,
+      member_count: conv.member_count
+    }));
 
-    return { success: true, data: all };
+    console.log(`[getConversationsDB] DONE in ${Date.now() - start}ms. Total distinct conversations:`, conversations.length);
+    return { success: true, data: conversations };
   } catch (err: any) {
-    console.error('[Actions] getConversationsDB failed:', err);
+    console.error('[getConversationsDB] FATAL:', err);
+    return { success: false, error: err.message || 'Failed to load conversations' };
+  }
+}
+
+export async function getConversationById(id: string): Promise<ActionResult<any>> {
+  try {
+    const supabaseAdmin = await getAdmin();
+    const { data: conv, error } = await supabaseAdmin
+      .from('conversations')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !conv) return { success: false, error: 'Conversation not found' };
+
+    return {
+      success: true,
+      data: {
+        id: conv.id,
+        name: conv.name,
+        isGroup: true, // Assuming group since individual DMs use participant IDs
+        avatarUrl: conv.icon_url,
+        joinCode: conv.join_code,
+        theme_id: conv.theme_id,
+        theme_blur: conv.theme_blur,
+      }
+    };
+  } catch (err: any) {
     return { success: false, error: err.message };
   }
 }

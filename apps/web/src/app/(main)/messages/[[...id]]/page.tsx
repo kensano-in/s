@@ -34,6 +34,7 @@ import { ChatMessage } from "@/components/Chat/MessageItem";
 // ── Actions ──────────────────────────────────────────────────────────────────
 import {
   getConversationsDB,
+  getConversationById,
   getMessagesDB,
   getNewMessagesDB,
   clearChatDB,
@@ -722,7 +723,11 @@ function MessagesContent() {
     }
   }, [conversations.length, loadingConvs, routeId, currentUser?.id, messages.length, loadingMsgs, selectConversation]);
 
-  // Cleanup handled by useRealtimeMessages hook on unmount
+  useEffect(() => {
+    if (routeId && !loadingConvs && !conversations.find(c => c.id === routeId)) {
+      void forceLoadActiveConv(routeId);
+    }
+  }, [routeId, loadingConvs, conversations, forceLoadActiveConv]);
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (isAuthLoading) {
