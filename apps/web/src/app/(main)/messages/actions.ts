@@ -1160,18 +1160,11 @@ export async function getMessagesDB(
   limit: number = 50,
   cursorSentAt?: string // ISO timestamp of oldest visible message — for cursor pagination
 ): Promise<ActionResult<any[]>> {
+  console.log('[getMessagesDB] CALL:', { userId, targetId, isGroup, limit, cursorSentAt });
   try {
-    // Try admin client first (bypasses RLS, works when service role key is set).
-    // Falls back to session client if admin key is missing/invalid —
-    // session client respects our RLS policies which are now correctly configured.
     const supabaseAdmin = await getAdmin();
-    const sessionClient = await createClient();
-
-    // Test if the admin key is actually valid by checking if it has a non-empty key
-    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
-    const db = serviceRoleKey.length > 20 ? supabaseAdmin : sessionClient;
-
-    let query = db
+    
+    let query = supabaseAdmin
       .from('messages')
       .select(`
         *,
@@ -1186,7 +1179,7 @@ export async function getMessagesDB(
       query = query.or(`and(sender_id.eq.${userId},recipient_id.eq.${targetId}),and(sender_id.eq.${targetId},recipient_id.eq.${userId})`);
     }
 
-    // Only show root-level messages in the main conversation — thread replies live in ThreadPanel
+    // Only show root-level messages in the main conversation
     query = query.is('thread_root_id', null);
 
     if (cursorSentAt) {
@@ -1198,9 +1191,11 @@ export async function getMessagesDB(
       .limit(limit);
 
     if (error) {
-      console.error('[Actions] getMessagesDB query error:', { error, isGroup, targetId, serviceRoleKeyLength: serviceRoleKey.length });
+      console.error('[getMessagesDB] Query Error:', error);
       throw error;
     }
+
+    console.log(`[getMessagesDB] SUCCESS: Found ${data?.length || 0} messages`);
 
     // Aggregate reactions into [{emoji, count, reacted}] shape expected by MessageItem
     const mappedData = (data || []).map((m: any) => {
@@ -1213,14 +1208,15 @@ export async function getMessagesDB(
       }
       return {
         ...m,
-        sent_at: m.sent_at || m.sent_at,
+        sent_at: m.sent_at,
+        created_at: m.sent_at, // Fallback since created_at column is missing
         reactions: Object.values(grouped),
       };
     });
 
     return { success: true, data: mappedData };
   } catch (err: any) {
-    console.error('[Actions] getMessagesDB failure:', err);
+    console.error('[getMessagesDB] CRITICAL FAILURE:', err);
     return { success: false, error: err.message };
   }
 }
