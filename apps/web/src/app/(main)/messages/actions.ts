@@ -584,11 +584,9 @@ export async function getGroupMembersDB(groupId: string): Promise<ActionResult<a
       joinedAt: row.joined_at
     }));
     
-    console.log(`[getConversationsDB] DONE in ${Date.now() - start}ms. Total distinct conversations:`, conversations.length);
-    return { success: true, data: conversations };
+    return { success: true, data: formatted };
   } catch (err: any) {
-    console.error('[getConversationsDB] FATAL:', err);
-    return { success: false, error: err.message || 'Failed to load conversations' };
+    return { success: false, error: err.message };
   }
 }
 
