@@ -281,7 +281,7 @@ function MessagesContent() {
         let q = supabase
           .from('messages')
           .select('*')
-          .order('created_at', { ascending: false })
+          .order('sent_at', { ascending: false })
           .limit(20);
 
         // DMs: filter by sender+recipient pair. Groups: filter by conversation_id.
@@ -295,14 +295,14 @@ function MessagesContent() {
         }
         
         if (latestMsgTimeRef.current) {
-          q = q.gt('created_at', latestMsgTimeRef.current);
+          q = q.gt('sent_at', latestMsgTimeRef.current);
         }
 
         const { data, error } = await q;
         if (error || !data || data.length === 0) return;
         
         // Track latest timestamp for next poll cursor
-        latestMsgTimeRef.current = data[0].created_at;
+        latestMsgTimeRef.current = data[0].sent_at;
         
         const unseen = data.filter((m: any) => !seenIdsRef.current.has(m.id));
         if (unseen.length === 0) return;
@@ -322,7 +322,7 @@ function MessagesContent() {
         
         // Sort newest-first to match the messages list order (newest at top)
         const mapped: ChatMessage[] = unseen
-          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .sort((a: any, b: any) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime())
           .map((m: any) => ({
             ...m,
             is_mine: m.sender_id === currentUser.id,
