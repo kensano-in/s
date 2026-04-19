@@ -260,7 +260,7 @@ export default function MessageList(props: MessageListProps) {
       <motion.div
         key={props.conversationId ?? "no-conv"}
         {...CONV_TRANSITION}
-        className="flex-1 flex flex-col min-h-0 relative overflow-hidden"
+        className="flex-1 flex flex-col min-h-0 relative"
       >
         <MessageListInner {...props} />
       </motion.div>

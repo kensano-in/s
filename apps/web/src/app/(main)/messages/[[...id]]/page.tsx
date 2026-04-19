@@ -271,21 +271,28 @@ function MessagesContent() {
   });
 
   // ── Polling fallback (catches messages dropped by broken WebSocket) ─────────
-  // Polls DB every 3s for new messages. Plain select('*') avoids 400 errors
-  // caused by invalid join hints. Sender info is fetched separately for new msgs.
+  // Polls DB every 1s for new messages. Uses correct query per DM vs Group.
   const latestMsgTimeRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeConvId || !currentUser?.id) return;
     
     const poll = async () => {
       try {
-        // Build query — filter by created_at when we have a cursor to reduce load
         let q = supabase
           .from('messages')
           .select('*')
-          .eq('conversation_id', activeConvId)
           .order('created_at', { ascending: false })
           .limit(20);
+
+        // DMs: filter by sender+recipient pair. Groups: filter by conversation_id.
+        if (isGroup) {
+          q = q.eq('conversation_id', activeConvId);
+        } else {
+          q = q.or(
+            `and(sender_id.eq.${currentUser.id},recipient_id.eq.${activeConvId}),` +
+            `and(sender_id.eq.${activeConvId},recipient_id.eq.${currentUser.id})`
+          );
+        }
         
         if (latestMsgTimeRef.current) {
           q = q.gt('created_at', latestMsgTimeRef.current);
@@ -303,7 +310,7 @@ function MessagesContent() {
         unseen.forEach((m: any) => seenIdsRef.current.add(m.id));
 
         // Fetch sender profiles for messages not from us (batch lookup)
-        const senderIds = [...new Set(unseen.filter((m: any) => m.sender_id !== currentUser.id).map((m: any) => m.sender_id))];
+        const senderIds = [...new Set(unseen.filter((m: any) => m.sender_id !== currentUser.id).map((m: any) => m.sender_id))] as string[];
         const senderMap: Record<string, any> = {};
         if (senderIds.length > 0) {
           const { data: senders } = await supabase
@@ -342,9 +349,9 @@ function MessagesContent() {
     // Initialize cursor to now so first poll only fetches genuinely new messages
     latestMsgTimeRef.current = new Date().toISOString();
     poll();
-    const interval = setInterval(poll, 3000);
+    const interval = setInterval(poll, 1000);  // 1s fallback for near-instant delivery
     return () => clearInterval(interval);
-  }, [activeConvId, currentUser?.id]);
+  }, [activeConvId, currentUser?.id, isGroup]);
 
 
 
