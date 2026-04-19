@@ -247,6 +247,32 @@ function MessagesContent() {
     [currentUser?.id]
   );
 
+  // ── Sync conversations ──────────────────────────────────────────────────────
+  const loadConversations = useCallback(async () => {
+    if (!currentUser?.id) return;
+    setLoadingConvs(true);
+    const { success, data, error } = await getConversationsDB(currentUser.id);
+    if (success && data) {
+      setConversations(data);
+    } else {
+      console.error("[MessagesPage] loadConversations error:", error);
+    }
+    setLoadingConvs(false);
+  }, [currentUser?.id]);
+
+  // MSG-10: Force load active conversation if missing from list (Axiom 11)
+  const forceLoadActiveConv = useCallback(async (id: string) => {
+    try {
+      const { success, data } = await getConversationById(id);
+      if (success && data) {
+        setConversations(prev => {
+          if (prev.find(c => c.id === id)) return prev;
+          return [data, ...prev];
+        });
+      }
+    } catch (e) { console.error("[MessagesPage] forceLoad error:", e); }
+  }, []);
+
   // ── Mark seen ──────────────────────────────────────────────────────────────
   const markSeen = useCallback(
     (convId: string, group: boolean) => {
