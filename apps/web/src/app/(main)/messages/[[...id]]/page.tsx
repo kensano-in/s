@@ -436,10 +436,9 @@ function MessagesContent() {
       // 🔴 Bypass Vercel ENTIRELY for ALL Messages (DMs & Groups). Direct to DB.
       const payload: any = {
         sender_id: currentUser.id,
-        // For groups: recipient_id MUST be null — setting it to sender's ID
-        // was causing the receiver-side isTargeted check to fail, silently
-        // dropping all group messages from everyone except the sender.
-        recipient_id: isGroup ? null : activeConvId,
+        // For groups: recipient_id must NOT be null (DB constraint). Use sender's own ID
+        // as a placeholder — the message is routed by conversation_id, not recipient_id.
+        recipient_id: isGroup ? currentUser.id : activeConvId,
         conversation_id: isGroup ? activeConvId : null,
         content,
         type,
