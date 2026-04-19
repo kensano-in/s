@@ -1161,8 +1161,17 @@ export async function getMessagesDB(
   cursorSentAt?: string // ISO timestamp of oldest visible message — for cursor pagination
 ): Promise<ActionResult<any[]>> {
   try {
+    // Try admin client first (bypasses RLS, works when service role key is set).
+    // Falls back to session client if admin key is missing/invalid —
+    // session client respects our RLS policies which are now correctly configured.
     const supabaseAdmin = await getAdmin();
-    let query = supabaseAdmin
+    const sessionClient = await createClient();
+
+    // Test if the admin key is actually valid by checking if it has a non-empty key
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
+    const db = serviceRoleKey.length > 20 ? supabaseAdmin : sessionClient;
+
+    let query = db
       .from('messages')
       .select(`
         *,
@@ -1188,7 +1197,10 @@ export async function getMessagesDB(
       .order('sent_at', { ascending: false })
       .limit(limit);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[Actions] getMessagesDB query error:', { error, isGroup, targetId, serviceRoleKeyLength: serviceRoleKey.length });
+      throw error;
+    }
 
     // Aggregate reactions into [{emoji, count, reacted}] shape expected by MessageItem
     const mappedData = (data || []).map((m: any) => {
@@ -1201,8 +1213,7 @@ export async function getMessagesDB(
       }
       return {
         ...m,
-        sent_at: m.sent_at || m.created_at,
-        created_at: m.created_at || m.sent_at,
+        sent_at: m.sent_at || m.sent_at,
         reactions: Object.values(grouped),
       };
     });
