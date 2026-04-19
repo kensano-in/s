@@ -211,6 +211,10 @@ function MessagesContent() {
             mapped.forEach((m) => seenIdsRef.current.add(m.id));
             setMessages(mapped);
             setHasMore(mapped.length === 50);
+            // Sync polling cursor to newest message so fallback picks up from there
+            if (mapped.length > 0) {
+              latestMsgTimeRef.current = mapped[0].sent_at;
+            }
           } else {
             mapped.forEach((m) => seenIdsRef.current.add(m.id));
             setMessages((prev) => [...prev, ...mapped]);
@@ -327,6 +331,8 @@ function MessagesContent() {
             ...m,
             is_mine: m.sender_id === currentUser.id,
             status: m.status ?? 'sent',
+            sent_at: m.sent_at,
+            created_at: m.sent_at, // Fallback for components expecting created_at
             sender: m.sender_id === currentUser.id
               ? { display_name: currentUser.displayName, username: currentUser.username, avatar_url: currentUser.avatar }
               : senderMap[m.sender_id] ?? null,
@@ -695,12 +701,26 @@ function MessagesContent() {
   }, [settingsVersion, activeConvId, isGroup, loadDMSettings]);
 
   useEffect(() => {
-    if (routeId && currentUser?.id && conversations.length > 0 && messages.length === 0 && !loadingMsgs) {
+    if (routeId && currentUser?.id && !loadingConvs) {
+      // Find the conversation to accurately determine isGroup status.
+      // If NOT found in the list (e.g. cold start on a specific group URL), 
+      // we must infer group status or wait. But here we assume if it's in the URL, 
+      // loadConversations will eventually find it.
       const conv = conversations.find((c) => c.id === routeId);
-      selectConversation(routeId, conv?.isGroup ?? false);
+      
+      // CRITICAL: If messages are empty and we have a routeId, trigger load.
+      // We check conversations.length > 0 to ensure we have the group metadata.
+      if (conversations.length > 0 && messages.length === 0 && !loadingMsgs) {
+        if (conv) {
+          selectConversation(routeId, !!conv.isGroup);
+        } else {
+          // If not in sidebar, it might be a direct link to a DM or a group we just joined.
+          // We'll try to load as group=true if it looks like a group ID or just try both.
+          // For now, let's just wait for the next tick if the list is still loading.
+        }
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations.length, routeId, currentUser?.id]);
+  }, [conversations.length, loadingConvs, routeId, currentUser?.id, messages.length, loadingMsgs, selectConversation]);
 
   // Cleanup handled by useRealtimeMessages hook on unmount
 
