@@ -1,0 +1,1185 @@
+/* Fonts loaded via next/font/google in layout.tsx — no @import needed */
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Neutral Luxury Palette — Mineral Charcoal & Silver */
+  --background: var(--v-background-hsl, 240 10% 3.5%); /* #050508 */
+  --foreground: var(--v-foreground-hsl, 0 0% 98%);
+  
+  --card: var(--v-card-hsl, 240 10% 6%); /* #0D0D11 */
+  --card-foreground: var(--v-foreground-hsl, 0 0% 98%);
+  
+  --primary: var(--v-primary-hsl, 255 85% 65%); /* Sleek Violet */
+  --primary-foreground: var(--v-primary-foreground-hsl, 0 0% 100%);
+  
+  --secondary: var(--v-secondary-hsl, 240 4% 16%);
+  --secondary-foreground: var(--v-secondary-foreground-hsl, 0 0% 98%);
+  
+  --muted: var(--v-muted-hsl, 240 5% 12%);
+  --muted-foreground: var(--v-muted-foreground-hsl, 240 5% 65%);
+  
+  --accent: var(--v-accent-hsl, 240 5% 20%);
+  --accent-foreground: var(--v-accent-foreground-hsl, 0 0% 98%);
+  
+  --border: var(--v-border-hsl, 240 5% 15%);
+  --input: var(--v-input-hsl, 240 5% 15%);
+  --ring: var(--v-ring-hsl, 255 85% 65%);
+
+  /* ─── Semantic Spacing & Sizing ─────────────────────────────────────────── */
+  --gap-xs: 0.5rem;
+  --gap-sm: 0.75rem;
+  --gap-md: 1rem;
+  --gap-lg: 1.5rem;
+  
+  --p-card: 1.25rem;
+  --p-chat: 1rem;
+  
+  --radius-sm: var(--v-radius-sm, 0.5rem);
+  --radius-md: var(--v-radius-md, 0.75rem);
+  --radius-lg: var(--v-radius-lg, 1rem);
+  --radius-xl: var(--v-radius-xl, 1.5rem);
+  
+  --font-main: var(--v-font-main, 'Plus Jakarta Sans', sans-serif);
+  --font-sans: var(--v-font-sans, 'Inter', sans-serif);
+
+  /* ─── PRIMARY SYSTEM TOKENS ──────────────────────────────────────────────
+     These are the single source of truth for all layout-critical dimensions.
+     Components should reference these tokens, never hardcode pixel values.
+  ─────────────────────────────────────────────────────────────────────────── */
+
+  /* Sidebar widths */
+  --sidebar-w-expanded:  15rem;   /* 240px — full label + icon */
+  --sidebar-w-collapsed: 5.5rem;  /* 88px  — icon-only mode */
+  --sidebar-w: var(--sidebar-w-expanded); /* active width — toggled via JS class */
+
+  /* Right panel */
+  --right-panel-w: 22rem; /* 352px */
+
+  /* Responsive layout padding — clamps between mobile-floor and desktop-max */
+  --layout-px: clamp(1rem, 3vw, 2.5rem);
+  --layout-py: clamp(0rem, 1.5vw, 1.5rem);
+
+  /* Responsive type scale */
+  --text-xs:   clamp(0.6875rem, 1vw,   0.75rem);
+  --text-sm:   clamp(0.8125rem, 1.2vw, 0.875rem);
+  --text-base: clamp(0.875rem,  1.4vw, 1rem);
+  --text-lg:   clamp(1rem,      1.8vw, 1.125rem);
+  --text-xl:   clamp(1.125rem,  2vw,   1.25rem);
+  --text-2xl:  clamp(1.25rem,   2.5vw, 1.5rem);
+
+  /* Z-index scale — prevents z-index conflicts across layers */
+  --z-base:    0;
+  --z-content: 10;
+  --z-sidebar: 20;
+  --z-topbar:  30;
+  --z-overlay: 40;
+  --z-drawer:  50;
+  --z-modal:   60;
+  --z-toast:   70;
+  --z-status:  80;
+
+  /* ─── Semantic Surface Tokens ────────────────────────────────────────────
+     Used by components like NotifPanel, ChatSettingsModal, etc.
+     These map to the design system's surface hierarchy.
+  ─────────────────────────────────────────────────────────────────────────── */
+  --surface:              var(--v-surface, #0D0D11);
+  --surface-elevated:     var(--v-surface-elevated, #15151A);
+  --surface-border:       var(--v-surface-border, rgba(255, 255, 255, 0.05));
+
+  /* Notification panel / slide panel vars */
+  --bg-elevated:          var(--v-bg-elevated, #111116);
+  --border:               var(--v-border-hex, rgba(255, 255, 255, 0.07));
+
+  /* Semantic text tokens */
+  --text-primary:         var(--v-text-primary, rgba(255, 255, 255, 0.95));
+  --text-secondary:       var(--v-text-secondary, rgba(255, 255, 255, 0.55));
+  --text-tertiary:        var(--v-text-tertiary, rgba(255, 255, 255, 0.30));
+
+  /* Brand accent — Violet */
+  --v-violet:             var(--v-accent, #6C63FF);
+
+  /* Motion — calibrated for emotional responsiveness */
+  --background-hex: var(--v-background-hex, #050508);
+  --surface-hex: var(--v-surface-hex, #0D0D11);
+  --surface-elevated-hex: var(--v-surface-elevated-hex, #15151A);
+  --surface-border-hex: var(--v-surface-border-hex, rgba(255, 255, 255, 0.05));
+  --foreground-hex: var(--v-foreground-hex, #F8FAFC);
+  --foreground-muted-hex: var(--v-foreground-muted-hex, #94A3B8);
+  --glow-subtle: var(--v-glow-subtle, 0 4px 24px -1px rgba(0, 0, 0, 0.6));
+  --border-lux: var(--v-border-lux, 0 0 0 1px rgba(255, 255, 255, 0.04));
+
+  /* ─── Motion Tokens ─────────────────────────────────────────────────────────
+     Three-tier timing system:
+       micro   = state feedback (hover, press) — must feel instant
+       fast    = element reveals, tooltips
+       primary = page-level transitions
+     All use a single spring easing for consistency.
+  ────────────────────────────────────────────────────────────────────────────── */
+  --anim-multiplier: var(--v-animation-duration-multiplier, 1);
+  --duration-micro:   calc(80ms * var(--anim-multiplier));
+  --duration-fast:    calc(160ms * var(--anim-multiplier));
+  --duration-primary: calc(220ms * var(--anim-multiplier));
+  --duration-page:    calc(320ms * var(--anim-multiplier));
+  --duration-slow:    calc(480ms * var(--anim-multiplier));
+
+  /* Easings — two only, prevents visual incoherence */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);   /* all enter/expand */
+  --ease-in:     cubic-bezier(0.4,  0, 1, 1);      /* exit/collapse only */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* tactile tap feedback */
+
+  /* ─── Depth / Shadow Scale ──────────────────────────────────────────────────
+     Controlled shadow system — prevents the "floating soup" look.
+     Each level has one shadow only. No stacking beyond level-3.
+  ────────────────────────────────────────────────────────────────────────────── */
+  --shadow-1: 0 1px 4px rgba(0,0,0,0.25);
+  --shadow-2: 0 4px 16px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-3: 0 12px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-modal: 0 24px 80px rgba(0,0,0,0.7), 0 4px 16px rgba(0,0,0,0.4);
+
+  /* Accent glow — used sparingly on interactive focal points */
+  --glow-accent: 0 0 24px -4px rgba(99, 102, 241, 0.35);
+}
+
+.dark {
+  --background: 240 10% 2%;
+  --foreground: 0 0% 100%;
+}
+
+/* ─── ROOT OVERFLOW CONTROL ───────────────────────────────────────────────── */
+/* CRITICAL: Both html and body must be overflow:hidden.
+   All scrolling happens in designated internal .scroll-area containers only.
+   This prevents double scrollbars and viewport overflow on any device. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── NEXT.JS APP ROUTER WRAPPER FIX ────────────────────────────────────────
+   Next.js App Router injects multiple internal wrapper divs between <body>
+   and the app-shell. All levels must carry height:100% or the height chain
+   breaks and everything collapses (black screen on mobile).
+   We cover up to 3 levels deep — enough for any Next.js version.
+────────────────────────────────────────────────────────────────────────────── */
+/* body > div:not([data-radix-portal]),
+body > div:not([data-radix-portal]) > div,
+body > div:not([data-radix-portal]) > div > div {
+  height: 100%;
+} */
+
+/* ─── BASE BODY STYLES ────────────────────────────────────────────────────── */
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-main);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ─── APP SHELL — 3-Layer Adaptive Grid ──────────────────────────────────────
+   Layout:
+     Desktop  (>1024px):   [sidebar-full] [content] [right-panel]
+     Tablet   (768–1024px):[sidebar-icon] [content]
+     Mobile   (<768px):    [content full-width] (sidebar→drawer, right→hidden)
+─────────────────────────────────────────────────────────────────────────────── */
+.app-shell {
+  /* Grid with named columns for clarity */
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr 0px;
+  grid-template-rows: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  background-color: #050508;
+  color: white;
+  position: relative;
+  /* Smooth sidebar open/close transition */
+  transition: grid-template-columns 260ms var(--ease-out);
+  /* Promote to its own compositing layer — sidebar collapse never triggers layout on children */
+  will-change: grid-template-columns;
+}
+
+/* Right panel: added when !isMessages on desktop */
+.app-shell.has-right-panel {
+  grid-template-columns: var(--sidebar-w) 1fr var(--right-panel-w);
+}
+
+/* Sidebar collapsed (user toggled) */
+.app-shell.sidebar-collapsed {
+  --sidebar-w: var(--sidebar-w-collapsed);
+}
+
+/* Tablet & Small Laptop: force icon-only sidebar, no right panel space */
+@media (max-width: 1279px) {
+  .app-shell,
+  .app-shell.has-right-panel {
+    grid-template-columns: var(--sidebar-w-collapsed) 1fr 0px;
+  }
+  /* Tablet/Laptop sidebar hidden (user toggled it fully off) */
+  .app-shell.sidebar-hidden {
+    grid-template-columns: 0px 1fr 0px;
+  }
+}
+
+/* Mobile: full-width content, both sidebar and right panel slots = 0 */
+@media (max-width: 767px) {
+  .app-shell,
+  .app-shell.has-right-panel,
+  .app-shell.sidebar-hidden,
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 0px 1fr 0px;
+  }
+}
+
+/* Force 0px sidebar for isolated Messages app workspace across all breakpoints */
+.app-shell.is-messages,
+.app-shell.is-messages.has-right-panel,
+.app-shell.is-messages.sidebar-collapsed,
+.app-shell.is-messages.sidebar-hidden {
+  grid-template-columns: 0px 1fr 0px !important;
+  --sidebar-w: 0px !important;
+}
+
+/* ─── SCROLL AREAS ────────────────────────────────────────────────────────────
+   Principle: Only these containers scroll. Nothing outside them.
+   - .scroll-area = vertical scroll (sidebar nav, page content, etc.)
+   - .scroll-area-x = horizontal scroll (media galleries, etc.)
+─────────────────────────────────────────────────────────────────────────────── */
+.scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.scroll-area-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+}
+
+/* ─── CONTENT CONTAINER ───────────────────────────────────────────────────── */
+.app-sidebar-container {
+  grid-column: 1;
+}
+
+.content-container {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-right-panel-container {
+  grid-column: 3;
+}
+
+/* Standard scrollable page content area (non-chat routes) */
+.page-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── CHAT SCREEN ─────────────────────────────────────────────────────────── */
+.chat-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── MESSAGE COMPONENTS ──────────────────────────────────────────────────── */
+.message-bubble {
+  max-width: 85%;
+  min-width: 64px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  min-height: 0;
+}
+
+.message-container {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.message-row {
+  display: flex;
+  width: 100%;
+  padding: 0 12px;
+}
+
+.message-row.self  { justify-content: flex-end; }
+.message-row.other { justify-content: flex-start; }
+
+
+/* Input bar — always visible, respects virtual keyboard + notch */.message-input {
+  flex-shrink: 0;
+  position: relative;
+  width: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: transparent;
+  z-index: var(--z-content);
+}
+
+/* ─── CONNECTION STATE ATTRIBUTES ────────────────────────────────────────────
+   Applied to the root app-shell element via data-connection="..." attribute.
+   Descendants can use this for UI feedback without prop drilling.
+─────────────────────────────────────────────────────────────────────────────── */
+[data-connection="disconnected"] .connection-guard,
+[data-connection="error"] .connection-guard {
+  pointer-events: none;
+  opacity: 0.5;
+  user-select: none;
+}
+
+/* ─── TYPOGRAPHY FIXES ────────────────────────────────────────────────────── */
+.post-text-content {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: var(--text-base);
+  color: hsl(var(--foreground) / 0.9);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ─── CUSTOM SCROLLBARS ───────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+/* ─── PREMIUM SURFACE UTILITIES ──────────────────────────────────────────── */
+.glass-surface {
+  background: hsla(240, 10%, 6%, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsla(0, 0%, 100%, 0.08);
+}
+
+.frosted-border {
+  border: 1px solid hsla(0, 0%, 100%, 0.06);
+}
+
+.subtle-glow {
+  box-shadow: 0 0 40px -10px hsla(var(--primary) / 0.15);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* CRITICAL: Do NOT add overflow-x: hidden here — it overrides the
+       overflow: hidden set above and can break the scroll containment system.
+       Horizontal overflow is prevented per-container where needed. */
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-main);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+
+  h1 { font-weight: 800; }
+}
+
+@layer components {
+
+  /* Luxury Professional Surfaces */
+  .surface-card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0) 100%), var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 24px;
+    box-shadow: 0 20px 48px -12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: all var(--duration-primary) var(--ease-spring);
+  }
+
+  .glass-card {
+    background: var(--v-glass-bg, rgba(13, 13, 17, 0.7));
+    backdrop-filter: var(--v-glass-blur, blur(32px) saturate(180%));
+    border: var(--v-glass-border, 1px solid rgba(255, 255, 255, 0.04));
+    box-shadow: var(--v-glass-shadow, 0 20px 40px -12px rgba(0, 0, 0, 0.6)), var(--v-glass-glow, 0 0 0px transparent);
+  }
+
+  /* Professional Matte Buttons */
+  .btn-primary {
+    @apply flex items-center justify-center px-6 py-3 rounded-2xl font-bold transition-all bg-white text-black hover:brightness-90 active:scale-95 disabled:opacity-50;
+    letter-spacing: -0.01em;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+
+  .btn-ghost {
+    @apply flex items-center justify-center px-6 py-3 rounded-2xl font-bold transition-all bg-white/5 text-slate-300 hover:bg-white/10 active:scale-95 border border-white/5;
+  }
+
+  /* Icon-only button — small square tap target */
+  .icon-btn {
+    @apply flex items-center justify-center w-9 h-9 rounded-xl text-white/50 hover:text-white hover:bg-white/[0.07] active:scale-90 transition-all;
+  }
+
+  /* Chat bubbles — driven by inline styles from MessageItem for theme-ability.
+     These classes provide the structural frame only. */
+  .chat-bubble {
+    @apply max-w-[82%] text-[15px] leading-relaxed;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 64px;
+  }
+
+  .chat-bubble-sent {
+    background: rgba(255,255,255,0.94);
+    color: #09090d;
+    font-weight: 500;
+  }
+
+  .chat-bubble-received {
+    background: var(--surface-elevated);
+    border: 1px solid var(--surface-border);
+    color: var(--foreground);
+  }
+
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar       { width: 4px; height: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track  { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb  {
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    transition: background var(--duration-micro) var(--ease-out);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+  .custom-scrollbar-none { scrollbar-width: none; }
+  .custom-scrollbar-none::-webkit-scrollbar { display: none; }
+
+  /* Reply highlight animation */
+  @keyframes replyHighlight {
+    0% { background-color: rgba(99, 102, 241, 0.25); filter: brightness(1.15); box-shadow: 0 0 16px rgba(99, 102, 241, 0.3); }
+    100% { background-color: transparent; }
+  }
+  .reply-highlight-pulse .chat-bubble {
+    animation: replyHighlight 1.6s ease-out;
+  }
+
+  /* ─── Depth Layers ─── */
+  .depth-0 { z-index: 0;  background-color: var(--background); isolation: isolate; }
+  .depth-1 { z-index: 10; background-color: var(--surface);    isolation: isolate; }
+  .depth-2 { z-index: 20; background-color: var(--surface-elevated); box-shadow: var(--glow-subtle); isolation: isolate; }
+
+  .ease-spring {
+    transition-timing-function: var(--ease-spring);
+  }
+
+  /* ─── Touch Ripple ─── */
+  .touch-ripple-container {
+    position: relative;
+    overflow: hidden;
+  }
+  .touch-ripple-wave {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    background: rgba(255, 255, 255, 0.18);
+    pointer-events: none;
+    animation: ripple-expand 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+  }
+
+  /* PostCard hover depth — driven by CSS custom props (--mx, --my) set in onMouseMove.
+     No React setState. No re-render. Pure compositor-layer paint. */
+  .card-depth-hover {
+    --mx: 50%;
+    --my: 50%;
+    contain: layout style; /* Limit paint scope to this element */
+  }
+  .card-depth-hover:hover {
+    box-shadow: 0 20px 48px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    will-change: transform; /* Promote to compositor layer only on hover */
+  }
+
+  /* ─── Interactive Element Baseline ──────────────────────────────────────────
+     All tappable elements: consistent 80ms feedback, no jank.
+     Using transform-only transitions keeps these on the GPU compositor.
+  ─────────────────────────────────────────────────────────────────────────────── */
+  .interactive {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition:
+      opacity      var(--duration-micro) var(--ease-out),
+      background   var(--duration-micro) var(--ease-out),
+      border-color var(--duration-micro) var(--ease-out);
+  }
+  .interactive:active { transform: scale(0.97); }
+
+  /* Modal enter/exit — cinematic vertical lift */
+  .modal-enter {
+    animation: modalEnter var(--duration-primary) var(--ease-out) both;
+  }
+  .modal-exit {
+    animation: modalExit var(--duration-fast) var(--ease-in) both;
+  }
+
+  /* Chat sidebar conversation list enter */
+  .conv-slide-enter {
+    animation: convSlideEnter 180ms var(--ease-out) both;
+  }
+
+  /* Input focus ring — softer than browser default */
+  .input-focus:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+
+  /* Depth layers */
+  .depth-0 { z-index: 0;  background-color: var(--background); isolation: isolate; }
+  .depth-1 { z-index: 10; background-color: var(--surface);    isolation: isolate; }
+  .depth-2 { z-index: 20; background-color: var(--surface-elevated); box-shadow: var(--glow-subtle); isolation: isolate; }
+
+  .ease-spring { transition-timing-function: var(--ease-spring); }
+
+  /* Touch ripple */
+  .touch-ripple-container {
+    position: relative;
+    overflow: hidden;
+  }
+  .touch-ripple-wave {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    background: rgba(255, 255, 255, 0.14);
+    pointer-events: none;
+    animation: ripple-expand 450ms var(--ease-out) forwards;
+    will-change: transform, opacity;
+  }
+
+  /* Card hover depth */
+  .card-depth-hover {
+    --mx: 50%;
+    --my: 50%;
+    contain: layout style;
+  }
+  .card-depth-hover:hover {
+    box-shadow: 0 20px 48px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    will-change: transform;
+  }
+}
+
+/* ─── Refined Transitions ─────────────────────────────────────────── */
+.fade-in {
+  animation: fadeIn var(--duration-normal, 250ms) cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.lux-shadow {
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.lux-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+  backdrop-filter: blur(12px);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #1A1A1A 25%, #262626 50%, #1A1A1A 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* ─── Ambient Keyframes ────────────────────────────────────────────────────── */
+
+/* Subtle fade-up — used for element entry, NOT page transitions */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fadeUp var(--duration-primary) var(--ease-out) both;
+}
+
+/* Legacy compat */
+.fade-in {
+  animation: fadeUp var(--duration-primary, 220ms) var(--ease-out, cubic-bezier(0.16,1,0.3,1)) both;
+}
+
+/* Scale-in — for badges, unread counts, status orbs */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.scale-in {
+  animation: scaleIn var(--duration-fast) var(--ease-spring) both;
+}
+
+/* Slide-left — sidebar drawer enter */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slide-in-left {
+  animation: slideInLeft var(--duration-primary) var(--ease-out) both;
+}
+
+/* Ripple expansion */
+@keyframes ripple-expand {
+  to { transform: scale(4); opacity: 0; }
+}
+
+/* Modal — vertical lift from center */
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.96) translateY(12px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes modalExit {
+  from { opacity: 1; transform: scale(1)    translateY(0); }
+  to   { opacity: 0; transform: scale(0.96) translateY(8px); }
+}
+
+/* Sidebar conversation item enter */
+@keyframes convSlideEnter {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes conv-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes conv-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+
+.conv-enter { animation: conv-enter 190ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.conv-exit  { animation: conv-exit  100ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes dot-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+@keyframes check-draw {
+  from { stroke-dashoffset: 48; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* ─── Social System Utilities ─────────────────────────────────────── */
+.live-dot {
+  position: relative;
+  display: inline-block;
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  background: currentColor;
+  animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  opacity: 0.5;
+  z-index: -1;
+}
+
+@keyframes livePulse {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
+.community-card {
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s ease, border-color 0.2s ease;
+}
+.community-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.stagger-item { animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stagger-item:nth-child(1)  { animation-delay: 0.05s; }
+.stagger-item:nth-child(2)  { animation-delay: 0.10s; }
+.stagger-item:nth-child(3)  { animation-delay: 0.15s; }
+.stagger-item:nth-child(4)  { animation-delay: 0.20s; }
+.stagger-item:nth-child(5)  { animation-delay: 0.25s; }
+.stagger-item:nth-child(6)  { animation-delay: 0.30s; }
+.stagger-item:nth-child(7)  { animation-delay: 0.35s; }
+.stagger-item:nth-child(8)  { animation-delay: 0.40s; }
+.stagger-item:nth-child(9)  { animation-delay: 0.45s; }
+.stagger-item:nth-child(10) { animation-delay: 0.50s; }
+
+/* ANTI-WHITEOUT PATCH: Purging browser autofill artifacts */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: white !important;
+  -webkit-box-shadow: 0 0 0px 1000px #0c0c0c inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+  font-family: inherit !important;
+}
+
+@media (max-width: 768px) {
+  .message-bubble {
+    max-width: 88%;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .message-input {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  }
+}
+
+/* ─── Legacy app class (backward compat with messages page inner layout) ─── */
+.app {
+  display: flex;
+  flex-direction: row;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+/* ─── ADVANCED VISUAL APPEARANCE PREFERENCES IMPLEMENTATION ─── */
+
+/* Accent Color Mapping & Variable Resolution */
+:root {
+  --v-accent: #00D1FF; /* Default Cyan */
+  --v-cyan: var(--v-accent) !important;
+  --v-violet: var(--v-accent) !important;
+}
+
+/* AMOLED Extreme Contrast Mode */
+.amoled-mode, 
+.amoled-mode.dark, 
+.amoled-mode .dark,
+.amoled-mode body {
+  --background: 240 0% 0% !important;
+  --background-hex: #000000 !important;
+  --surface: #000000 !important;
+  --surface-hex: #000000 !important;
+  --surface-elevated: #08080C !important;
+  --surface-elevated-hex: #08080C !important;
+  --card: 240 0% 0% !important;
+  background-color: #000000 !important;
+}
+
+.amoled-mode .app-shell,
+.amoled-mode .page-scroll,
+.amoled-mode .content-container,
+.amoled-mode .scroll-area,
+.amoled-mode [class*="bg-background"],
+.amoled-mode [class*="bg-[#050508]"],
+.amoled-mode [class*="bg-neutral-950"],
+.amoled-mode [class*="bg-[#050507]"] {
+  background-color: #000000 !important;
+  background-image: none !important;
+}
+
+.amoled-mode .surface-card,
+.amoled-mode .glass-card,
+.amoled-mode [class*="SettingsCard"],
+.amoled-mode [class*="bg-[#0B0B0B]"],
+.amoled-mode [class*="bg-[#0D0D0D]"] {
+  background-color: #070707 !important;
+  background-image: none !important;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+}
+
+.amoled-mode [class*="border-white/5"] {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Compact UI Density & Geometry */
+.compact-mode {
+  --gap-xs: 0.35rem !important;
+  --gap-sm: 0.5rem !important;
+  --gap-md: 0.75rem !important;
+  --gap-lg: 1rem !important;
+  
+  --p-card: 0.875rem !important;
+  --p-chat: 0.75rem !important;
+  
+  --layout-py: 0.5rem !important;
+  --layout-px: 1rem !important;
+}
+
+.compact-mode .message-row {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+}
+
+.compact-mode .message-bubble {
+  padding: 6px 12px !important;
+  font-size: 13.5px !important;
+}
+
+.compact-mode [class*="SettingsSection"] {
+  margin-bottom: 1rem !important;
+}
+
+.compact-mode [class*="SettingsRow"],
+.compact-mode [class*="ToggleRow"] {
+  min-height: 52px !important;
+}
+
+.compact-mode [class*="SettingsRow"] > div {
+  padding: 8px 16px !important;
+  min-height: 52px !important;
+}
+
+.compact-mode [class*="SettingsInput"],
+.compact-mode [class*="SettingsSelect"],
+.compact-mode [class*="SettingsTextarea"] {
+  padding: 8px 16px !important;
+}
+
+/* High Contrast Boost Mode */
+.high-contrast {
+  --border: rgba(255, 255, 255, 0.22) !important;
+  --surface-border: rgba(255, 255, 255, 0.22) !important;
+  --muted-foreground: 240 5% 82% !important;
+  --text-secondary: rgba(255, 255, 255, 0.82) !important;
+  --text-tertiary: rgba(255, 255, 255, 0.65) !important;
+}
+
+.high-contrast * {
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+.high-contrast [class*="text-neutral-500"],
+.high-contrast [class*="text-slate-400"],
+.high-contrast [class*="text-on-surface-variant"] {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.high-contrast [class*="border-white/5"],
+.high-contrast [class*="border-white/10"] {
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Motion Reduction & No Animations Override */
+.reduce-motion,
+.no-animations {
+  --duration-micro: 0ms !important;
+  --duration-fast: 0ms !important;
+  --duration-primary: 0ms !important;
+  --duration-page: 0ms !important;
+  --duration-slow: 0ms !important;
+}
+
+.reduce-motion *,
+.no-animations * {
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-duration: 0s !important;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Hide global navigation headers/footers on mobile when actively in community chat */
+@media (max-width: 767px) {
+  html.community-chat-active header.sticky.top-0,
+  html.community-chat-active nav.fixed.bottom-0 {
+    display: none !important;
+  }
+}
+
+/* Elevate the message list item container when it has an open menu or reaction picker */
+.message-item-wrapper:has(.menu-open) {
+  z-index: 50 !important;
+}
+.message-item-wrapper:not([style*="position: absolute"]):has(.menu-open) {
+  position: relative;
+}
+
+/* ─── PROFILE PAGE ROOT FIX ──────────────────────────────────────────────────
+   Profile pages must NOT use min-h-screen — it breaks the overflow chain
+   established by .app-shell. Instead use this class.
+─────────────────────────────────────────────────────────────────────────────── */
+.profile-page-root {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* ─── SETTINGS SCROLL FIX ────────────────────────────────────────────────────
+   Makes the <main> element scrollable for settings pages.
+   Must use flex:1 + min-height:0, NOT height:100%, to work correctly
+   inside a flex column (content-container). height:100% resolves to the
+   parent's explicit height which collapses the flex child.
+─────────────────────────────────────────────────────────────────────────────── */
+.settings-scroll-fix {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* ─── INNER SCROLL UTILITY ───────────────────────────────────────────────────
+   Use on bounded containers (max-h-*) that need internal scroll.
+   Unlike .page-scroll, this does NOT carry flex:1 — it stays block-level.
+─────────────────────────────────────────────────────────────────────────────── */
+.inner-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── CIRCULAR ACTION BUTTON SYSTEM ──────────────────────────────────────────
+   Consistent circular button design for floating actions across the app.
+─────────────────────────────────────────────────────────────────────────────── */
+.btn-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;   /* 44px — minimum touch target */
+  height: 2.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition:
+    background-color var(--duration-micro) var(--ease-out),
+    transform var(--duration-micro) var(--ease-spring),
+    box-shadow var(--duration-micro) var(--ease-out);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.btn-circle:active {
+  transform: scale(0.94);
+}
+
+/* ─── RESPONSIVE BREAKPOINT ADDITIONS ────────────────────────────────────────
+   Supplement the existing breakpoint system with explicit landscape variants
+   and better tablet handling.
+─────────────────────────────────────────────────────────────────────────────── */
+
+/* Tablet landscape: keep icon sidebar, prevent right panel from showing */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
+  .app-shell,
+  .app-shell.has-right-panel {
+    grid-template-columns: var(--sidebar-w-collapsed) 1fr 0px;
+  }
+  .profile-page-root .banner-area {
+    height: clamp(7rem, 20vw, 14rem);
+  }
+}
+
+/* Mobile landscape: even narrower banner, full-width layout */
+@media (max-width: 767px) and (orientation: landscape) {
+  .profile-page-root .banner-area {
+    height: clamp(5rem, 18vw, 10rem);
+  }
+  /* Prevent horizontal scroll on any child */
+  .profile-page-root * {
+    max-width: 100%;
+  }
+}
+
+/* page-scroll: overflow-x already defined in the primary rule above — no duplicate needed */
+
+/* Safe-area bottom padding for mobile bottom nav clearance */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 1rem);
+  }
+}
+
+/* Ultra-narrow screens & foldables (< 360px) */
+@media (max-width: 360px) {
+  :root {
+    --layout-px: 0.75rem !important;
+    --text-base: 0.8125rem !important;
+  }
+  .content-container,
+  .profile-page-root {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+  /* Stack buttons on very small viewports */
+  .flex-row-mobile-stack {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 0.5rem !important;
+  }
+  .flex-row-mobile-stack > button,
+  .flex-row-mobile-stack > a {
+    width: 100% !important;
+  }
+}
+
+/* ─── ZERO-LAG PRODUCTION PERFORMANCE OVERRIDES ──────────────────────────────────
+   Hardware acceleration, rendering, and compositing optimizations for all devices.
+───────────────────────────────────────────────────────────────────────────────── */
+
+/* Will-change layer optimization hints for fast repaints and GPU promotion */
+.will-change-transform {
+  will-change: transform;
+}
+.will-change-opacity {
+  will-change: opacity;
+}
+
+/* Optimize backdrop blurs on mobile devices to prevent GPU composite frame drops */
+@media (max-width: 768px) {
+  .backdrop-blur-3xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-xl,
+  .backdrop-blur-lg,
+  .backdrop-blur-md,
+  .backdrop-blur {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    background-color: rgba(9, 9, 11, 0.92) !important;
+  }
+
+  .glass-card {
+    backdrop-filter: blur(12px) saturate(140%) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+    background: rgba(13, 13, 17, 0.9) !important;
+  }
+  
+  /* Optimize scroll containers */
+  .page-scroll,
+  .inner-scroll {
+    scroll-behavior: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* On low-end mobile, remove backdrop-blur entirely from conversation items
+     since there are many of them in the list */
+  .conversation-item-blur {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* ── Performance: GPU compositing hints ──────────────────────────────────────
+   Promote scroll containers and animated elements to their own compositor layers.
+   This prevents layout thrashing during list scrolling and animations.
+   Only apply will-change where we KNOW animation happens — not globally.
+*/
+
+.message-container {
+  /* Own compositor layer for the message scroll container */
+  contain: layout style;
+  -webkit-overflow-scrolling: touch;
+}
+
+.message-item-wrapper {
+  /* Isolate each message for cheaper paint */
+  contain: layout style;
+}
+
+/* Chat sidebar list — contain layout to prevent reflow propagation */
+aside[class*="flex-col"] {
+  contain: layout style;
+}
+
+/* Hardware-accelerate the framer-motion elements that slide */
+[data-framer-component-type],
+[style*="transform"] {
+  /* Hint to browser: this element will change transform */
+  will-change: transform;
+  /* Use GPU layer */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Prevent layout thrashing from the online pulse dot animation */
+.online-pulse {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* Optimize images in lists */
+img[loading="lazy"],
+img.avatar {
+  /* Avoid decoding on main thread */
+  decoding: async;
+  content-visibility: auto;
+}

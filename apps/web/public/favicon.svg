@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <!-- Deep obsidian space background -->
+    <radialGradient id="spaceBg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1B1736" />
+      <stop offset="60%" stop-color="#090812" />
+      <stop offset="100%" stop-color="#020205" />
+    </radialGradient>
+  </defs>
+
+  <!-- 1. Background Container -->
+  <circle cx="50" cy="50" r="47" fill="url(#spaceBg)" stroke="rgba(123, 79, 233, 0.35)" stroke-width="1.5" />
+
+  <!-- 2. OG White V Logo -->
+  <path d="M12,15 H38 L50,60 L62,15 H88 L58,85 H42 Z" fill="#FFFFFF" />
+</svg>

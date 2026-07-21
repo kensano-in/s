@@ -1,0 +1,27 @@
+.vercel
+.env*.local
+.env*.bak
+.env.vercel.prod
+*.bak
+
+# Local test/debug scripts
+test-*.js
+test-*.ts
+test-*.mjs
+test_*.js
+test_*.ts
+test_*.mjs
+scratch_*.js
+scratch_*.ts
+scratch_view_*.txt
+diag_*.js
+search_brain_*.js
+search_transcripts_*.js
+create_atomic_*.js
+tsc_errors.txt
+untyped_buttons.txt
+
+.env*.local
+
+.vercel
+.env*

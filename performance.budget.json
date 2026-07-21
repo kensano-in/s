@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Verlyn Performance Budget",
+  "description": "Enforced performance budgets and thresholds for Verlyn CI/CD pipeline",
+  "budgets": {
+    "initialLoad": {
+      "timeToInteractiveMs": 2000,
+      "maxInitialJsKb": 250,
+      "maxInitialCssKb": 50
+    },
+    "navigation": {
+      "maxPerceivedLatencyMs": 300,
+      "routeSkeletonBoundaryRequired": true
+    },
+    "interaction": {
+      "maxResponseDelayMs": 100,
+      "targetFps": 60,
+      "maxLongTaskMs": 50
+    },
+    "memory": {
+      "maxHeapGrowthPercentage": 10,
+      "zeroDetachedDomNodes": true,
+      "zeroListenerLeaks": true
+    },
+    "database": {
+      "maxQueryExecutionMs": 100,
+      "disallowSelectStarInProduction": true,
+      "requireIndexOnFilteredColumns": true
+    },
+    "realtime": {
+      "maxChannelCountPerUser": 3,
+      "maxDeliveryLatencyMs": 100,
+      "zeroDuplicateSubscriptions": true
+    }
+  }
+}

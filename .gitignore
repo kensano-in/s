@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Environment variables (NEVER commit real secrets)
+.env
+.env*
+.env.local
+.env.vercel.pull
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs and error traces
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+err*.txt
+push_error.txt
+*_log.txt
+tsc_errors.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor and Tool Caches
+.vscode/settings.json
+.idea/
+.codesight/
+*.swp
+*.swo
+
+# TypeScript cache
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+.vercel

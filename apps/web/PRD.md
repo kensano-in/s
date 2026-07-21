@@ -1,0 +1,3 @@
+- Task: Monitor Vercel Deployment status and resolve build failures.
+- Task: Implement Zod validation for `sendMessageDB` and `getMessagesDB`.
+- Task: Sync `getGroupSettingsDB` with frontend theme selector for real-time updates.

@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "reserved": [
+    "admin", "administrator", "support", "help", "staff", "owner", "root", "system", "security",
+    "official", "verified", "verification", "appeal", "billing", "payments", "trust", "safety",
+    "team", "moderator", "mod", "developer", "dev", "api", "status", "mail", "email", "contact",
+    "service", "news", "alerts", "console", "dashboard", "systemadmin", "administrator1", "administrator2",
+    "user", "users"
+  ],
+  "government": [
+    "government", "gov", "india", "indiaofficial", "pmo", "president", "primeminister", "cm", "collector",
+    "minister", "police", "army", "airforce", "navy", "defence", "parliament", "passport", "uidai", "aadhaar",
+    "income_tax", "cbi", "nasa", "fbi", "cia", "whitehouse", "eu", "un", "who", "interpol"
+  ],
+  "companies": [
+    "google", "youtube", "apple", "microsoft", "amazon", "discord", "instagram", "facebook", "meta", "threads",
+    "x", "twitter", "openai", "chatgpt", "spotify", "netflix", "tesla", "uber", "stripe", "paypal", "visa",
+    "mastercard", "github", "reddit", "snapchat", "whatsapp", "telegram", "tiktok", "linkedin", "vercel",
+    "supabase", "cloudflare", "oracle", "intel", "nvidia", "amd", "samsung", "sony", "playstation", "xbox",
+    "epicgames", "steam", "riot", "mozilla", "opera", "sbi", "sbibank", "hdfc", "icici", "rbi"
+  ],
+  "internal": [
+    "verlyn", "verlynteam", "verlynofficial", "verlynsupport", "verlynsecurity", "verlynstaff", "verlynnews",
+    "verlynstatus", "verlynbot", "systembot", "assistant", "notification", "official", "shincore"
+  ],
+  "profanities": [
+    "chutiya", "gand", "laund", "maderchod", "behenchod", "randi", "harami", "saala", "kamine", "nigger",
+    "fuck", "shit", "bitch", "asshole", "cunt", "bastard", "dick", "pussy", "terrorist", "isis", "alqaeda",
+    "taliban", "hitler", "nazi", "cocaine", "heroin", "meth", "fentanyl", "suicide", "kill", "porn"
+  ],
+  "regional": {
+    "in": ["sbi", "sbibank", "pmo", "modi", "aadhaar", "uidai", "rbi", "police"],
+    "us": ["fbi", "cia", "nasa", "irs", "whitehouse"],
+    "eu": ["eu", "europol"]
+  }
+}
